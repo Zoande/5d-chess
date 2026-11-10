@@ -4,7 +4,7 @@ export default {
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       return new Response('Method not allowed', {status: 405, headers: {Allow: 'GET, HEAD'}})
     }
-    if (url.pathname === '/chess') return Response.redirect(new URL('/chess/' + url.search, url), 308)
+    if (url.pathname === '/' || url.pathname === '/chess') return Response.redirect(new URL('/chess/' + url.search, url), 308)
     if (!url.pathname.startsWith('/chess/')) return new Response('Not found', {status: 404})
     const name = url.pathname.slice('/chess/'.length) || 'index.html'
     if (!Object.hasOwn(assets, name)) return new Response('Not found', {status: 404})
