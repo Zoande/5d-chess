@@ -1,0 +1,7 @@
+{
+  "accountId": "9ec6599b77f2cacba44a31c1f7e4794d",
+  "zoneId": "53bc3912932175ab4abf9fa302ffbfa2",
+  "script": "four-player-multiverse-chess-316123",
+  "compatibilityDate": "2026-11-10",
+  "routes": ["https://316123.nl/chess/*", "https://316123.nl/chess"]
+}

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b1117">
+  <meta name="description" content="Four factions. One shared board. Infinite futures. A local simultaneous chess game across space, time, and branching universes.">
+  <title>Four-Player Multiverse Chess</title>
+  <link rel="icon" href="/chess/emblem.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/chess/styles.css">
+  <script type="module" src="/chess/game.js"></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="identity">
+      <img src="/chess/emblem.svg" width="42" height="42" alt="">
+      <div><p class="eyebrow">FOUR-PLAYER</p><h1>Multiverse Chess</h1></div>
+    </div>
+    <div class="factions" id="factions" aria-label="Factions"></div>
+    <div class="header-actions">
+      <button id="help" class="button subtle">How to play</button>
+      <button id="menu" class="button square" aria-label="Game menu" title="Game menu">⋯</button>
+    </div>
+  </header>
+  <main class="workspace">
+    <section class="theater" aria-labelledby="scene-title">
+      <div class="scene-heading">
+        <div class="scene-name"><span class="orb"></span><h2 id="scene-title">Multiverse</h2></div>
+        <div class="metrics" id="metrics"></div>
+      </div>
+      <div class="viewport" id="viewport">
+        <canvas id="scene" tabindex="0" aria-label="Multiverse boards. Use the arrow keys to move the square cursor, Enter to select, and plus or minus to zoom."></canvas>
+        <div class="map-caption" id="map-caption"></div>
+        <div class="camera" role="group" aria-label="Camera controls">
+          <button data-camera="minus" aria-label="Zoom out" title="Zoom out">−</button>
+          <span id="scale">100%</span>
+          <button data-camera="plus" aria-label="Zoom in" title="Zoom in">+</button>
+          <i></i>
+          <button data-camera="fit" aria-label="Fit multiverse" title="Fit multiverse (F)">
+            <svg viewBox="0 0 24 24"><path d="M8 4H4v4m12-4h4v4m0 8v4h-4m-8 0H4v-4"/></svg>
+          </button>
+          <button data-camera="focus" aria-label="Focus selection" title="Focus selection or inspected board (Z)">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><path d="M12 2v5m0 10v5M2 12h5m10 0h5"/></svg>
+          </button>
+          <button data-camera="player" aria-label="Focus player" title="Focus current player">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5 20v-2a7 7 0 0 1 14 0v2M3 3h3M3 3v3m18-3h-3m3 0v3"/></svg>
+          </button>
+          <button data-camera="reset" aria-label="Reset view" title="Reset view (0)">
+            <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 1 2 5m-2-5V6m0 6h6"/></svg>
+          </button>
+        </div>
+        <div class="scene-hint">DRAG TO PAN <b>·</b> SCROLL OR PINCH TO ZOOM</div>
+      </div>
+      <div class="legend" aria-label="Map legend">
+        <span><i class="lg normal"></i> Legal move</span>
+        <span><i class="lg capture"></i> Capture</span>
+        <span><i class="lg branch"></i> Branch</span>
+        <span><i class="lg rift"></i> Temporal Rift</span>
+        <span class="legend-optional"><i class="lg optional"></i> Optional frontier</span>
+      </div>
+    </section>
+    <aside class="sidebar" aria-label="Round controls">
+      <section class="panel round-panel">
+        <div class="panel-kicker"><span>ROUND <b id="round-number">01</b></span><span id="phase" class="phase">PLANNING</span></div>
+        <div id="turn"></div>
+        <div id="planning"></div>
+        <div id="activity" aria-live="polite"></div>
+      </section>
+      <section class="panel history-panel">
+        <div class="panel-kicker"><span>ROUND HISTORY</span><span class="live-label" id="live-label">● LIVE</span></div>
+        <div class="history-controls">
+          <button class="button square" id="previous" aria-label="Previous round">‹</button>
+          <span id="history-label">Opening position</span>
+          <button class="button square" id="next" aria-label="Next round">›</button>
+        </div>
+        <div class="history-actions">
+          <button class="text-button" id="replay">▶ Play round</button>
+          <button class="text-button" id="live">Return to live</button>
+        </div>
+      </section>
+      <div class="save-status" id="save-status" role="status"></div>
+    </aside>
+  </main>
+  <dialog id="dialog"><div id="dialog-inner"></div></dialog>
+  <input id="import-file" type="file" accept=".json,application/json" hidden>
+</body>
+</html>
