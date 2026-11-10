@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Online game · Multiverse Chess</title>
+  <link rel="icon" href="/chess/emblem.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/chess/styles.css"><link rel="stylesheet" href="/chess/portal.css">
+  <script type="module" src="/chess/online.js"></script>
+</head><body>
+  <header class="masthead"><a class="identity" href="/chess/lobby.html"><img src="/chess/emblem.svg" width="42" height="42" alt=""><div><p class="eyebrow">ONLINE MATCH</p><h1 id="game-title">Multiverse Chess</h1></div></a>
+    <div class="header-actions"><div class="top-history"><button class="button square" id="previous" aria-label="Previous round">‹</button><span id="history-label">Opening position</span><button class="button square" id="next" aria-label="Next round">›</button><button id="live" class="text-button">Return to live</button></div><a class="button subtle" href="/chess/lobby.html">Lobby</a></div>
+  </header>
+  <main class="workspace"><section class="theater"><div class="scene-heading"><div class="scene-name"><span class="orb"></span><h2>Multiverse</h2></div><div class="metrics" id="metrics"></div></div>
+    <div class="viewport" id="viewport"><canvas id="scene" tabindex="0" aria-label="Multiverse boards. Drag, use WASD or arrow keys to pan; Alt plus arrows moves the square cursor."></canvas><div class="map-caption" id="map-caption"></div>
+      <div class="camera" role="group" aria-label="Camera controls"><button data-camera="minus" aria-label="Zoom out" title="Zoom out">−</button><span id="scale">100%</span><button data-camera="plus" aria-label="Zoom in" title="Zoom in">+</button><i></i><button data-camera="fit" aria-label="Fit multiverse" title="Fit multiverse">□</button><button data-camera="focus" aria-label="Focus selection" title="Focus selection">◎</button><button data-camera="player" aria-label="Focus player" title="Focus player">♙</button></div>
+      <div class="overlays" role="group" aria-label="Map overlays"><button data-overlay="axes" aria-label="Time axis" title="Time axis" aria-pressed="true">⌗</button><button data-overlay="links" aria-label="Timeline links" title="Timeline links" aria-pressed="true">◇</button><button data-overlay="rifts" aria-label="Temporal Rifts" title="Temporal Rifts" aria-pressed="true">⌁</button><button data-overlay="labels" aria-label="Board labels" title="Board labels" aria-pressed="true">▣</button><button data-overlay="paths" aria-label="Move paths" title="Move paths" aria-pressed="true">↝</button></div>
+    </div></section>
+    <aside class="sidebar" id="sidebar"><section class="panel round-panel"><div class="drag-handle" id="panel-handle">⠿ &nbsp; Move controls</div><div class="panel-kicker"><span>GAME <b id="game-code">----</b></span><span id="phase" class="phase">LOADING</span></div><div id="turn"></div><div id="seats" class="online-seats"></div><div id="planning"></div><div id="activity" role="status"></div></section></aside>
+  </main>
+</body></html>

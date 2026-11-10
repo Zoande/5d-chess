@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Log in · Multiverse Chess</title>
+  <link rel="icon" href="/chess/emblem.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/chess/styles.css"><link rel="stylesheet" href="/chess/portal.css">
+  <script type="module" src="/chess/portal.js"></script>
+</head><body data-page="login">
+  <header class="masthead"><a class="identity" href="/chess/"><img src="/chess/emblem.svg" width="42" height="42" alt=""><div><p class="eyebrow">FOUR-PLAYER</p><h1>Multiverse Chess</h1></div></a><a class="button subtle" href="/chess/">Return to local play</a></header>
+  <main class="portal"><section class="portal-card auth-card">
+    <p class="eyebrow">ONLINE MULTIVERSE</p><h2 id="auth-title">Log in</h2>
+    <p class="portal-intro">Use a username and password to keep your online games together.</p>
+    <form id="auth-form">
+      <label>Username<input id="username" name="username" autocomplete="username" required maxlength="32"></label>
+      <label>Password<input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256"></label>
+      <label id="confirm-row" hidden>Re-enter password<input id="confirm" name="confirm" type="password" autocomplete="new-password" maxlength="256"></label>
+      <p id="auth-error" class="form-error" role="alert" hidden></p>
+      <button id="auth-submit" class="button primary block" type="submit">Log in</button>
+    </form>
+    <div id="missing-account" hidden><p>Account not found.</p><button id="make-account" class="button">Make account</button> <button id="return-login" class="text-button">Return</button></div>
+    <button id="switch-mode" class="text-button" type="button">Create an account</button>
+  </section></main>
+</body></html>

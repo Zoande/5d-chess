@@ -14,6 +14,13 @@ const file = element<HTMLInputElement>('import-file')
 const factionNames: Record<Player, string> = {red: 'Red', blue: 'Blue', yellow: 'Yellow', green: 'Green'}
 const seats: Record<Player, string> = {red: 'South', blue: 'West', yellow: 'North', green: 'East'}
 const motion = matchMedia('(prefers-reduced-motion: reduce)')
+fetch('/api/me').then(r => r.ok ? r.json() : null).then(data => {
+  if (!data?.user) return
+  const link = element<HTMLAnchorElement>('account-link')
+  link.textContent = 'Lobby'
+  link.href = '/chess/lobby.html'
+  if (!new URLSearchParams(location.search).has('local')) location.replace('/chess/lobby.html')
+}).catch(() => {})
 let session = newSession()
 let saveError = false
 let restoreNotice = ''
