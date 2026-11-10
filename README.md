@@ -1,8 +1,8 @@
 # Four-Player Multiverse Chess
 
-The `multiplayer` branch also contains a Node.js server for online accounts and four-player games. See [Multiplayer setup](docs/multiplayer.md). The existing local game remains available without an account.
+The `main` branch contains a Node.js server for online accounts and four-player games. See [Multiplayer setup](docs/multiplayer.md). The existing local game remains available without an account.
 
-[Play at 316123.nl/chess/](https://316123.nl/chess/)
+[Play at chess.316123.nl](https://chess.316123.nl/)
 
 Four human factions share a cross-shaped board and plan private orders on one device. Once everyone locks in, all orders resolve together. Pieces can move through time, fork historical positions, and use Temporal Rifts. Capture any copy of a faction’s king to eliminate that faction.
 
@@ -41,7 +41,7 @@ Set `CHROMIUM_EXECUTABLE` to use an existing Chromium for the browser tests. The
 
 **Existing static host.** Copy the generated `dist/chess/` folder into the existing website’s deployment output and publish that output as usual. Keep the existing host’s directory index handling enabled for `/chess/`.
 
-**Automatic deploys from `main`.** The Cloudflare Worker is configured by [wrangler.jsonc](wrangler.jsonc), including both routes under `/chess/`. `npm run deploy` builds the site and publishes the Worker with Wrangler. Cloudflare Workers Builds is connected to this repository's `main` branch. Each push to `main` builds the app and deploys it to the existing Worker. Its deploy command uses the pinned Wrangler version in `package-lock.json`.
+**Automatic deploys from `main`.** The Cloudflare Worker is configured by [wrangler.jsonc](wrangler.jsonc), including the chess hostname root redirect and routes under `/chess/`. `npm run deploy` builds the site and publishes the Worker with Wrangler. Cloudflare Workers Builds is connected to this repository's `main` branch. Each push to `main` builds the app and deploys it to the existing Worker. Its deploy command uses the pinned Wrangler version in `package-lock.json`.
 
 To update the Worker manually from a development machine, authenticate Wrangler with a Cloudflare account that has Workers Scripts Edit on the account and Workers Routes Edit on the zone, then run:
 
@@ -50,7 +50,7 @@ npm ci
 npm run deploy
 ```
 
-`https://316123.nl/chess/*` serves the game and its assets. The exact `https://316123.nl/chess` route redirects the bare path. Cloudflare's exact route applies to the bare URL without a query. Use `/chess/` in links. To remove the deployment from the domain, remove these two scoped routes in the Cloudflare dashboard.
+`https://chess.316123.nl/` redirects to `/chess/`. Cloudflare serves all game pages and assets under that path. Requests to `/api/*` bypass the static Worker and use the dedicated API-only Cloudflare Tunnel to the Raspberry Pi. The Pi runs one authentication and game server under PM2; it is bound to loopback and is not the public page host. See [Multiplayer setup](docs/multiplayer.md) for the process and persistence details. The former `316123.nl/chess` routes have been removed.
 
 [Cloudflare Worker route documentation](https://developers.cloudflare.com/workers/configuration/routing/routes/) · [Cloudflare Worker upload API](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/methods/update/)
 
