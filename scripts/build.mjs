@@ -7,6 +7,8 @@ await cp('public', 'dist/chess', {recursive: true})
 await cp('index.html', 'dist/chess/index.html')
 await build({entryPoints: ['src/main.ts'], bundle: true, minify: true, format: 'esm',
   target: ['es2022'], outfile: 'dist/chess/game.js', legalComments: 'none'})
+await build({entryPoints: ['server/index.ts'], bundle: true, platform: 'node', format: 'esm',
+  target: ['node24'], outfile: 'dist/server.mjs', legalComments: 'none'})
 
 // Bundle the same public files as a module for path-scoped Cloudflare Worker deployment.
 const types = {'index.html': 'text/html; charset=utf-8', 'game.js': 'text/javascript; charset=utf-8',
