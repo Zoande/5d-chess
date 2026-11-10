@@ -12,11 +12,12 @@
     "dev": "npm run build && node scripts/serve.mjs",
     "preview": "node scripts/serve.mjs",
     "test:browser": "npm run build && node --test tests/browser.spec.mjs",
-    "deploy": "npm run build && node scripts/deploy.mjs"
+    "deploy": "npm run build && wrangler deploy"
   },
   "devDependencies": {
     "esbuild": "0.27.3",
     "playwright": "^1.58.2",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "wrangler": "4.160.0"
   }
 }

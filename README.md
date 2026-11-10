@@ -39,14 +39,16 @@ Set `CHROMIUM_EXECUTABLE` to use an existing Chromium for the browser tests. The
 
 **Existing static host.** Copy the generated `dist/chess/` folder into the existing website’s deployment output and publish that output as usual. Keep the existing host’s directory index handling enabled for `/chess/`.
 
-**Cloudflare path-scoped Worker.** The account and zone are in [cloudflare-deploy.json](cloudflare-deploy.json). Use a Cloudflare API token with Workers Scripts Edit on the account and Workers Routes Edit on the zone. Supply it as `CLOUDFLARE_API_TOKEN` in the environment, then run:
+**Automatic deploys from `main`.** The Cloudflare Worker is configured by [wrangler.jsonc](wrangler.jsonc), including both routes under `/chess/`. `npm run deploy` builds the site and publishes the Worker with Wrangler. Cloudflare Workers Builds is connected to this repository's `main` branch. Each push that changes the app builds it and deploys it to the existing Worker. Its deploy command uses the pinned Wrangler version in `package-lock.json`.
+
+To update the Worker manually from a development machine, authenticate Wrangler with a Cloudflare account that has Workers Scripts Edit on the account and Workers Routes Edit on the zone, then run:
 
 ```sh
 npm ci
 npm run deploy
 ```
 
-The script deploys only the dedicated chess Worker. It checks for conflicting chess routes before upload, disables the Worker’s public preview endpoints, and creates the two scoped routes if missing. `https://316123.nl/chess/*` serves the game and its assets. The exact `https://316123.nl/chess` route redirects the bare path. Cloudflare’s exact route applies to the bare URL without a query. Use `/chess/` in links. To remove the deployment from the domain, remove these two scoped routes in the Cloudflare dashboard.
+`https://316123.nl/chess/*` serves the game and its assets. The exact `https://316123.nl/chess` route redirects the bare path. Cloudflare's exact route applies to the bare URL without a query. Use `/chess/` in links. To remove the deployment from the domain, remove these two scoped routes in the Cloudflare dashboard.
 
 [Cloudflare Worker route documentation](https://developers.cloudflare.com/workers/configuration/routing/routes/) · [Cloudflare Worker upload API](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/methods/update/)
 
