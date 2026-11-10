@@ -406,8 +406,8 @@ button('replay').onclick = () => {
 }
 element('viewport').querySelectorAll<HTMLButtonElement>('[data-camera]').forEach(b => b.onclick = () => {
   switch (b.dataset.camera) {
-    case 'minus': scene.zoom(.8); break
-    case 'plus': scene.zoom(1.25); break
+    case 'minus': scene.zoom(1 / 1.3, undefined, true); break
+    case 'plus': scene.zoom(1.3, undefined, true); break
     case 'fit': scene.fit(); break
     case 'focus': scene.focus(selected ?? inspected); break
     case 'player': scene.focusPlayer(planner(session)); break
@@ -415,13 +415,12 @@ element('viewport').querySelectorAll<HTMLButtonElement>('[data-camera]').forEach
   }
 })
 for (const id of ['export', 'import', 'new']) button(id).onclick = () => handleDialogAction(id)
-button('overlay-toggle').onclick = () => {
-  const options = element('overlay-options')
-  options.hidden = !options.hidden
-  button('overlay-toggle').setAttribute('aria-expanded', String(!options.hidden))
-}
-element('overlay-options').querySelectorAll<HTMLInputElement>('[data-overlay]').forEach(input => {
-  input.onchange = () => scene.setOverlay(input.dataset.overlay!, input.checked)
+element('viewport').querySelectorAll<HTMLButtonElement>('[data-overlay]').forEach(control => {
+  control.onclick = () => {
+    const enabled = control.getAttribute('aria-pressed') !== 'true'
+    control.setAttribute('aria-pressed', String(enabled))
+    scene.setOverlay(control.dataset.overlay!, enabled)
+  }
 })
 const panel = element('sidebar')
 const handle = element('panel-handle')

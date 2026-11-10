@@ -73,6 +73,9 @@ export class Scene {
   private hover?: Coord
   private animatedDepartures = new Set<string>()
   private overlays: Record<string, boolean> = {axes: true, links: true, rifts: true, labels: true, paths: true}
+  private panKeys = new Set<string>()
+  private panVelocity: Point = {x: 0, y: 0}
+  private lastFrame = 0
 
   setOverlay(name: string, enabled: boolean) { this.overlays[name] = enabled; this.request() }
 
@@ -85,7 +88,7 @@ export class Scene {
     new ResizeObserver(() => this.resize()).observe(canvas)
     canvas.addEventListener('wheel', e => {
       e.preventDefault()
-      this.zoom(Math.exp(-e.deltaY * (e.deltaMode === 1 ? .035 : .0015)), this.point(e))
+      this.zoom(Math.exp(-e.deltaY * (e.deltaMode === 1 ? .042 : .0018)), this.point(e))
     }, {passive: false})
     canvas.addEventListener('pointerdown', e => this.down(e))
     canvas.addEventListener('pointermove', e => this.move(e))
@@ -93,7 +96,8 @@ export class Scene {
     canvas.addEventListener('pointercancel', e => this.up(e, true))
     canvas.addEventListener('pointerleave', () => { if (!this.pointers.size) this.updateHover() })
     canvas.addEventListener('keydown', e => this.key(e))
-    canvas.addEventListener('blur', () => {this.keyboard = undefined; this.request()})
+    canvas.addEventListener('keyup', e => { this.panKeys.delete(e.key.toLowerCase()); this.request() })
+    canvas.addEventListener('blur', () => {this.keyboard = undefined; this.panKeys.clear(); this.request()})
   }
 
   update(view: Display) {
@@ -253,13 +257,13 @@ export class Scene {
     this.request()
   }
 
-  zoom(factor: number, anchor = {x: this.width / 2, y: this.height / 2}) {
+  zoom(factor: number, anchor = {x: this.width / 2, y: this.height / 2}, smooth = false) {
     this.motion = undefined
     const w = this.world(anchor)
-    this.camera.scale = clamp(this.camera.scale * factor, MIN_SCALE, MAX_SCALE)
-    this.camera.x = w.x - (anchor.x - this.width / 2) / this.camera.scale
-    this.camera.y = w.y - (anchor.y - this.height / 2) / this.camera.scale
-    this.request()
+    const scale = clamp(this.camera.scale * factor, MIN_SCALE, MAX_SCALE)
+    const end = {scale, x: w.x - (anchor.x - this.width / 2) / scale,
+      y: w.y - (anchor.y - this.height / 2) / scale}
+    this.center(end, smooth)
   }
 
   private center(end: Camera, smooth = true) {
@@ -300,23 +304,28 @@ export class Scene {
 
   private key(e: KeyboardEvent) {
     const key = e.key.toLowerCase()
+    const panKey = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)
+    if (panKey && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      this.motion = undefined
+      if (!this.panKeys.has(key)) {
+        this.panVelocity.x += (key === 'd' || key === 'arrowright' ? 1 : key === 'a' || key === 'arrowleft' ? -1 : 0) * 120
+        this.panVelocity.y += (key === 's' || key === 'arrowdown' ? 1 : key === 'w' || key === 'arrowup' ? -1 : 0) * 120
+      }
+      this.panKeys.add(key)
+      this.request()
+      e.preventDefault()
+      return
+    }
     if (key === 'f') this.fit()
     else if (key === 'z') this.focus()
     else if (key === '0') this.focusPlayer()
-    else if (key === '+' || key === '=') this.zoom(1.25)
-    else if (key === '-') this.zoom(.8)
+    else if (key === '+' || key === '=') this.zoom(1.3, undefined, true)
+    else if (key === '-') this.zoom(1 / 1.3, undefined, true)
     else if (key === 'escape') this.callbacks.pick()
-    else if (key === 'w') this.pan(0, 90)
-    else if (key === 's') this.pan(0, -90)
-    else if (key === 'a') this.pan(90, 0)
-    else if (key === 'd') this.pan(-90, 0)
     else if (key === 'enter' || key === ' ') {
       const at = this.keyboard ?? this.inspected
       if (at) this.pick(at)
-    } else if (key.startsWith('arrow') && !e.shiftKey && !e.altKey) {
-      this.pan(key === 'arrowleft' ? 90 : key === 'arrowright' ? -90 : 0,
-        key === 'arrowup' ? 90 : key === 'arrowdown' ? -90 : 0)
-    } else if (key.startsWith('arrow')) {
+    } else if (key.startsWith('arrow') && (e.shiftKey || e.altKey)) {
       const s = this.view.state
       const u = s.universes.find(u => isMain(u, present(s)))!
       const anchor = this.view.selected ?? this.inspected
@@ -356,6 +365,8 @@ export class Scene {
 
   private render(now: number) {
     this.frame = 0
+    const dt = Math.min(0.05, this.lastFrame ? (now - this.lastFrame) / 1000 : 0)
+    this.lastFrame = now
     if (this.motion) {
       const {start, end, time} = this.motion
       const p = ease(clamp((now - time) / 290, 0, 1))
@@ -364,6 +375,19 @@ export class Scene {
       if (p === 1) this.motion = undefined
       else this.request()
     }
+    const direction = {
+      x: Number(this.panKeys.has('d') || this.panKeys.has('arrowright')) - Number(this.panKeys.has('a') || this.panKeys.has('arrowleft')),
+      y: Number(this.panKeys.has('s') || this.panKeys.has('arrowdown')) - Number(this.panKeys.has('w') || this.panKeys.has('arrowup'))
+    }
+    const length = Math.hypot(direction.x, direction.y) || 1
+    const response = 1 - Math.exp(-dt * (this.panKeys.size ? 14 : 10))
+    this.panVelocity.x += (direction.x / length * 540 - this.panVelocity.x) * response
+    this.panVelocity.y += (direction.y / length * 540 - this.panVelocity.y) * response
+    if (Math.hypot(this.panVelocity.x, this.panVelocity.y) > 0.5) {
+      this.camera.x += this.panVelocity.x * dt / this.camera.scale
+      this.camera.y += this.panVelocity.y * dt / this.camera.scale
+      this.request()
+    } else this.panVelocity = {x: 0, y: 0}
     this.callbacks.scale(this.camera.scale)
     const ctx = this.ctx
     ctx.setTransform(1, 0, 0, 1, 0, 0)
