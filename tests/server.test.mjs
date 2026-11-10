@@ -54,13 +54,19 @@ test('accounts, rooms and four private plans survive a server restart', async t 
   assert.equal((await call('/api/games', undefined, users[1], 'GET')).value.available.length, 0)
   assert.equal((await call(`/api/games/${code}/join`, {password:'wrong'}, users[1])).status, 403)
   for (const cookie of users.slice(1)) assert.equal((await call(`/api/games/${code}/join`, {password:'door'}, cookie)).status, 200)
-  for (const cookie of users.slice(0, 3)) {
-    const result = await call(`/api/games/${code}/orders`, {orders:[]}, cookie)
+  const redMove = {player:'red',from:{x:4,y:13,u:0,t:0},to:{x:5,y:11,u:0,t:0},route:[0]}
+  const invalid = await call(`/api/games/${code}/orders`, {orders:[{...redMove,player:'blue'}]}, users[0])
+  assert.equal(invalid.status,400)
+  for (const [index,cookie] of users.slice(0, 3).entries()) {
+    const result = await call(`/api/games/${code}/orders`, {orders:index === 0 ? [redMove] : []}, cookie)
     assert.equal(result.value.state.round, 1)
   }
   const resolved = await call(`/api/games/${code}/orders`, {orders:[]}, users[3])
   assert.equal(resolved.value.state.round, 2)
   assert.equal(resolved.value.journal.length, 1)
+  assert.equal(resolved.value.state.universes[0].boards.at(-1).cells[11 * 14 + 5]?.player, 'red')
+  for (let i = 1; i < 50; i++) assert.equal((await call('/api/games', {title:`Room ${i}`}, users[0])).status,201)
+  assert.equal((await call('/api/games', {title:'Too many'}, users[0])).status,409)
   await stop()
   await start()
   const restored = await call(`/api/games/${code}`, undefined, users[0], 'GET')

@@ -24,3 +24,10 @@
 .game-row small { display: block; color: var(--muted); margin-top: 4px; }
 .game-row .button { flex: 0 0 auto; }
 @media (max-width: 650px) { .lobby-actions { grid-template-columns: repeat(2, 1fr); } .lobby-actions .button { min-height: 68px; } }
+.online-seats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin: 13px 0; }
+.online-seats span { padding: 6px 8px; border: 1px solid #293a45; border-radius: 5px; font-size: 11px; color: var(--muted); }
+.online-seats .locked { border-color: #548975; color: var(--green); }
+.online-seats .self { color: var(--text); font-weight: 700; }
+.online-code { margin: 12px 0; color: var(--green); font: 700 24px var(--mono); letter-spacing: .16em; }
+.online-message { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 12px 0; }
+.overlays button { font-size: 19px; }
