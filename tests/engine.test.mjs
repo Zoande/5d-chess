@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   PLAYERS, FORWARD, SQUARES, activation, frontier, getBoard, home, index, initialState, inside,
-  moveBudget, offset, pieceAt, present, survivors
+  insideState, moveBudget, offset, pieceAt, playerCount, players, present, squares, survivors
 } from '../src/model.ts'
 import {legalMoves, shortestRoutes} from '../src/moves.ts'
 import {resolveRound, sourceBudget} from '../src/resolve.ts'
@@ -39,6 +39,36 @@ test('cross geometry and the 64-piece rotated opening', () => {
     assert.deepEqual(Array.from({length: 8}, (_, f) => kind(home(p, f))), ['R','N','B','Q','K','B','N','R'])
     for (let f = 0; f < 8; f++) assert.equal(kind(offset(home(p, f), FORWARD[p])), 'P')
   }
+})
+
+test('two and three player openings use their board geometry and active seats', () => {
+  for (const [count, squaresExpected, piecesExpected, active] of [
+    [2, 64, 32, ['red','yellow']], [3, 136, 48, ['red','blue','yellow']]
+  ]) {
+    const s = initialState(count)
+    assert.equal(playerCount(s), count)
+    assert.deepEqual(players(s), active)
+    assert.deepEqual(survivors(s), active)
+    assert.equal(squares(s).length, squaresExpected)
+    assert.equal(frontier(s.universes[0]).cells.filter(Boolean).length, piecesExpected)
+    assert.equal(insideState(s, {x:13,y:7}), false)
+    assert.equal(insideState(s, {x:6,y:6}), true)
+    const result = resolveRound(s, [])
+    assert.equal(playerCount(result.state), count)
+    assert.equal(result.state.round, 2)
+    assert.deepEqual(survivors(result.state), active)
+  }
+  const duel = initialState(2)
+  assert.equal(insideState(duel, {x:0,y:7}), false)
+  assert.equal(pieceAt(duel, c(7,10))?.kind, 'K')
+  assert.equal(pieceAt(duel, c(7,3))?.kind, 'K')
+  assert.equal(legalMoves(duel, c(4,9), c(4,7)).length > 0, true)
+  assert.equal(legalMoves(duel, c(4,9), c(4,11)).length, 0)
+  const saved = decode(encode(newSession(2)))
+  assert.equal(playerCount(liveState(saved)), 2)
+  const legacy = JSON.parse(encode(newSession()))
+  delete legacy.playerCount
+  assert.equal(playerCount(liveState(decode(JSON.stringify(legacy)))), 4)
 })
 
 test('spatial piece patterns and frozen blockers', () => {

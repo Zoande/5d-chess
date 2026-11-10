@@ -1,6 +1,6 @@
 import {
   type Board, type Candidate, type Coord, type Order, type Piece, type State, type Square,
-  FORWARD, SQUARES, coordKey, frontier, getBoard, getUniverse, home, inside, offset, pieceAt, sameBoard
+  FORWARD, coordKey, frontier, getBoard, getUniverse, homeFor, insideState, offset, pieceAt, sameBoard, squares
 } from './model.ts'
 
 interface Route { nodes: number[]; rift: boolean }
@@ -66,7 +66,7 @@ function pawn(
   if (!t && !u && !sideways && forward >= 1 && forward <= max && !target) {
     if (forward === 2) {
       const middle = {...from, ...offset(from, f)}
-      if (!inside(middle) || pieceAt(s, middle)) return
+      if (!insideState(s, middle) || pieceAt(s, middle)) return
       path.push(middle)
     }
   } else if (!t && !x && !y && down && u >= 1 && u <= max && !target) {
@@ -97,17 +97,17 @@ function pawn(
 }
 
 function castle(s: State, from: Coord, to: Coord, piece: Piece, route: Route): Candidate | undefined {
-  const start = home(piece.player, 4)
+  const start = homeFor(s, piece.player, 4)
   if (piece.moved || start.x !== from.x || start.y !== from.y || !sameBoard(from, to)) return
   for (const side of [-1, 1]) {
-    const end = home(piece.player, 4 + side * 2)
+    const end = homeFor(s, piece.player, 4 + side * 2)
     if (end.x !== to.x || end.y !== to.y) continue
     const rookFile = side < 0 ? 0 : 7
-    const rookFrom = {...from, ...home(piece.player, rookFile)}
+    const rookFrom = {...from, ...homeFor(s, piece.player, rookFile)}
     const rook = pieceAt(s, rookFrom)
     if (rook?.kind !== 'R' || rook.player !== piece.player || rook.moved) continue
     const between = []
-    for (let f = 4 + side; f !== rookFile; f += side) between.push({...from, ...home(piece.player, f)})
+    for (let f = 4 + side; f !== rookFile; f += side) between.push({...from, ...homeFor(s, piece.player, f)})
     if (between.some(c => pieceAt(s, c))) continue
     return {...candidate(s, from, to, piece, route, [from, between[0], to])!,
       castle: {from: rookFrom, to: between[0], piece: rook}}
@@ -138,7 +138,7 @@ function testRoute(s: State, from: Coord, to: Coord, piece: Piece, route: Route,
   for (let i = 1; i < axes[0]; i++) {
     const c = {x: from.x + Math.sign(dx) * i, y: from.y + Math.sign(dy) * i,
       t: from.t + Math.sign(dt) * i, u: du ? route.nodes[i] : from.u}
-    if (!inside(c) || !getBoard(s, c) || pieceAt(s, c)) return
+    if (!insideState(s, c) || !getBoard(s, c) || pieceAt(s, c)) return
     path.push(c)
   }
   return candidate(s, from, to, piece, route, [...path, to])
@@ -150,7 +150,7 @@ export const orderKey = (o: Order) => `${o.player}:${coordKey(o.from)}>${coordKe
 export function legalMoves(s: State, from: Coord, target?: Coord): Candidate[] {
   const u = getUniverse(s, from.u)
   const p = pieceAt(s, from)
-  if (!u || !p || frontier(u).t !== from.t || (target && !inside(target))) return []
+  if (!u || !p || frontier(u).t !== from.t || (target && !insideState(s, target))) return []
   const out: Candidate[] = []
   const routes = shortestRoutes(s, from.u, riftPieces.has(p.kind))
   for (const [id, paths] of routes) {
@@ -159,7 +159,7 @@ export function legalMoves(s: State, from: Coord, target?: Coord): Candidate[] {
     const boards = target ? [getBoard(s, target)] : universe.boards
     for (const board of boards) {
       if (!board) continue
-      for (const square of target ? [target as Square] : SQUARES) {
+      for (const square of target ? [target as Square] : squares(s)) {
         const to = {x: square.x, y: square.y, u: id, t: board.t}
         if (coordKey(from) === coordKey(to)) continue
         for (const path of paths) {

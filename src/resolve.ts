@@ -1,8 +1,8 @@
 import {
   type Board, type Candidate, type Capture, type Coord, type EnPassant, type Order, type Outcome,
   type Piece, type Player, type Resolution, type State, type Universe,
-  PLAYERS, activation, boardKey, coordKey, frontier, getBoard, getUniverse, index, isMain,
-  moveBudget, pieceAt, present, promotes, sameBoard, survivors
+  activation, boardKey, coordKey, frontier, getBoard, getUniverse, index, isMain,
+  moveBudget, pieceAt, playerCount, players, present, promotes, sameBoard, survivors
 } from './model.ts'
 import {legalMoves, orderKey, routeKey} from './moves.ts'
 
@@ -34,7 +34,7 @@ function validate(s: State, orders: readonly Order[]) {
 
   const t = present(s)
   const limits = moveBudget(s)
-  for (const player of PLAYERS) {
+  for (const player of players(s)) {
     const own = geometric.filter(o => o.player === player)
     const counts = new Map<string, number>()
     for (const o of own) counts.set(boardKey(o.from), (counts.get(boardKey(o.from)) ?? 0) + 1)
@@ -167,7 +167,7 @@ export function resolveRound(s: State, orders: readonly Order[]): Resolution {
   for (const {draft, at} of epClears) draft.cells[index(at)] = null
   for (const {draft, leg} of arrivals) {
     const {from, to, piece} = leg
-    const kind = piece.kind === 'P' && promotes(piece.player, to) ? 'Q' : piece.kind
+    const kind = piece.kind === 'P' && promotes(piece.player, to, s) ? 'Q' : piece.kind
     draft.cells[index(to)] = {...piece, moved: true, kind}
     if (kind === 'P' && sameBoard(from, to) && Math.abs(from.x - to.x) + Math.abs(from.y - to.y) === 2 &&
       (from.x === to.x || from.y === to.y)) {
@@ -175,8 +175,8 @@ export function resolveRound(s: State, orders: readonly Order[]): Resolution {
     }
   }
 
-  const eliminated = PLAYERS.filter(p => dead.has(p))
-  const allDead = PLAYERS.filter(p => dead.has(p) || s.eliminated.includes(p))
+  const eliminated = players(s).filter(p => dead.has(p))
+  const allDead = players(s).filter(p => dead.has(p) || s.eliminated.includes(p))
   for (const draft of [...drafts.values(), ...branches.map(u => u.boards[0] as Draft)]) {
     for (let i = 0; i < draft.cells.length; i++) {
       const p = draft.cells[i]
@@ -188,6 +188,6 @@ export function resolveRound(s: State, orders: readonly Order[]): Resolution {
     const board = drafts.get(u.id)
     return board ? {...u, boards: [...u.boards, board]} : u
   })
-  return {state: {round, universes: activation([...advanced, ...branches], allDead), rifts, eliminated: allDead},
+  return {state: {playerCount: playerCount(s), round, universes: activation([...advanced, ...branches], allDead, playerCount(s)), rifts, eliminated: allDead},
     outcomes, rejected, eliminated}
 }
