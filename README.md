@@ -39,7 +39,7 @@ Set `CHROMIUM_EXECUTABLE` to use an existing Chromium for the browser tests. The
 
 **Existing static host.** Copy the generated `dist/chess/` folder into the existing website’s deployment output and publish that output as usual. Keep the existing host’s directory index handling enabled for `/chess/`.
 
-**Automatic deploys from `main`.** The Cloudflare Worker is configured by [wrangler.jsonc](wrangler.jsonc), including both routes under `/chess/`. `npm run deploy` builds the site and publishes the Worker with Wrangler. Cloudflare Workers Builds is connected to this repository's `main` branch. Each push that changes the app builds it and deploys it to the existing Worker. Its deploy command uses the pinned Wrangler version in `package-lock.json`.
+**Automatic deploys from `main`.** The Cloudflare Worker is configured by [wrangler.jsonc](wrangler.jsonc), including both routes under `/chess/`. `npm run deploy` builds the site and publishes the Worker with Wrangler. Cloudflare Workers Builds is connected to this repository's `main` branch. Each push to `main` builds the app and deploys it to the existing Worker. Its deploy command uses the pinned Wrangler version in `package-lock.json`.
 
 To update the Worker manually from a development machine, authenticate Wrangler with a Cloudflare account that has Workers Scripts Edit on the account and Workers Routes Edit on the zone, then run:
 
