@@ -1,7 +1,7 @@
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http'
 import {randomBytes, scryptSync, timingSafeEqual, createHash} from 'node:crypto'
 import {readFile, writeFile, mkdir, rename} from 'node:fs/promises'
-import {join, resolve, extname} from 'node:path'
+import {resolve, extname} from 'node:path'
 import {initialState, survivors, type Order, type Player, type State, type Resolution, PLAYERS} from '../src/model.ts'
 import {legalMoves, routeKey} from '../src/moves.ts'
 import {resolveRound, sourceBudget} from '../src/resolve.ts'
@@ -19,6 +19,7 @@ const host = process.env.HOST || '127.0.0.1'
 const cookieName = 'multiverse_session'
 const maxGames = 50
 const maxBody = 32_768
+const failedLogins = new Map<string, {count: number; until: number}>()
 let db: Database = {users: [], logins: {}, rooms: []}
 let queue: Promise<unknown> = Promise.resolve()
 
@@ -36,11 +37,29 @@ function mutate<T>(work: () => Promise<T> | T): Promise<T> {
   queue = run.catch(() => {})
   return run
 }
+type Reply = {status: number; value: unknown; headers?: Record<string, string>}
+async function mutation(res: ServerResponse, work: () => Reply) {
+  const reply = await mutate(work)
+  json(res, reply.status, reply.value, reply.headers)
+}
 function fail(status: number, message: string): never { throw Object.assign(new Error(message), {status}) }
 function hash(secret: string, salt: string) { return scryptSync(secret, salt, 64).toString('hex') }
 function verify(secret: string, salt: string, expected: string) {
   const a = Buffer.from(hash(secret, salt), 'hex'), b = Buffer.from(expected, 'hex')
   return a.length === b.length && timingSafeEqual(a, b)
+}
+function loginLimit(req: IncomingMessage, name: string) {
+  if (failedLogins.size > 10_000) {
+    for (const [candidate, record] of failedLogins) if (record.until <= Date.now()) failedLogins.delete(candidate)
+  }
+  const key = `${req.socket.remoteAddress}:${name.toLowerCase()}`
+  const current = failedLogins.get(key)
+  if (current && current.until > Date.now() && current.count >= 10) fail(429, 'Too many login attempts. Try again later')
+  return {key, current}
+}
+function loginFailed(key: string, current?: {count: number; until: number}) {
+  const count = current && current.until > Date.now() ? current.count + 1 : 1
+  failedLogins.set(key, {count, until: Date.now() + 15 * 60_000})
 }
 function tokenHash(token: string) { return createHash('sha256').update(token).digest('hex') }
 function user(req: IncomingMessage) {
@@ -110,30 +129,32 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
     const name = string(data.username, 'username', 32)
     const password = string(data.password, 'password', 256)
     if (password !== data.confirm) fail(400, 'Passwords do not match')
-    return mutate(() => {
+    return mutation(res, () => {
       if (db.users.some(u => u.name.toLowerCase() === name.toLowerCase())) fail(409, 'Username already taken')
       const salt = randomBytes(16).toString('hex'), token = randomBytes(32).toString('hex')
       db.users.push({name, salt, hash: hash(password, salt)})
       db.logins[tokenHash(token)] = {user: name, expires: Date.now() + 30 * 86400_000}
-      json(res, 201, {user: name}, {'set-cookie': sessionCookie(req, token)})
+      return {status: 201, value: {user: name}, headers: {'set-cookie': sessionCookie(req, token)}}
     })
   }
   if (path === '/api/login' && method === 'POST') {
     const data = await body(req)
     const name = string(data.username, 'username', 32), password = string(data.password, 'password', 256)
-    return mutate(() => {
+    const limit = loginLimit(req, name)
+    return mutation(res, () => {
       const account = db.users.find(u => u.name.toLowerCase() === name.toLowerCase())
-      if (!account) fail(404, 'Account not found')
-      if (!verify(password, account.salt, account.hash)) fail(401, 'Incorrect password')
+      if (!account) { loginFailed(limit.key, limit.current); fail(404, 'Account not found') }
+      if (!verify(password, account.salt, account.hash)) { loginFailed(limit.key, limit.current); fail(401, 'Incorrect password') }
+      failedLogins.delete(limit.key)
       const token = randomBytes(32).toString('hex')
       db.logins[tokenHash(token)] = {user: account.name, expires: Date.now() + 30 * 86400_000}
-      json(res, 200, {user: account.name}, {'set-cookie': sessionCookie(req, token)})
+      return {status: 200, value: {user: account.name}, headers: {'set-cookie': sessionCookie(req, token)}}
     })
   }
-  if (path === '/api/logout' && method === 'POST') return mutate(() => {
+  if (path === '/api/logout' && method === 'POST') return mutation(res, () => {
     const token = req.headers.cookie?.split(';').map(part => part.trim()).find(part => part.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1)
     if (token) delete db.logins[tokenHash(token)]
-    json(res, 200, {ok: true}, {'set-cookie': `${cookieName}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`})
+    return {status: 200, value: {ok: true}, headers: {'set-cookie': `${cookieName}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`}}
   })
   const me = requireUser(req)
   if (path === '/api/games' && method === 'GET') return json(res, 200, {
@@ -143,7 +164,7 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
     const data = await body(req)
     const title = string(data.title || `${me}'s game`, 'game name', 60)
     const password = data.password === '' || data.password == null ? undefined : string(data.password, 'password', 256)
-    return mutate(() => {
+    return mutation(res, () => {
       if (db.rooms.filter(r => survivors(r.state).length > 1).length >= maxGames) fail(409, '50 active games already exist')
       let code = ''
       do { code = Array.from(randomBytes(4), b => String.fromCharCode(65 + b % 26)).join('') }
@@ -152,7 +173,7 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
       const room: Room = {code, title, owner: me, password: password && salt ? hash(password, salt) : undefined,
         salt, seats: {red: me}, state: initialState(), journal: [], results: [], locked: {}, created: Date.now()}
       db.rooms.push(room)
-      json(res, 201, roomView(room, me))
+      return {status: 201, value: roomView(room, me)}
     })
   }
   const match = /^\/api\/games\/([A-Z]{4})(?:\/(join|orders))?$/.exec(path)
@@ -160,19 +181,19 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
   const room = db.rooms.find(r => r.code === match[1]) ?? fail(404, 'Game not found')
   if (match[2] === 'join' && method === 'POST') {
     const data = await body(req)
-    return mutate(() => {
-      if (Object.values(room.seats).includes(me)) return json(res, 200, roomView(room, me))
+    return mutation(res, () => {
+      if (Object.values(room.seats).includes(me)) return {status: 200, value: roomView(room, me)}
       if (Object.keys(room.seats).length >= 4) fail(409, 'Game is full')
       if (room.password && (!room.salt || typeof data.password !== 'string' || !verify(data.password, room.salt, room.password))) fail(403, 'Incorrect game password')
       const seat = PLAYERS.find(p => !room.seats[p])!
       room.seats[seat] = me
-      return json(res, 200, roomView(room, me))
+      return {status: 200, value: roomView(room, me)}
     })
   }
   if (!Object.values(room.seats).includes(me)) fail(403, 'Join this game first')
   if (match[2] === 'orders' && method === 'POST') {
     const data = await body(req)
-    return mutate(() => {
+    return mutation(res, () => {
       if (Object.keys(room.seats).length < 4) fail(409, 'Waiting for four players')
       const seat = PLAYERS.find(p => room.seats[p] === me)!
       if (!survivors(room.state).includes(seat)) fail(409, 'Your faction is eliminated')
@@ -187,7 +208,7 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
         room.results.push(result)
         room.locked = {}
       }
-      return json(res, 200, roomView(room, me))
+      return {status: 200, value: roomView(room, me)}
     })
   }
   if (!match[2] && method === 'GET') return json(res, 200, roomView(room, me))
@@ -209,7 +230,9 @@ async function staticFile(req: IncomingMessage, res: ServerResponse, path: strin
   if (!absolute.startsWith(staticRoot + '/') && absolute !== staticRoot) fail(404, 'Not found')
   try {
     const data = await readFile(absolute)
-    res.writeHead(200, {'content-type': types[extname(name)] || 'application/octet-stream', 'cache-control': 'no-store'})
+    res.writeHead(200, {'content-type': types[extname(name)] || 'application/octet-stream',
+      'cache-control': 'no-store', 'x-content-type-options': 'nosniff',
+      'content-security-policy': "default-src 'self'; connect-src 'self'; img-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"})
     res.end(req.method === 'HEAD' ? undefined : data)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') fail(404, 'Not found')

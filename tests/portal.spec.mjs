@@ -55,13 +55,29 @@ test('account and lobby flow uses the multiplayer server', async t => {
     guests.push(guest)
   }
   await page.getByRole('button',{name:'Lock in a pass'}).waitFor({timeout:8000})
-  await page.getByRole('button',{name:'Lock in a pass'}).click()
+  await page.getByRole('button',{name:'Focus player'}).click()
+  await page.waitForTimeout(350)
+  const canvas = page.locator('#scene')
+  const box = await canvas.boundingBox()
+  const scale = Number((await page.locator('#scale').textContent()).replace('%','')) / 100
+  const clickSquare = async (x, y) => canvas.click({position:{x:box.width/2+(x+.5-7)*32*scale,
+    y:box.height/2+((y+.5-7)*32-2)*scale}})
+  await clickSquare(4,13)
+  await clickSquare(5,11)
+  await page.getByText('U0·T0 e1 → U0·T0 f3').waitFor()
+  await page.getByRole('button',{name:'Lock orders'}).click()
   for (const guest of guests) {
     await guest.getByRole('button',{name:'Lock in a pass'}).click()
   }
   await page.getByText('1 rounds resolved').waitFor({timeout:8000})
   const after = await page.request.get(base + `/api/games/${code}`)
   assert.equal((await after.json()).state.round,2)
+  assert.equal((await after.json()).state.universes[0].boards.at(-1).cells[11 * 14 + 5]?.player,'red')
+  await page.getByRole('button',{name:'Previous round'}).click()
+  await page.getByText('Opening position').waitFor()
+  await page.getByRole('button',{name:'Next round'}).click()
+  await page.getByText('After round 1').waitFor()
+  await page.getByRole('button',{name:'Return to live'}).click()
   await page.goto(base + '/chess/lobby.html')
   await page.getByRole('button',{name:'Continue game'}).click()
   await page.getByText('Alice’s room').waitFor()

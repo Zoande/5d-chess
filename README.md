@@ -1,5 +1,7 @@
 # Four-Player Multiverse Chess
 
+The `multiplayer` branch also contains a Node.js server for online accounts and four-player games. See [Multiplayer setup](docs/multiplayer.md). The existing local game remains available without an account.
+
 [Play at 316123.nl/chess/](https://316123.nl/chess/)
 
 Four human factions share a cross-shaped board and plan private orders on one device. Once everyone locks in, all orders resolve together. Pieces can move through time, fork historical positions, and use Temporal Rifts. Capture any copy of a faction’s king to eliminate that faction.

@@ -1,5 +1,5 @@
 import {Scene} from './scene.ts'
-import {COLORS, NAMES, pieceIcon} from './art.ts'
+import {NAMES} from './art.ts'
 import {type Candidate, type Coord, type Order, type Player, type Resolution, type State,
   PLAYERS, coordKey, coordName, getUniverse, initialState, isMain, moveBudget, pieceAt, present, survivors} from './model.ts'
 import {legalMoves, routeKey} from './moves.ts'
@@ -173,7 +173,7 @@ async function submit() {
   } catch (cause) { message(cause instanceof Error ? cause.message : 'Could not lock orders', true) }
 }
 element<HTMLButtonElement>('previous').onclick = () => { if (!room?.results.length) return; frame = Math.max(0, (frame ?? room.results.length) - 1); clear(); render() }
-element<HTMLButtonElement>('next').onclick = () => { if (frame === null || !room) return; frame = frame >= room.results.length - 1 ? null : frame + 1; clear(); render() }
+element<HTMLButtonElement>('next').onclick = () => { if (frame === null || !room) return; frame = frame >= room.results.length ? null : frame + 1; clear(); render() }
 element<HTMLButtonElement>('live').onclick = () => { frame = null; clear(); render() }
 element('viewport').querySelectorAll<HTMLButtonElement>('[data-camera]').forEach(button => button.onclick = () => {
   switch (button.dataset.camera) {
