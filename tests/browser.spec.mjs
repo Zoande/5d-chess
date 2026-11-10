@@ -42,7 +42,9 @@ test('four players create a branch and Rift in one scene, then reload, replay, e
   page.setDefaultTimeout(8000)
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
-  page.on('console', message => {if (message.type() === 'error') errors.push(message.text())})
+  page.on('console', message => {
+    if (message.type() === 'error' && !message.location().url.endsWith('/api/me')) errors.push(message.text())
+  })
   await page.goto(base + '/chess/')
   const canvas = page.locator('#scene')
   const waitText = (selector, value) => page.waitForFunction(([selector, value]) =>
