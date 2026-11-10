@@ -123,7 +123,7 @@ function update() {
   button('next').disabled = !!animation || frame === null
   button('replay').disabled = !!animation || !(frame ?? last)
   button('live').disabled = !!animation || frame === null
-  button('menu').disabled = !!animation
+  for (const id of ['export', 'import', 'new']) button(id).disabled = !!animation
   const status = restoreNotice || (saveError ? 'Autosave unavailable. Export a save to keep this game.' :
     'Autosave enabled · Stored on this device')
   element('save-status').textContent = status
@@ -307,6 +307,9 @@ dialog.addEventListener('click', e => {
   if (target === dialog && dialog.dataset.locked !== 'yes') dialog.close()
   const action = target.closest<HTMLElement>('[data-dialog]')?.dataset.dialog
   if (!action) return
+  handleDialogAction(action)
+})
+function handleDialogAction(action: string) {
   if (action === 'ready') {
     privacy = false
     update()
@@ -331,7 +334,7 @@ dialog.addEventListener('click', e => {
   }
   if (action === 'reset') setSession(newSession(), false)
   dialog.close()
-})
+}
 file.addEventListener('change', async () => {
   const chosen = file.files?.[0]
   file.value = ''
@@ -411,12 +414,29 @@ element('viewport').querySelectorAll<HTMLButtonElement>('[data-camera]').forEach
     case 'reset': scene.focusPlayer(); break
   }
 })
-button('menu').onclick = () => modal(`<p class="eyebrow">LOCAL MATCH</p><h2>Game menu</h2>
-  <p>Save files include round history and any private orders already entered.</p>
-  <div class="dialog-menu"><button class="button" data-dialog="export">Export JSON <span>↓</span></button>
-    <button class="button" data-dialog="import">Import JSON <span>↑</span></button>
-    <button class="button" data-dialog="new">New match <span>＋</span></button></div>
-  <button class="text-button" data-dialog="close">Close</button>`)
+for (const id of ['export', 'import', 'new']) button(id).onclick = () => handleDialogAction(id)
+button('overlay-toggle').onclick = () => {
+  const options = element('overlay-options')
+  options.hidden = !options.hidden
+  button('overlay-toggle').setAttribute('aria-expanded', String(!options.hidden))
+}
+element('overlay-options').querySelectorAll<HTMLInputElement>('[data-overlay]').forEach(input => {
+  input.onchange = () => scene.setOverlay(input.dataset.overlay!, input.checked)
+})
+const panel = element('sidebar')
+const handle = element('panel-handle')
+handle.addEventListener('pointerdown', e => {
+  const rect = panel.getBoundingClientRect()
+  const dx = e.clientX - rect.left, dy = e.clientY - rect.top
+  handle.setPointerCapture(e.pointerId)
+  const move = (event: PointerEvent) => {
+    panel.style.left = `${Math.max(0, Math.min(window.innerWidth - rect.width, event.clientX - dx))}px`
+    panel.style.top = `${Math.max(0, Math.min(window.innerHeight - 55, event.clientY - dy))}px`
+    panel.style.right = 'auto'
+  }
+  handle.addEventListener('pointermove', move)
+  handle.addEventListener('pointerup', () => handle.removeEventListener('pointermove', move), {once: true})
+})
 button('help').onclick = () => modal(`<p class="eyebrow">FIELD GUIDE</p><h2>How to play</h2>
   <div class="guide">
     <p><b>Plan in private.</b> Select one of your pieces, choose a highlighted square, and lock your orders. Pass the device to the next faction.</p>
@@ -424,7 +444,7 @@ button('help').onclick = () => modal(`<p class="eyebrow">FIELD GUIDE</p><h2>How 
     <p><b>Follow the tree.</b> Parent–child edges count as one universe step. Queens, bishops, and knights may use one purple Rift per move. Pawns push toward the center or down to child universes. They capture diagonally in space or along one child edge plus one time step.</p>
     <p><b>Rewrite the past.</b> A blue arrival forks a historical board. Its original future remains intact. Active frontiers at the Present advance each round, even if everyone passes. A future or inactive frontier can supply one optional order.</p>
     <p><b>Capture a king.</b> An enemy that moves away successfully escapes. Orders that claim the same resulting square fail together. Capturing any king eliminates its faction. The final surviving faction wins.</p>
-    <p><b>Navigate.</b> Drag or use WASD to pan. Scroll, pinch, or use +/− to zoom. Arrow keys move a square cursor and Shift + arrows moves between board nodes. Enter selects.</p>
+    <p><b>Navigate.</b> Drag, WASD, or arrow keys to pan. Scroll, pinch, or use +/− to zoom. Alt + arrows moves a square cursor, Shift + arrows moves between board nodes, and Enter selects.</p>
   </div><button class="button primary block" data-dialog="close">Back to the board</button>`)
 
 update()

@@ -72,6 +72,9 @@ export class Scene {
   private targetBoards = new Map<string, string>()
   private hover?: Coord
   private animatedDepartures = new Set<string>()
+  private overlays: Record<string, boolean> = {axes: true, links: true, rifts: true, labels: true, paths: true}
+
+  setOverlay(name: string, enabled: boolean) { this.overlays[name] = enabled; this.request() }
 
   constructor(private canvas: HTMLCanvasElement, state: State,
     private callbacks: {pick(c?: Coord): void; hover(c?: Coord): void; scale(scale: number): void;
@@ -310,6 +313,9 @@ export class Scene {
     else if (key === 'enter' || key === ' ') {
       const at = this.keyboard ?? this.inspected
       if (at) this.pick(at)
+    } else if (key.startsWith('arrow') && !e.shiftKey && !e.altKey) {
+      this.pan(key === 'arrowleft' ? 90 : key === 'arrowright' ? -90 : 0,
+        key === 'arrowup' ? 90 : key === 'arrowdown' ? -90 : 0)
     } else if (key.startsWith('arrow')) {
       const s = this.view.state
       const u = s.universes.find(u => isMain(u, present(s)))!
@@ -368,18 +374,18 @@ export class Scene {
     const current = present(s)
     const selectedPreview = this.view.preview
     const low = this.world({x: 0, y: 0}), high = this.world({x: this.width, y: this.height})
-    this.drawAxes(current, low, high)
-    this.drawConnections(s, selectedPreview)
+    if (this.overlays.axes) this.drawAxes(current, low, high)
+    if (this.overlays.links || this.overlays.rifts) this.drawConnections(s, selectedPreview)
     for (const node of this.layout.nodes.values()) {
       const pad = node.size / 2 + 65
       if (node.x + pad < low.x || node.x - pad > high.x || node.y + pad < low.y || node.y - pad > high.y) continue
       this.drawBoard(node, current)
     }
-    for (const order of this.view.queued) {
+    for (const order of this.overlays.paths ? this.view.queued : []) {
       const move = order as Candidate
       if (move.path) this.drawPath(move, COLORS[move.player], .54, true)
     }
-    if (selectedPreview) this.drawPath(selectedPreview, pathColors.gold, .93, false)
+    if (selectedPreview && this.overlays.paths) this.drawPath(selectedPreview, pathColors.gold, .93, false)
     if (this.view.animation) {
       const {outcomes, started, duration} = this.view.animation
       const p = clamp((now - started) / duration, 0, 1)
@@ -419,12 +425,14 @@ export class Scene {
   private drawConnections(s: State, preview?: Candidate) {
     const ctx = this.ctx
     for (const u of s.universes) {
+      if (!this.overlays.links) break
       const first = this.layout.nodes.get(boardKey({u: u.id, t: u.boards[0].t}))!
       const end = this.layout.nodes.get(boardKey({u: u.id, t: frontier(u).t}))!
       const selectedEdge = (a: number, b: number) => preview?.route.some((id, i, path) =>
         i > 0 && ((id === a && path[i - 1] === b) || (id === b && path[i - 1] === a)))
       ctx.lineWidth = 2.2
       ctx.strokeStyle = u.active ? '#68a88b75' : '#66838e47'
+      ctx.setLineDash(u.active ? [] : [8, 8])
       ctx.beginPath(); ctx.moveTo(first.x, first.y); ctx.lineTo(end.x, end.y); ctx.stroke()
       if (u.parent !== null) {
         const parent = this.layout.nodes.get(boardKey({u: u.parent, t: u.divergence}))!
@@ -436,7 +444,9 @@ export class Scene {
         ctx.bezierCurveTo(parent.x + TIME * .62, parent.y, first.x - TIME * .60, first.y, first.x - first.size / 2, first.y)
         ctx.stroke()
       }
+      ctx.setLineDash([])
     }
+    if (!this.overlays.rifts) return
     for (const r of s.rifts) {
       const arc = this.riftArc(r.a, r.b)
       if (!arc) continue
@@ -490,8 +500,11 @@ export class Scene {
       ctx.shadowBlur = accent ? 11 : 14
     }
     ctx.beginPath(); ctx.roundRect(-8, -8, size + 16, size + 16, 7); ctx.fill(); ctx.stroke()
+    if (!u.active) {
+      ctx.setLineDash([9, 7]); ctx.strokeStyle = '#b5c5d8'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.setLineDash([])
+    }
     ctx.shadowBlur = 0
-    if (scale > .15) {
+    {
       for (const square of SQUARES) {
         const {x, y} = square
         const sx = x * tile, sy = y * tile
@@ -526,18 +539,10 @@ export class Scene {
         if (piece && !this.animatedDepartures.has(key)) {
           const ghost = front && this.view.state.eliminated.includes(piece.player)
           if (ghost) ctx.globalAlpha *= .27
-          if (tile * scale > 12) drawPiece(ctx, piece.kind, piece.player, sx + tile / 2, sy + tile / 2 + .4, tile * .98)
-          else {
-            ctx.fillStyle = COLORS[piece.player]
-            ctx.fillRect(sx + tile * .28, sy + tile * .28, tile * .44, tile * .44)
-          }
+          drawPiece(ctx, piece.kind, piece.player, sx + tile / 2, sy + tile / 2 + .4, tile * .98)
           if (ghost) ctx.globalAlpha /= .27
         }
       }
-    } else {
-      ctx.fillStyle = '#426969'
-      ctx.fillRect(3 * tile, 0, 8 * tile, size)
-      ctx.fillRect(0, 3 * tile, size, 8 * tile)
     }
     if (scale > .38) {
       // Coordinates sit just outside the playable area.
@@ -559,7 +564,7 @@ export class Scene {
         ctx.lineTo(x + (dir ? 0 : 18), y + (dir ? 18 : 0)); ctx.stroke()
       }
     }
-    if (scale > .20) {
+    if (scale > .20 && this.overlays.labels) {
       ctx.globalAlpha = 1
       ctx.textAlign = 'center'
       ctx.font = '650 12px ui-monospace, monospace'

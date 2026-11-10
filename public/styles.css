@@ -162,3 +162,25 @@ dialog p:not(.eyebrow) { color: #b9cad1; font-size: 13px; line-height: 1.55; mar
   .button.subtle { padding-inline: 7px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* The map is the workspace; controls float over it. */
+.masthead { position: relative; z-index: 5; height: auto; min-height: 72px; flex-wrap: wrap; padding: 8px 16px; }
+.header-actions { flex-wrap: wrap; justify-content: flex-end; }
+.top-history { display: flex; align-items: center; gap: 5px; padding-right: 10px; border-right: 1px solid var(--border); }
+.top-history #history-label { min-width: 100px; max-width: 150px; text-align: center; color: var(--muted); font-size: 11px; }
+.top-history .square { width: 29px; min-height: 29px; }
+.workspace { display: block; padding: 0; max-width: none; }
+.theater { display: block; border: 0; border-radius: 0; }
+.scene-heading { position: absolute; z-index: 2; top: 86px; left: 16px; border: 1px solid var(--border); border-radius: 7px; background: #111c25e8; min-height: 36px; }
+.viewport { height: calc(100dvh - 72px); min-height: 400px; }
+.camera { bottom: 54px; }
+.overlays { position: absolute; bottom: 14px; left: 14px; z-index: 3; }
+.overlay-options { position: absolute; bottom: 42px; left: 0; width: 175px; padding: 10px; border: 1px solid #324550; border-radius: 8px; background: #111c25f5; box-shadow: 0 8px 25px #0008; }
+.overlay-options[hidden] { display: none; }
+.overlay-options label { display: flex; gap: 7px; align-items: center; padding: 5px 0; font-size: 11px; white-space: nowrap; }
+.legend { position: absolute; bottom: 14px; right: 14px; z-index: 2; border: 1px solid var(--border); border-radius: 7px; background: #111c25e8; min-height: 32px; max-width: calc(100% - 120px); }
+.sidebar { position: fixed; z-index: 4; top: 102px; right: 18px; width: min(314px, calc(100vw - 30px)); max-height: calc(100dvh - 120px); overflow: auto; display: flex; }
+.drag-handle { cursor: grab; touch-action: none; user-select: none; font: 650 10px var(--mono); color: #9db8bd; letter-spacing: .08em; margin: -3px 0 10px; padding: 3px; }
+.drag-handle:active { cursor: grabbing; }
+@media (max-width: 850px) { .top-history { order: 2; width: 100%; justify-content: center; border: 0; } .scene-heading, .legend { display: none; } }
+@media (max-width: 760px) { .viewport { height: calc(100dvh - 65px); min-height: 400px; } .sidebar { top: 105px; right: 8px; width: min(290px, calc(100vw - 16px)); } }

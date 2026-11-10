@@ -18,8 +18,18 @@
     </div>
     <div class="factions" id="factions" aria-label="Factions"></div>
     <div class="header-actions">
+      <div class="top-history" aria-label="Round history">
+        <button class="button square" id="previous" aria-label="Previous round">‹</button>
+        <span id="history-label">Opening position</span>
+        <button class="button square" id="next" aria-label="Next round">›</button>
+        <span class="live-label" id="live-label">● LIVE</span>
+        <button class="text-button" id="replay">▶ Play round</button>
+        <button class="text-button" id="live">Return to live</button>
+      </div>
       <button id="help" class="button subtle">How to play</button>
-      <button id="menu" class="button square" aria-label="Game menu" title="Game menu">⋯</button>
+      <button id="export" class="button subtle">Export</button>
+      <button id="import" class="button subtle">Import</button>
+      <button id="new" class="button subtle">New match</button>
     </div>
   </header>
   <main class="workspace">
@@ -29,7 +39,7 @@
         <div class="metrics" id="metrics"></div>
       </div>
       <div class="viewport" id="viewport">
-        <canvas id="scene" tabindex="0" aria-label="Multiverse boards. Use the arrow keys to move the square cursor, Enter to select, and plus or minus to zoom."></canvas>
+        <canvas id="scene" tabindex="0" aria-label="Multiverse boards. Use WASD or arrow keys to pan, Alt plus arrows to move the square cursor, Enter to select, and plus or minus to zoom."></canvas>
         <div class="map-caption" id="map-caption"></div>
         <div class="camera" role="group" aria-label="Camera controls">
           <button data-camera="minus" aria-label="Zoom out" title="Zoom out">−</button>
@@ -49,6 +59,15 @@
             <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 1 2 5m-2-5V6m0 6h6"/></svg>
           </button>
         </div>
+        <div class="overlays"><button id="overlay-toggle" class="button subtle" aria-expanded="false" aria-controls="overlay-options">Overlays ⚙</button>
+          <div id="overlay-options" class="overlay-options" hidden>
+            <label><input type="checkbox" data-overlay="axes" checked> Time axis</label>
+            <label><input type="checkbox" data-overlay="links" checked> Timeline links</label>
+            <label><input type="checkbox" data-overlay="rifts" checked> Temporal Rifts</label>
+            <label><input type="checkbox" data-overlay="labels" checked> Board labels</label>
+            <label><input type="checkbox" data-overlay="paths" checked> Move paths</label>
+          </div>
+        </div>
         <div class="scene-hint">DRAG TO PAN <b>·</b> SCROLL OR PINCH TO ZOOM</div>
       </div>
       <div class="legend" aria-label="Map legend">
@@ -59,24 +78,13 @@
         <span class="legend-optional"><i class="lg optional"></i> Optional frontier</span>
       </div>
     </section>
-    <aside class="sidebar" aria-label="Round controls">
+    <aside class="sidebar" id="sidebar" aria-label="Round controls">
       <section class="panel round-panel">
+        <div class="drag-handle" id="panel-handle" title="Drag to move controls">⠿ &nbsp; Move controls</div>
         <div class="panel-kicker"><span>ROUND <b id="round-number">01</b></span><span id="phase" class="phase">PLANNING</span></div>
         <div id="turn"></div>
         <div id="planning"></div>
         <div id="activity" aria-live="polite"></div>
-      </section>
-      <section class="panel history-panel">
-        <div class="panel-kicker"><span>ROUND HISTORY</span><span class="live-label" id="live-label">● LIVE</span></div>
-        <div class="history-controls">
-          <button class="button square" id="previous" aria-label="Previous round">‹</button>
-          <span id="history-label">Opening position</span>
-          <button class="button square" id="next" aria-label="Next round">›</button>
-        </div>
-        <div class="history-actions">
-          <button class="text-button" id="replay">▶ Play round</button>
-          <button class="text-button" id="live">Return to live</button>
-        </div>
       </section>
       <div class="save-status" id="save-status" role="status"></div>
     </aside>
