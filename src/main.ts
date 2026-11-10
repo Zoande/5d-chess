@@ -116,6 +116,7 @@ function update() {
   const past = frame !== null
   const last = session.results.length
   const statePhase = phase()
+  element('mobile-summary').textContent = `${playing ? name(playing) : 'Match'} · Round ${s.round}${session.draft.length ? ` · ${session.draft.length} queued` : ''} · ${statePhase.toLowerCase()}`
   element('round-number').textContent = String(statePhase === 'PLANNING' || past || animation ? s.round : Math.max(1, s.round - 1)).padStart(2, '0')
   element('phase').textContent = statePhase
   element('metrics').innerHTML = `<span><i class="tiny-dot"></i> Present <b>T${presentTime}</b></span>
@@ -431,7 +432,14 @@ element('viewport').querySelectorAll<HTMLButtonElement>('[data-overlay]').forEac
 })
 const panel = element('sidebar')
 const handle = element('panel-handle')
+const mobilePanel = matchMedia('(max-width: 760px)')
+handle.addEventListener('click', () => {
+  if (!mobilePanel.matches) return
+  const open = panel.classList.toggle('mobile-open')
+  handle.setAttribute('aria-expanded', String(open))
+})
 handle.addEventListener('pointerdown', e => {
+  if (mobilePanel.matches) return
   const rect = panel.getBoundingClientRect()
   const dx = e.clientX - rect.left, dy = e.clientY - rect.top
   handle.setPointerCapture(e.pointerId)

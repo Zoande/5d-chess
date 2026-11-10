@@ -79,6 +79,7 @@ function render() {
   const s = shown()
   element('phase').textContent = room.finished ? 'FINISHED' : room.waiting ? 'WAITING' : frame !== null ? 'REPLAY' :
     seat && room.locked[seat] ? 'LOCKED' : 'PLANNING'
+  element('mobile-summary').textContent = `${seat ? names[seat] : 'Game'} · ${room.code} · ${element('phase').textContent?.toLowerCase()}`
   element('metrics').textContent = `Present T${present(s)} · ${s.universes.length} universes · ${s.rifts.length} rifts`
   const seats = element('seats')
   seats.replaceChildren(...PLAYERS.map(player => {
@@ -190,7 +191,14 @@ element('viewport').querySelectorAll<HTMLButtonElement>('[data-overlay]').forEac
   scene.setOverlay(button.dataset.overlay!, enabled)
 })
 const panel = element('sidebar'), handle = element('panel-handle')
+const mobilePanel = matchMedia('(max-width: 760px)')
+handle.addEventListener('click', () => {
+  if (!mobilePanel.matches) return
+  const open = panel.classList.toggle('mobile-open')
+  handle.setAttribute('aria-expanded', String(open))
+})
 handle.addEventListener('pointerdown', event => {
+  if (mobilePanel.matches) return
   const rect = panel.getBoundingClientRect(), dx = event.clientX - rect.left, dy = event.clientY - rect.top
   handle.setPointerCapture(event.pointerId)
   const move = (e: PointerEvent) => {
