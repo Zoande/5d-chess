@@ -108,8 +108,9 @@ export const promotes = (p: Player, c: Square, s?: State) => {
   const f = FORWARD[p]
   return (c.x - start.x) * f.x + (c.y - start.y) * f.y >= 7
 }
-export const squareName = ({x, y}: Square) => `${String.fromCharCode(97 + x)}${14 - y}`
-export const coordName = (c: Coord) => `U${c.u}·T${c.t} ${squareName(c)}`
+export const squareName = ({x, y}: Square, s?: State) => s?.playerCount === 2
+  ? `${String.fromCharCode(97 + x - 3)}${11 - y}` : `${String.fromCharCode(97 + x)}${14 - y}`
+export const coordName = (c: Coord, s?: State) => `U${c.u}·T${c.t} ${squareName(c, s)}`
 
 export function initialState(count: PlayerCount = 4): State {
   const cells: (Piece | null)[] = Array(SIZE ** 2).fill(null)

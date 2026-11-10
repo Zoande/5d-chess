@@ -1,10 +1,10 @@
 # Four-Player Multiverse Chess
 
-The `main` branch contains a Node.js server for online accounts and four-player games. See [Multiplayer setup](docs/multiplayer.md). The existing local game remains available without an account.
+The `main` branch contains the deployed four-player game. This `development` branch adds two- and three-player modes to the local game and online server. It must be deployed to the Raspberry Pi and Cloudflare together. See [Multiplayer setup](docs/multiplayer.md). Local play remains available without an account.
 
 [Play at chess.316123.nl](https://chess.316123.nl/)
 
-Four human factions share a cross-shaped board and plan private orders on one device. Once everyone locks in, all orders resolve together. Pieces can move through time, fork historical positions, and use Temporal Rifts. Capture any copy of a faction’s king to eliminate that faction.
+Two to four human factions plan private orders on one device or online. Two players use a classic 8×8 board, three use a cross with one wing removed, and four use the full cross. The public landing page starts in four-player local mode; the logged-in lobby asks for a player count when starting local or online play. Once everyone locks in, all orders resolve together. Pieces can move through time, fork historical positions, and use Temporal Rifts. Capture any copy of a faction’s king to eliminate that faction.
 
 ## Run locally
 
@@ -33,7 +33,7 @@ npx playwright install --only-shell chromium
 npm run test:browser
 ```
 
-Set `CHROMIUM_EXECUTABLE` to use an existing Chromium for the browser tests. The unit tests cover the resolver, movement, branching, activation, and save journal. The browser suite drives all four seats through a branch and a Rift, and exercises replay, autosave, and save transfer.
+Set `CHROMIUM_EXECUTABLE` to use an existing Chromium for the browser tests. The unit tests cover the resolver, movement, branching, activation, save journal, and online rooms with two to four seats. The browser suite drives all four seats through a branch and a Rift, checks the new mode selection and boards, and exercises replay, autosave, and save transfer.
 
 ## Deploy under /chess/
 

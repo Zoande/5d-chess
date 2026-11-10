@@ -1,6 +1,6 @@
 import {
   type Candidate, type Coord, type Order, type Outcome, type Player, type State, type Universe,
-  SQUARES, SIZE, boardKey, coordKey, frontier, getUniverse, index, inside, isMain, pieceAt, present
+  SIZE, boardBounds, boardKey, coordKey, frontier, getUniverse, index, insideState, isMain, pieceAt, playerCount, present, squares
 } from './model.ts'
 import {COLORS, drawPiece} from './art.ts'
 
@@ -148,6 +148,13 @@ export class Scene {
       y: this.camera.y + (point.y - this.height / 2) / this.camera.scale}
   }
 
+  private dimensions(size: number) {
+    const bounds = boardBounds(this.view.state)
+    const tile = size / SIZE
+    return {...bounds, tile, width: (bounds.maxX - bounds.minX + 1) * tile,
+      height: (bounds.maxY - bounds.minY + 1) * tile}
+  }
+
   private hit(point: Point, allowFrame = false): Coord | undefined {
     const w = this.world(point)
     const t = Math.round(w.x / TIME)
@@ -156,10 +163,12 @@ export class Scene {
     if (u === undefined) return
     const node = this.layout.nodes.get(boardKey({u, t}))
     if (!node) return
-    const x = Math.floor((w.x - node.x + node.size / 2) / (node.size / SIZE))
-    const y = Math.floor((w.y - node.y + node.size / 2) / (node.size / SIZE))
-    if (inside({x, y})) return {x, y, u, t}
-    if (allowFrame && x >= -1 && x <= SIZE && y >= -2 && y <= SIZE) return {x: 6, y: 6, u, t}
+    const d = this.dimensions(node.size)
+    const x = Math.floor((w.x - node.x + d.width / 2) / d.tile) + d.minX
+    const y = Math.floor((w.y - node.y + d.height / 2) / d.tile) + d.minY
+    if (insideState(this.view.state, {x, y})) return {x, y, u, t}
+    if (allowFrame && x >= d.minX - 1 && x <= d.maxX + 1 && y >= d.minY - 2 && y <= d.maxY + 1)
+      return {x: Math.floor((d.minX + d.maxX) / 2), y: Math.floor((d.minY + d.maxY) / 2), u, t}
   }
 
   private riftAt(point: Point) {
@@ -274,8 +283,9 @@ export class Scene {
 
   fit() {
     const {width, height} = this.layout
+    const d = this.dimensions(BOARD)
     this.center({x: width / 2, y: height / 2, scale: clamp(
-      Math.min((this.width - 40) / (width + BOARD + 52), (this.height - 54) / (height + BOARD + 102)), MIN_SCALE, 1.38)})
+      Math.min((this.width - 40) / (width + d.width + 52), (this.height - 54) / (height + d.height + 102)), MIN_SCALE, 1.38)})
   }
 
   focus(c = this.view.selected ?? this.inspected) {
@@ -286,7 +296,8 @@ export class Scene {
   focusBoard(u: number, t: number, smooth = true) {
     const node = this.layout.nodes.get(boardKey({u, t}))
     if (!node) return
-    const scale = clamp(Math.min((this.width - 48) / node.size, (this.height - 154) / node.size), .2, 1.62)
+    const d = this.dimensions(node.size)
+    const scale = clamp(Math.min((this.width - 48) / d.width, (this.height - 154) / d.height), .2, 1.62)
     this.center({x: node.x, y: node.y + 2, scale}, smooth)
   }
 
@@ -344,7 +355,7 @@ export class Scene {
         }
       } else {
         const next = {...start, x: start.x + dx, y: start.y + dy}
-        this.keyboard = inside(next) ? next : start
+        this.keyboard = insideState(this.view.state, next) ? next : start
       }
       this.keyboard ??= start
       this.callbacks.describe(this.keyboard)
@@ -401,8 +412,9 @@ export class Scene {
     if (this.overlays.axes) this.drawAxes(current, low, high)
     if (this.overlays.links || this.overlays.rifts) this.drawConnections(s, selectedPreview)
     for (const node of this.layout.nodes.values()) {
-      const pad = node.size / 2 + 65
-      if (node.x + pad < low.x || node.x - pad > high.x || node.y + pad < low.y || node.y - pad > high.y) continue
+      const d = this.dimensions(node.size)
+      if (node.x + d.width / 2 + 65 < low.x || node.x - d.width / 2 - 65 > high.x ||
+        node.y + d.height / 2 + 65 < low.y || node.y - d.height / 2 - 65 > high.y) continue
       this.drawBoard(node, current)
     }
     for (const order of this.overlays.paths ? this.view.queued : []) {
@@ -421,14 +433,15 @@ export class Scene {
   private drawAxes(current: number, low: Point, high: Point) {
     const ctx = this.ctx
     const x = current * TIME
-    const top = -BOARD / 2 - 40
-    const bottom = Math.max(BOARD / 2 + 36, this.layout.height + BOARD / 2 + 36)
+    const d = this.dimensions(BOARD)
+    const top = -d.height / 2 - 40
+    const bottom = Math.max(d.height / 2 + 36, this.layout.height + d.height / 2 + 36)
     ctx.fillStyle = '#78cdb00c'
-    ctx.fillRect(x - BOARD / 2 - 38, Math.min(top, low.y), BOARD + 76, Math.max(bottom, high.y) - Math.min(top, low.y))
+    ctx.fillRect(x - d.width / 2 - 38, Math.min(top, low.y), d.width + 76, Math.max(bottom, high.y) - Math.min(top, low.y))
     ctx.strokeStyle = '#77cfa72e'
     ctx.setLineDash([4, 8])
     ctx.lineWidth = 1.2
-    for (const edge of [x - BOARD / 2 - 38, x + BOARD / 2 + 38]) {
+    for (const edge of [x - d.width / 2 - 38, x + d.width / 2 + 38]) {
       ctx.beginPath(); ctx.moveTo(edge, low.y); ctx.lineTo(edge, high.y); ctx.stroke()
     }
     ctx.setLineDash([])
@@ -464,8 +477,9 @@ export class Scene {
         ctx.strokeStyle = chosen ? pathColors.gold : u.active ? '#75cba18a' : '#66838e70'
         ctx.lineWidth = chosen ? 4 : 2.6
         ctx.beginPath()
-        ctx.moveTo(parent.x + parent.size / 2, parent.y)
-        ctx.bezierCurveTo(parent.x + TIME * .62, parent.y, first.x - TIME * .60, first.y, first.x - first.size / 2, first.y)
+        ctx.moveTo(parent.x + this.dimensions(parent.size).width / 2, parent.y)
+        ctx.bezierCurveTo(parent.x + TIME * .62, parent.y, first.x - TIME * .60, first.y,
+          first.x - this.dimensions(first.size).width / 2, first.y)
         ctx.stroke()
       }
       ctx.setLineDash([])
@@ -495,8 +509,8 @@ export class Scene {
     if (!ua || !ub) return
     const A = this.layout.nodes.get(boardKey({u: a, t: frontier(ua).t}))!
     const B = this.layout.nodes.get(boardKey({u: b, t: frontier(ub).t}))!
-    const start = {x: A.x + A.size / 2, y: A.y - 15}
-    const end = {x: B.x + B.size / 2, y: B.y - 15}
+    const start = {x: A.x + this.dimensions(A.size).width / 2, y: A.y - 15}
+    const end = {x: B.x + this.dimensions(B.size).width / 2, y: B.y - 15}
     const bend = Math.max(start.x, end.x) + 145 + Math.min(120, Math.abs(start.y - end.y) * .12)
     return [start, {x: bend, y: start.y - 38}, {x: bend, y: end.y - 38}, end]
   }
@@ -511,8 +525,9 @@ export class Scene {
     const optional = front && !now
     const selected = this.view.selected && id === boardKey(this.view.selected)
     const scale = this.camera.scale
-    const L = node.x - size / 2, T = node.y - size / 2
-    const tile = size / SIZE
+    const d = this.dimensions(size)
+    const L = node.x - d.width / 2, T = node.y - d.height / 2
+    const tile = d.tile
     ctx.save()
     ctx.translate(L, T)
     ctx.globalAlpha = (accent || selected) ? 1 : !u.active ? .58 : front ? 1 : .76
@@ -523,15 +538,29 @@ export class Scene {
       ctx.shadowColor = accent ?? '#64c49761'
       ctx.shadowBlur = accent ? 11 : 14
     }
-    ctx.beginPath(); ctx.roundRect(-8, -8, size + 16, size + 16, 7); ctx.fill(); ctx.stroke()
+    ctx.beginPath()
+    if (playerCount(this.view.state) === 3) {
+      const arm = 3 * tile - 8
+      const armEnd = 11 * tile + 8
+      ctx.moveTo(arm, -8)
+      ctx.lineTo(d.width + 8, -8)
+      ctx.lineTo(d.width + 8, d.height + 8)
+      ctx.lineTo(arm, d.height + 8)
+      ctx.lineTo(arm, armEnd)
+      ctx.lineTo(-8, armEnd)
+      ctx.lineTo(-8, arm)
+      ctx.lineTo(arm, arm)
+      ctx.closePath()
+    } else ctx.roundRect(-8, -8, d.width + 16, d.height + 16, 7)
+    ctx.fill(); ctx.stroke()
     if (!u.active) {
       ctx.setLineDash([9, 7]); ctx.strokeStyle = '#b5c5d8'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.setLineDash([])
     }
     ctx.shadowBlur = 0
     {
-      for (const square of SQUARES) {
+      for (const square of squares(this.view.state)) {
         const {x, y} = square
-        const sx = x * tile, sy = y * tile
+        const sx = (x - d.minX) * tile, sy = (y - d.minY) * tile
         ctx.fillStyle = (x + y) % 2 ? '#284e50' : '#426969'
         ctx.fillRect(sx, sy, tile, tile)
         const c = {u: u.id, t, x, y}
@@ -573,15 +602,18 @@ export class Scene {
       ctx.fillStyle = '#89a5a8'
       ctx.font = '10px ui-monospace, monospace'
       ctx.textAlign = 'center'
-      for (let i = 0; i < SIZE; i++) {
+      for (let i = 0; i <= d.maxX - d.minX; i++) {
         const col = String.fromCharCode(97 + i)
         ctx.fillText(col, (i + .5) * tile, -15)
-        ctx.fillText(String(14 - i), -20, (i + .61) * tile)
+      }
+      for (let i = 0; i <= d.maxY - d.minY; i++) {
+        ctx.fillText(String(d.maxY - d.minY + 1 - i), -20, (i + .61) * tile)
       }
       for (const [player, x, y, dir] of [
-        ['yellow', size / 2, 3, 0], ['red', size / 2, size - 3, 0],
-        ['blue', 3, size / 2, 1], ['green', size - 3, size / 2, 1]
+        ['yellow', d.width / 2, 3, 0], ['red', d.width / 2, d.height - 3, 0],
+        ['blue', 3, d.height / 2, 1], ['green', d.width - 3, d.height / 2, 1]
       ] as const) {
+        if ((player === 'green' && d.maxX < 13) || (player === 'blue' && d.minX > 0)) continue
         ctx.strokeStyle = COLORS[player] + 'ad'
         ctx.lineWidth = 2
         ctx.beginPath(); ctx.moveTo(x - (dir ? 0 : 18), y - (dir ? 18 : 0))
@@ -594,7 +626,7 @@ export class Scene {
       ctx.font = '650 12px ui-monospace, monospace'
       ctx.fillStyle = now ? '#b5efd4' : '#a9b8c3'
       const marker = u.creator ? `  ·  ${u.creator.toUpperCase()}` : ''
-      ctx.fillText(`U${u.id}  /  T${t}${front ? now ? '   ·   PRESENT' : u.active ? '   ·   FUTURE' : '   ·   INACTIVE' : '   ·   HISTORY'}${marker}`, size / 2, size + 29)
+      ctx.fillText(`U${u.id}  /  T${t}${front ? now ? '   ·   PRESENT' : u.active ? '   ·   FUTURE' : '   ·   INACTIVE' : '   ·   HISTORY'}${marker}`, d.width / 2, d.height + 29)
     }
     ctx.restore()
   }
@@ -602,8 +634,9 @@ export class Scene {
   private squarePoint(c: Coord): Point {
     const node = this.layout.nodes.get(boardKey(c))
     const size = node?.size ?? BOARD
-    return {x: c.t * TIME + ((c.x + .5) / SIZE - .5) * size,
-      y: (this.layout.rows.get(c.u) ?? 0) * ROW + ((c.y + .5) / SIZE - .5) * size}
+    const d = this.dimensions(size)
+    return {x: c.t * TIME + (c.x - d.minX + .5) * d.tile - d.width / 2,
+      y: (this.layout.rows.get(c.u) ?? 0) * ROW + (c.y - d.minY + .5) * d.tile - d.height / 2}
   }
 
   private drawPath(m: Candidate, color: string, alpha: number, dashed: boolean) {

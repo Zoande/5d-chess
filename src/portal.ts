@@ -1,5 +1,5 @@
 type ApiError = {error?: string}
-type Game = {code: string; title: string; players: number; protected: boolean; round: number; finished: boolean}
+type Game = {code: string; title: string; players: number; maxPlayers: number; protected: boolean; round: number; finished: boolean}
 type Games = {available: Game[]; mine: Game[]; limit: number}
 
 const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
@@ -59,7 +59,7 @@ function row(game: Game, action: string, click: () => void) {
   const title = document.createElement('strong')
   title.textContent = game.title
   const detail = document.createElement('small')
-  detail.textContent = `${game.code} · ${game.players}/4 players · Round ${game.round}${game.finished ? ' · Finished' : ''}`
+  detail.textContent = `${game.code} · ${game.players}/${game.maxPlayers ?? 4} players · Round ${game.round}${game.finished ? ' · Finished' : ''}`
   description.append(title, detail)
   const button = document.createElement('button')
   button.className = 'button'
@@ -100,7 +100,7 @@ async function lobby() {
     error('make-error', '')
     try {
       const result = await api<{code: string}>('/games', {title: el<HTMLInputElement>('game-title').value.trim() || `${me.user}'s game`,
-        password: el<HTMLInputElement>('game-password').value})
+        playerCount: Number(el<HTMLSelectElement>('game-players').value), password: el<HTMLInputElement>('game-password').value})
       online(result.code)
     } catch (cause) { error('make-error', cause instanceof Error ? cause.message : 'Could not create game') }
   }

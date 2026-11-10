@@ -1,7 +1,7 @@
 import {Scene} from './scene.ts'
 import {NAMES} from './art.ts'
 import {type Candidate, type Coord, type Order, type Player, type Resolution, type State,
-  PLAYERS, coordKey, coordName, getUniverse, initialState, isMain, moveBudget, pieceAt, present, survivors} from './model.ts'
+  coordKey, coordName, getUniverse, initialState, isMain, moveBudget, pieceAt, playerCount, players, present, survivors} from './model.ts'
 import {legalMoves, routeKey} from './moves.ts'
 import {sourceBudget} from './resolve.ts'
 
@@ -23,7 +23,7 @@ let caption = ''
 let first = true
 let loading = false
 const names: Record<Player, string> = {red:'Red',blue:'Blue',yellow:'Yellow',green:'Green'}
-const opening = initialState()
+let opening = initialState()
 const scene = new Scene(element<HTMLCanvasElement>('scene'), opening, {
   pick,
   hover(c) {
@@ -35,7 +35,7 @@ const scene = new Scene(element<HTMLCanvasElement>('scene'), opening, {
   describe(c) {
     if (!room) return
     const piece = pieceAt(shown(), c)
-    caption = `${coordName(c)}${piece ? ` · ${names[piece.player]} ${NAMES[piece.kind]}` : ''}`
+    caption = `${coordName(c, shown())}${piece ? ` · ${names[piece.player]} ${NAMES[piece.kind]}` : ''}`
     element('map-caption').textContent = caption
   },
   rift(a, b, from) { element('map-caption').textContent = `Rift U${a} ↔ U${b} · from round ${from}` }
@@ -82,7 +82,7 @@ function render() {
   element('mobile-summary').textContent = `${seat ? names[seat] : 'Game'} · ${room.code} · ${element('phase').textContent?.toLowerCase()}`
   element('metrics').textContent = `Present T${present(s)} · ${s.universes.length} universes · ${s.rifts.length} rifts`
   const seats = element('seats')
-  seats.replaceChildren(...PLAYERS.map(player => {
+  seats.replaceChildren(...players(room.state).map(player => {
     const span = document.createElement('span')
     span.className = `${player === seat ? 'self' : ''} ${room!.locked[player] ? 'locked' : ''}`
     span.textContent = `${names[player]}: ${room!.seats[player] || 'Open'}${room!.locked[player] ? ' ✓' : ''}`
@@ -106,7 +106,7 @@ function render() {
   if (room.waiting) {
     const p = document.createElement('p')
     p.className = 'online-message'
-    p.textContent = `Share code ${room.code} with friends. ${Object.keys(room.seats).length}/4 players joined. ${room.seats.red ? 'The game starts when all four seats are filled.' : ''}`
+    p.textContent = `Share code ${room.code} with friends. ${Object.keys(room.seats).length}/${playerCount(room.state)} players joined. The game starts when every seat is filled.`
     panel.append(p)
   } else if (room.finished) {
     const alive = survivors(room.state)
@@ -127,7 +127,7 @@ function render() {
     panel.append(count)
     for (const [i, order] of draft.entries()) {
       const row = document.createElement('div'); row.className = 'game-row'
-      const label = document.createElement('span'); label.textContent = `${coordName(order.from)} → ${coordName(order.to)}`
+      const label = document.createElement('span'); label.textContent = `${coordName(order.from, shown())} → ${coordName(order.to, shown())}`
       const remove = document.createElement('button'); remove.className = 'text-button'; remove.textContent = 'Remove'
       remove.onclick = () => {draft.splice(i, 1); render()}
       row.append(label, remove); panel.append(row)
@@ -156,6 +156,7 @@ async function load() {
     if (!response.ok) throw new Error(data.error || 'Could not load game')
     const oldRound = room?.state.round
     room = data as Room
+    opening = initialState(playerCount(room.state))
     if (oldRound && oldRound !== room.state.round) { draft = []; clear(); frame = null; message(`Round ${oldRound} resolved. Plan the next round.`) }
     render()
     if (first) { first = false; scene.focusPlayer(room.seat, false) }

@@ -2,7 +2,7 @@ import {createServer, type IncomingMessage, type ServerResponse} from 'node:http
 import {randomBytes, scryptSync, timingSafeEqual, createHash} from 'node:crypto'
 import {readFile, writeFile, mkdir, rename} from 'node:fs/promises'
 import {resolve, extname} from 'node:path'
-import {initialState, survivors, type Order, type Player, type State, type Resolution, PLAYERS} from '../src/model.ts'
+import {initialState, playerCount, players, survivors, type Order, type Player, type PlayerCount, type State, type Resolution, PLAYERS} from '../src/model.ts'
 import {legalMoves, routeKey} from '../src/moves.ts'
 import {resolveRound, sourceBudget} from '../src/resolve.ts'
 
@@ -99,11 +99,11 @@ function roomView(room: Room, viewer: string) {
   const active = survivors(room.state)
   return {code: room.code, title: room.title, seats: room.seats, seat, state: room.state,
     journal: room.journal, results: room.results, locked: Object.fromEntries(PLAYERS.map(p => [p, !!room.locked[p]])),
-    waiting: Object.keys(room.seats).length < 4, finished: active.length <= 1, created: room.created}
+    waiting: Object.keys(room.seats).length < playerCount(room.state), finished: active.length <= 1, created: room.created}
 }
 function summary(room: Room) {
   return {code: room.code, title: room.title, players: Object.keys(room.seats).length,
-    protected: !!room.password, round: room.state.round, finished: survivors(room.state).length <= 1}
+    maxPlayers: playerCount(room.state), protected: !!room.password, round: room.state.round, finished: survivors(room.state).length <= 1}
 }
 function orders(value: unknown, seat: Player, state: State): Order[] {
   if (!Array.isArray(value) || value.length > 5) fail(400, 'Invalid orders')
@@ -163,12 +163,14 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
   })
   const me = requireUser(req)
   if (path === '/api/games' && method === 'GET') return json(res, 200, {
-    available: db.rooms.filter(r => !r.password && Object.keys(r.seats).length < 4 && survivors(r.state).length > 1).map(summary),
+    available: db.rooms.filter(r => !r.password && Object.keys(r.seats).length < playerCount(r.state) && survivors(r.state).length > 1).map(summary),
     mine: db.rooms.filter(r => Object.values(r.seats).includes(me)).map(summary), limit: maxGames})
   if (path === '/api/games' && method === 'POST') {
     const data = await body(req)
     const title = string(data.title || `${me}'s game`, 'game name', 60)
     const password = passwordValue(data.password, true)
+    if (data.playerCount !== undefined && ![2, 3, 4].includes(data.playerCount as number)) fail(400, 'Invalid player count')
+    const count = (data.playerCount ?? 4) as PlayerCount
     return mutation(res, () => {
       if (db.rooms.filter(r => survivors(r.state).length > 1).length >= maxGames) fail(409, '50 active games already exist')
       let code = ''
@@ -176,7 +178,7 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
       while (db.rooms.some(r => r.code === code))
       const salt = password ? randomBytes(16).toString('hex') : undefined
       const room: Room = {code, title, owner: me, password: password && salt ? hash(password, salt) : undefined,
-        salt, seats: {red: me}, state: initialState(), journal: [], results: [], locked: {}, created: Date.now()}
+        salt, seats: {red: me}, state: initialState(count), journal: [], results: [], locked: {}, created: Date.now()}
       db.rooms.push(room)
       return {status: 201, value: roomView(room, me)}
     })
@@ -188,9 +190,9 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
     const data = await body(req)
     return mutation(res, () => {
       if (Object.values(room.seats).includes(me)) return {status: 200, value: roomView(room, me)}
-      if (Object.keys(room.seats).length >= 4) fail(409, 'Game is full')
+      if (Object.keys(room.seats).length >= playerCount(room.state)) fail(409, 'Game is full')
       if (room.password && (!room.salt || typeof data.password !== 'string' || !verify(data.password, room.salt, room.password))) fail(403, 'Incorrect game password')
-      const seat = PLAYERS.find(p => !room.seats[p])!
+      const seat = players(room.state).find(p => !room.seats[p])!
       room.seats[seat] = me
       return {status: 200, value: roomView(room, me)}
     })
@@ -199,7 +201,7 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
   if (match[2] === 'orders' && method === 'POST') {
     const data = await body(req)
     return mutation(res, () => {
-      if (Object.keys(room.seats).length < 4) fail(409, 'Waiting for four players')
+      if (Object.keys(room.seats).length < playerCount(room.state)) fail(409, `Waiting for ${playerCount(room.state)} players`)
       const seat = PLAYERS.find(p => room.seats[p] === me)!
       if (!survivors(room.state).includes(seat)) fail(409, 'Your faction is eliminated')
       if (room.locked[seat]) fail(409, 'Orders already locked')

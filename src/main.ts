@@ -2,7 +2,7 @@ import {Scene} from './scene.ts'
 import {COLORS, NAMES, pieceIcon} from './art.ts'
 import {
   type Candidate, type Coord, type Order, type Outcome, type Player, type State,
-  PLAYERS, coordKey, coordName, frontier, getBoard, getUniverse, index, isMain, moveBudget, pieceAt, present, survivors
+  type PlayerCount, coordKey, coordName, frontier, getBoard, getUniverse, index, isMain, moveBudget, pieceAt, playerCount, players, present, survivors
 } from './model.ts'
 import {legalMoves, routeKey} from './moves.ts'
 import {sourceBudget} from './resolve.ts'
@@ -21,11 +21,15 @@ fetch('/api/me').then(r => r.ok ? r.json() : null).then(data => {
   link.href = '/chess/lobby.html'
   if (!new URLSearchParams(location.search).has('local')) location.replace('/chess/lobby.html')
 }).catch(() => {})
-let session = newSession()
+const requestedCount = new URLSearchParams(location.search).get('players')
+let localMode: PlayerCount = new URLSearchParams(location.search).has('local') && ['2', '3', '4'].includes(requestedCount ?? '')
+  ? Number(requestedCount) as PlayerCount : 4
+const saveKey = (count: PlayerCount) => count === 4 ? SAVE_KEY : `${SAVE_KEY}/${count}`
+let session = newSession(localMode)
 let saveError = false
 let restoreNotice = ''
 try {
-  const stored = localStorage.getItem(SAVE_KEY)
+  const stored = localStorage.getItem(saveKey(localMode))
   if (stored) session = decode(stored)
 } catch {
   restoreNotice = 'The previous save could not be restored.'
@@ -62,7 +66,7 @@ const scene = new Scene(element<HTMLCanvasElement>('scene'), liveState(session),
     const historical = frontier(u).t !== c.t
     const status = historical ? 'History' : isMain(u, present(shown())) ? 'Present frontier' :
       u.active ? 'Future frontier · optional source' : 'Inactive frontier · optional source'
-    caption = `${coordName(c)} · ${status}${p ? ` · ${factionNames[p.player]} ${NAMES[p.kind]}` : ''}`
+    caption = `${coordName(c, shown())} · ${status}${p ? ` · ${factionNames[p.player]} ${NAMES[p.kind]}` : ''}`
     paintCaption()
   },
   rift(a, b, from) {
@@ -77,14 +81,14 @@ function shown(): State {
 }
 const planning = () => frame === null && !revealing && !animation && !privacy && !!planner(session)
 const name = (p: Player) => factionNames[p]
-const orderText = (o: Order) => `${coordName(o.from)} → ${coordName(o.to)}`
+const orderText = (o: Order) => `${coordName(o.from, shown())} → ${coordName(o.to, shown())}`
 const preview = () => routeChoices[routeIndex] ?? hover
 const phase = () => animation ? 'RESOLVING' : frame !== null ? 'REPLAY' :
   survivors(liveState(session)).length <= 1 ? 'GAME OVER' : revealing ? 'ROUND REVEAL' : 'PLANNING'
 
 function save() {
   try {
-    localStorage.setItem(SAVE_KEY, encode(session))
+    localStorage.setItem(saveKey(localMode), encode(session))
     saveError = false
     restoreNotice = ''
   } catch {
@@ -111,6 +115,7 @@ function update() {
   draftForScene = currentDraft()
   syncScene()
   const s = shown()
+  element('mode-label').textContent = `${playerCount(s) === 2 ? 'TWO' : playerCount(s) === 3 ? 'THREE' : 'FOUR'}-PLAYER`
   const playing = planner(session)
   const presentTime = present(s)
   const past = frame !== null
@@ -122,7 +127,7 @@ function update() {
   element('metrics').innerHTML = `<span><i class="tiny-dot"></i> Present <b>T${presentTime}</b></span>
     <span><b>${s.universes.length}</b> ${s.universes.length === 1 ? 'universe' : 'universes'}</span>
     <span><b>${s.rifts.length}</b> ${s.rifts.length === 1 ? 'rift' : 'rifts'}</span>`
-  element('factions').innerHTML = PLAYERS.map(p => `<span class="faction ${s.eliminated.includes(p) ? 'dead' : ''} ${playing === p && statePhase === 'PLANNING' ? 'active' : ''}" style="--faction:${COLORS[p]}" title="${seats[p]}${s.eliminated.includes(p) ? ' · Eliminated' : ''}">
+  element('factions').innerHTML = players(s).map(p => `<span class="faction ${s.eliminated.includes(p) ? 'dead' : ''} ${playing === p && statePhase === 'PLANNING' ? 'active' : ''}" style="--faction:${COLORS[p]}" title="${seats[p]}${s.eliminated.includes(p) ? ' · Eliminated' : ''}">
     <i></i><span>${name(p)}</span></span>`).join('')
   element('live-label').textContent = past ? '◌ REPLAY' : '● LIVE'
   element('history-label').textContent = !last ? 'Opening position' :
@@ -340,7 +345,7 @@ function handleDialogAction(action: string) {
       <div class="dialog-row"><button class="button" data-dialog="close">Cancel</button><button class="button primary" data-dialog="reset">Start new match</button></div>`)
     return
   }
-  if (action === 'reset') setSession(newSession(), false)
+  if (action === 'reset') setSession(newSession(localMode), false)
   dialog.close()
 }
 file.addEventListener('change', async () => {
@@ -356,6 +361,8 @@ file.addEventListener('change', async () => {
 })
 function setSession(next: Session, privateRestore: boolean) {
   session = next
+  localMode = playerCount(liveState(next))
+  if (privateRestore) history.replaceState(null, '', `/chess/?local=1&players=${localMode}`)
   revealing = false
   frame = null
   privacy = false
