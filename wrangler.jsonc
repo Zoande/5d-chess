@@ -7,11 +7,15 @@
   "preview_urls": false,
   "routes": [
     {
-      "pattern": "316123.nl/chess",
+      "pattern": "chess.316123.nl/",
       "zone_id": "53bc3912932175ab4abf9fa302ffbfa2"
     },
     {
-      "pattern": "316123.nl/chess/*",
+      "pattern": "chess.316123.nl/chess",
+      "zone_id": "53bc3912932175ab4abf9fa302ffbfa2"
+    },
+    {
+      "pattern": "chess.316123.nl/chess/*",
       "zone_id": "53bc3912932175ab4abf9fa302ffbfa2"
     }
   ]
