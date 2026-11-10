@@ -89,6 +89,11 @@ function string(value: unknown, name: string, max = 100) {
   if (typeof value !== 'string' || !value.trim() || value.length > max) fail(400, `Invalid ${name}`)
   return value.trim()
 }
+function passwordValue(value: unknown, optional = false) {
+  if (optional && (value === '' || value == null)) return undefined
+  if (typeof value !== 'string' || !value.length || value.length > 256) fail(400, 'Invalid password')
+  return value
+}
 function roomView(room: Room, viewer: string) {
   const seat = PLAYERS.find(player => room.seats[player] === viewer)
   const active = survivors(room.state)
@@ -127,7 +132,7 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
   if (path === '/api/signup' && method === 'POST') {
     const data = await body(req)
     const name = string(data.username, 'username', 32)
-    const password = string(data.password, 'password', 256)
+    const password = passwordValue(data.password)!
     if (password !== data.confirm) fail(400, 'Passwords do not match')
     return mutation(res, () => {
       if (db.users.some(u => u.name.toLowerCase() === name.toLowerCase())) fail(409, 'Username already taken')
@@ -139,7 +144,7 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
   }
   if (path === '/api/login' && method === 'POST') {
     const data = await body(req)
-    const name = string(data.username, 'username', 32), password = string(data.password, 'password', 256)
+    const name = string(data.username, 'username', 32), password = passwordValue(data.password)!
     const limit = loginLimit(req, name)
     return mutation(res, () => {
       const account = db.users.find(u => u.name.toLowerCase() === name.toLowerCase())
@@ -163,7 +168,7 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
   if (path === '/api/games' && method === 'POST') {
     const data = await body(req)
     const title = string(data.title || `${me}'s game`, 'game name', 60)
-    const password = data.password === '' || data.password == null ? undefined : string(data.password, 'password', 256)
+    const password = passwordValue(data.password, true)
     return mutation(res, () => {
       if (db.rooms.filter(r => survivors(r.state).length > 1).length >= maxGames) fail(409, '50 active games already exist')
       let code = ''

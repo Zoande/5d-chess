@@ -47,6 +47,8 @@ test('accounts, rooms and four private plans survive a server restart', async t 
     users.push(account.cookie)
   }
   assert.equal((await call('/api/signup', {username:'red',password:'p',confirm:'p'})).status, 409)
+  assert.equal((await call('/api/signup', {username:'Space',password:' p ',confirm:' p '})).status,201)
+  assert.equal((await call('/api/login', {username:'Space',password:' p '})).status,200)
   for (let i = 0; i < 10; i++) assert.equal((await call('/api/login', {username:'Red',password:'wrong'})).status,401)
   assert.equal((await call('/api/login', {username:'Red',password:'wrong'})).status,429)
   const created = await call('/api/games', {title:'Private room',password:'door'}, users[0])
