@@ -2,7 +2,7 @@ import {
   type Board, type Candidate, type Coord, type EnPassant, type Kind, type Outcome, type Piece, type Player, type Resolution, type State, type Travel, type TravelPoint, type Universe,
   activation, boardKey, frontier, getBoard, index, isMain, playerCount, players, present, promotes, sameBoard
 } from './model.ts'
-import {dimensions, layoutOf, squarePoint} from './geometry.ts'
+import {layoutOf, moveGeometry, squarePoint} from './geometry.ts'
 import {requiredBoards} from './rules.ts'
 
 /** Speeds are board tiles/tick. A dimensional tile is the same 32 world pixels. Zero means instant. */
@@ -85,19 +85,15 @@ export function resolveLive(s: State, valid: Candidate[], rejected: Resolution['
       const path = leg.path.map((c, i) => i === leg.path.length - 1 ? to :
         c.u === leg.from.u && c.t === leg.from.t ? {...c, t: drafts.get(c.u)!.t} : c)
       const speeds = SPEEDS[leg.piece.kind]
+      const geometry = moveGeometry(staged, {...m, from: path[0], to, path})
       const points: TravelPoint[] = []
       let tick = 0
-      for (let i = 0; i < path.length; i++) {
-        const point = squarePoint(staged, path[i], layout)
-        if (i) {
-          const prior = points[i - 1]
-          const dimensional = path[i].u !== path[i - 1].u || path[i].t !== path[i - 1].t
-          const speed = dimensional ? speeds.dimensional : speeds.normal
-          if (speed) tick += Math.hypot(point.x - prior.x, point.y - prior.y) / (32 * speed)
-        }
-        points.push({...point, tick})
+      for (const segment of geometry) {
+        const speed = segment.dimensional ? speeds.dimensional : speeds.normal
+        if (speed) tick += segment.distance / (32 * speed)
+        points.push({...segment.point, tick})
       }
-      const trace: Travel = {piece: leg.piece, from: leg.from, to, points, endTick: tick}
+      const trace: Travel = {piece: leg.piece, from: leg.from, to, points, distance: geometry.reduce((sum, segment) => sum + segment.distance, 0), normalSpeed: speeds.normal, dimensionalSpeed: speeds.dimensional, endTick: tick}
       travel.push(trace)
       bodies.push({piece: leg.piece, at: to, points, alive: true, out, trace, draft: target})
     }
@@ -132,7 +128,10 @@ export function resolveLive(s: State, valid: Candidate[], rejected: Resolution['
       if (body.piece.kind === 'K') dead.add(body.piece.player)
       if (body.out) body.out.status = 'collided'
       if (body.trace) { body.trace.endTick = tick; body.trace.collision = true }
-      else if (body.draft) body.draft.cells[index(body.at)] = null
+      else if (body.draft) {
+        body.draft.cells[index(body.at)] = null
+        travel.push({piece: body.piece, from: body.at, to: body.at, points: body.points, distance: 0, normalSpeed: 0, dimensionalSpeed: 0, endTick: tick, collision: true})
+      }
     }
   }
   for (const body of bodies.filter(b => b.alive && b.trace)) {
@@ -156,5 +155,5 @@ export function resolveLive(s: State, valid: Candidate[], rejected: Resolution['
     const draft = drafts.get(u.id) ?? branchDraft(outcomes.find(o => o.branch === u.id)!)
     return draft ? {...u, boards: [...u.boards.slice(0, -1), draft]} : u
   })
-  return {state: {...s, round: s.round + 1, universes: activation(universes, allDead, playerCount(s)), rifts, eliminated: allDead}, outcomes, rejected, eliminated, travel, ticks}
+  return {state: {...s, round: s.round + 1, universes: activation(universes, allDead, playerCount(s)), rifts, eliminated: allDead}, outcomes, rejected, eliminated, travel, ticks: Math.max(0, ...travel.map(t => t.endTick))}
 }

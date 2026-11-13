@@ -49,6 +49,7 @@ test('account and lobby flow uses the multiplayer server', async t => {
   const detail = await page.request.get(base + `/api/games/${code}`)
   assert.equal(detail.status(),200)
   assert.equal((await detail.json()).seats.red,'Alice')
+  assert.equal((await detail.json()).state.movement,'live')
   const guests = []
   for (const name of ['Bob', 'Carol', 'Dana']) {
     const context = await browser.newContext()
@@ -61,7 +62,7 @@ test('account and lobby flow uses the multiplayer server', async t => {
     await guest.goto(base + `/chess/online.html?code=${code}`)
     guests.push(guest)
   }
-  await page.getByRole('button',{name:'Lock in a pass'}).waitFor({timeout:8000})
+  await page.getByRole('button',{name:'Plan required moves'}).waitFor({timeout:8000})
   await page.getByRole('button',{name:'Focus player'}).click()
   await page.waitForTimeout(350)
   const canvas = page.locator('#scene')
@@ -73,8 +74,14 @@ test('account and lobby flow uses the multiplayer server', async t => {
   await clickSquare(5,11)
   await page.getByText('U0·T0 e1 → U0·T0 f3').waitFor()
   await page.getByRole('button',{name:'Lock orders'}).click()
-  for (const guest of guests) {
-    await guest.getByRole('button',{name:'Lock in a pass'}).click()
+  for (const [i,guest] of guests.entries()) {
+    await guest.getByRole('button',{name:'Focus player',exact:true}).click()
+    await guest.waitForTimeout(350)
+    const rect=await guest.locator('#scene').boundingBox()
+    const zoom=Number((await guest.locator('#scale').textContent()).replace('%',''))/100
+    const squares=[[[0,9],[2,8]],[[9,0],[8,2]],[[13,4],[11,5]]][i]
+    for(const [x,y] of squares) await guest.locator('#scene').click({position:{x:rect.width/2+(x+.5-7)*32*zoom,y:rect.height/2+((y+.5-7)*32-2)*zoom}})
+    await guest.getByRole('button',{name:'Lock orders'}).click()
   }
   await page.getByText('1 rounds resolved').waitFor({timeout:8000})
   const after = await page.request.get(base + `/api/games/${code}`)
@@ -93,7 +100,7 @@ test('account and lobby flow uses the multiplayer server', async t => {
   assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth),393)
   await mobile.locator('#panel-handle').click()
   assert.equal(await mobile.locator('#panel-handle').getAttribute('aria-expanded'),'true')
-  await mobile.getByRole('button',{name:'Lock in a pass'}).waitFor()
+  await mobile.getByRole('button',{name:'Plan required moves'}).waitFor()
   await mobile.goto(base + '/chess/lobby.html')
   await mobile.getByRole('heading',{name:'Choose a game'}).waitFor()
   assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth),393)
@@ -121,6 +128,31 @@ test('account and lobby flow uses the multiplayer server', async t => {
   await page.waitForFunction(() => document.querySelector('#game-code')?.textContent !== '----')
   assert.equal(await page.locator('#seats span').count(),2)
   assert.match(await page.locator('#planning').textContent(), /1\/2 players joined/)
+  await page.goto(base + '/chess/lobby.html')
+  await page.getByRole('button',{name:'Make game'}).click()
+  await page.getByLabel('Players').selectOption('2')
+  await page.locator('#game-movement').selectOption('classic')
+  await page.getByRole('button',{name:'Create game'}).click()
+  await page.waitForURL(/online\.html\?code=[A-Z]{4}/)
+  const classicCode=new URL(page.url()).searchParams.get('code')
+  const joined=await guests[0].request.post(base+`/api/games/${classicCode}/join`,{data:{}})
+  const classicRoom=await joined.json()
+  assert.equal(classicRoom.state.movement,'classic')
+  await guests[0].goto(base+`/chess/online.html?code=${classicCode}`)
+  const active=classicRoom.state.turn==='red'?page:guests[0]
+  await active.getByRole('button',{name:'Submit turn'}).waitFor({timeout:8000})
+  await active.getByRole('button',{name:'Focus player',exact:true}).click()
+  await active.waitForTimeout(350)
+  const classicBox=await active.locator('#scene').boundingBox()
+  const classicScale=Number((await active.locator('#scale').textContent()).replace('%',''))/100
+  const route=classicRoom.state.turn==='red'?[[4,10],[5,8]]:[[4,3],[5,5]]
+  for(const [x,y] of route)await active.locator('#scene').click({position:{x:classicBox.width/2+(x+.5-7)*32*classicScale,y:classicBox.height/2+((y+.5-7)*32-2)*classicScale}})
+  await active.getByRole('button',{name:'Submit turn'}).click()
+  await active.getByText('1 rounds resolved').waitFor({timeout:8000})
+  const classicAfter=await (await page.request.get(base+`/api/games/${classicCode}`)).json()
+  assert.notEqual(classicAfter.state.turn,classicRoom.state.turn)
+  assert.deepEqual(classicAfter.state.turnOrder,classicRoom.state.turnOrder)
+
   await page.goto(base + '/chess/lobby.html')
   await page.getByRole('button',{name:'Local play'}).click()
   await page.getByRole('link',{name:'2 players'}).click()

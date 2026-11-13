@@ -94,3 +94,17 @@ test('three arrivals share one past branch: the first two collide, the later thi
  assert.equal(r.outcomes.filter(o=>o.status==='collided').length,2)
  assert.equal(frontier(branch).cells[index(c(7,7))]?.player,'red')
 })
+
+test('new movement sessions round-trip their fixed order, plans and journals',async()=>{
+ const {newSession,planner,commit,encode,decode,liveState}=await import('../src/session.ts')
+ for(const movement of ['classic','live']) {
+  const session=newSession(3,movement,['blue','red','yellow'])
+  for(let i=0;i<3;i++) {
+   const s=liveState(session),p=planner(session)
+   session.draft=requiredBoards(s,p).map(from=>legalMoves(s,from).find(m=>!m.needsVacancy))
+   commit(session)
+  }
+  assert.deepEqual(decode(encode(session)),session)
+  assert.deepEqual(liveState(session).turnOrder,['blue','red','yellow'])
+ }
+})

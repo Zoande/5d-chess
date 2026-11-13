@@ -1,7 +1,8 @@
+import {travelPosition} from './continuous.ts'
 import {BOARD, TIME, ROW, layoutOf, dimensions, squarePoint, type Point, type Layout, type BoardNode as Node} from './geometry.ts'
 import {
-  type Candidate, type Coord, type Order, type Outcome, type Player, type State, type Universe,
-  SIZE, boardBounds, boardKey, coordKey, frontier, getUniverse, index, insideState, isMain, pieceAt, playerCount, present, squares
+  type Candidate, type Coord, type Order, type Outcome, type Player, type State, type Universe, type Travel,
+  SIZE, boardBounds, boardKey, boardTurn, coordKey, frontier, getUniverse, index, insideState, isMain, pieceAt, playerCount, present, squares
 } from './model.ts'
 import {COLORS, drawPiece} from './art.ts'
 
@@ -14,7 +15,7 @@ interface Display {
   preview?: Candidate
   playable?: readonly Coord[]
   checked?: ReadonlySet<string>
-  animation?: {outcomes: readonly Outcome[]; started: number; duration: number; result?: State}
+  animation?: {outcomes: readonly Outcome[]; started: number; duration: number; result?: State; travel?: readonly Travel[]; ticks?: number}
 }
 
 const MIN_SCALE = .015
@@ -92,6 +93,7 @@ export class Scene {
     if (view.animation !== this.view.animation) {
       this.animatedDepartures.clear()
       for (const out of view.animation?.outcomes ?? []) {
+        if (view.animation?.travel) continue
         if (out.status !== 'applied') continue
         this.animatedDepartures.add(coordKey(out.move.from))
         if (out.move.castle) this.animatedDepartures.add(coordKey(out.move.castle.from))
@@ -102,6 +104,7 @@ export class Scene {
         }
       }
     }
+    if (view.animation?.travel) for (const trace of view.animation.travel) if (!trace.collision) this.animatedDepartures.add(coordKey(trace.to))
     this.view = view
     this.request()
   }
@@ -351,6 +354,12 @@ export class Scene {
   }
 
   focusPlayer(player?: Player, smooth = true) {
+    if (this.view.state.movement && this.view.playable?.length) {
+      this.inspected = this.view.playable[0]
+      this.keyboard = undefined
+      this.focusBoard(this.inspected.u, this.inspected.t, smooth)
+      return
+    }
     const s = this.view.state
     const now = present(s)
     const main = s.universes.filter(u => isMain(u, now))
@@ -477,7 +486,8 @@ export class Scene {
     if (this.view.animation) {
       const {outcomes, started, duration} = this.view.animation
       const p = clamp((now - started) / duration, 0, 1)
-      this.drawAnimation(outcomes, p)
+      if (this.view.animation.travel) this.drawTravel(this.view.animation.travel, p * (this.view.animation.ticks ?? 1))
+      else this.drawAnimation(outcomes, p)
       if (p < 1) this.request()
     }
   }
@@ -573,6 +583,8 @@ export class Scene {
     const b = u.boards[t - u.boards[0].t]
     const id = boardKey({u: u.id, t})
     const playable = this.view.playable?.some(c => boardKey(c) === id)
+    const owner = boardTurn(this.view.state, u, t)
+    const ownerColor = owner ? COLORS[owner] : undefined
     const accent = this.targetBoards.get(id) ?? (playable ? `rgba(176,222,120,${this.pulse})` : undefined)
     const now = front && u.active && t === current
     const optional = front && !now
@@ -585,10 +597,10 @@ export class Scene {
     ctx.translate(L, T)
     ctx.globalAlpha = (accent || selected) ? 1 : !u.active ? .58 : front ? 1 : .76
     ctx.fillStyle = '#28221a'
-    ctx.strokeStyle = selected ? pathColors.gold : accent ?? (now ? '#c6a46a' : optional ? '#8f826e' : '#6d583e')
+    ctx.strokeStyle = ownerColor ? ownerColor + (playable ? Math.round(this.pulse * 255).toString(16).padStart(2, '0') : 'ff') : selected ? pathColors.gold : accent ?? (now ? '#c6a46a' : optional ? '#8f826e' : '#6d583e')
     ctx.lineWidth = selected ? 2.8 : playable ? 1.8 : accent ? 2.8 : 1.5
     if (scale > .27 && (now || accent)) {
-      ctx.shadowColor = accent ?? '#c6a46a30'
+      ctx.shadowColor = ownerColor ?? accent ?? '#c6a46a30'
       ctx.shadowBlur = playable ? 6 : accent ? 11 : 14
     }
     ctx.beginPath()
@@ -684,7 +696,7 @@ export class Scene {
       ctx.textAlign = 'center'
       ctx.font = '650 12px ui-monospace, monospace'
       ctx.fillStyle = now ? '#ddc18b' : '#b0a18a'
-      const marker = u.creator ? `  ·  ${u.creator.toUpperCase()}` : ''
+      const marker = u.owners?.length ? `  ·  ${u.owners.length > 1 ? 'SHARED ' : ''}${u.owners.join('/').toUpperCase()}` : u.creator ? `  ·  ${u.creator.toUpperCase()}` : ''
       ctx.fillText(`U${u.id}  /  T${t}${front ? now ? '   ·   PRESENT' : u.active ? '   ·   FUTURE' : '   ·   INACTIVE' : '   ·   HISTORY'}${marker}`, d.width / 2, d.height + 29)
     }
     ctx.restore()
@@ -713,6 +725,22 @@ export class Scene {
     for (const n of [-.5, .5]) ctx.lineTo(end.x - 11 * Math.cos(angle + n), end.y - 11 * Math.sin(angle + n))
     ctx.closePath(); ctx.fill()
     ctx.restore()
+  }
+
+  private drawTravel(travel: readonly Travel[], tick: number) {
+    const ctx = this.ctx
+    for (const trace of travel) {
+      const at = travelPosition(trace.points, Math.min(tick, trace.endTick))
+      if (trace.collision && tick >= trace.endTick) {
+        const fade = Math.max(0, 1 - (tick - trace.endTick) / 1.5)
+        if (fade) {
+          ctx.save(); ctx.globalAlpha = fade; ctx.strokeStyle = '#ff776b'; ctx.lineWidth = 3
+          ctx.beginPath(); ctx.arc(at.x, at.y, 15 + (1 - fade) * 20, 0, Math.PI * 2); ctx.stroke(); ctx.restore()
+        }
+        continue
+      }
+      drawPiece(ctx, trace.piece.kind, trace.piece.player, at.x, at.y, 32)
+    }
   }
 
   private drawAnimation(outcomes: readonly Outcome[], p: number) {

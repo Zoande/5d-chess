@@ -1,8 +1,9 @@
+import {requiredBoards} from '../src/rules.ts'
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http'
 import {randomBytes, scryptSync, timingSafeEqual, createHash} from 'node:crypto'
 import {readFile, writeFile, mkdir, rename} from 'node:fs/promises'
 import {resolve, extname} from 'node:path'
-import {initialState, playerCount, players, survivors, type Order, type Player, type PlayerCount, type State, type Resolution, PLAYERS} from '../src/model.ts'
+import {initialState, playerCount, players, survivors, type Order, type Player, type PlayerCount, type State, type Resolution, type Movement, shuffledPlayers, PLAYERS} from '../src/model.ts'
 import {legalMoves, routeKey} from '../src/moves.ts'
 import {resolveRound, sourceBudget} from '../src/resolve.ts'
 
@@ -106,7 +107,7 @@ function summary(room: Room) {
     maxPlayers: playerCount(room.state), protected: !!room.password, round: room.state.round, finished: survivors(room.state).length <= 1}
 }
 function orders(value: unknown, seat: Player, state: State): Order[] {
-  if (!Array.isArray(value) || value.length > 5) fail(400, 'Invalid orders')
+  if (!Array.isArray(value) || value.length > (state.movement ? Math.min(512, state.universes.length + 1) : 5)) fail(400, 'Invalid orders')
   const checked: Order[] = []
   for (const raw of value) {
     if (!raw || typeof raw !== 'object') fail(400, 'Invalid order')
@@ -171,6 +172,8 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
     const password = passwordValue(data.password, true)
     if (data.playerCount !== undefined && ![2, 3, 4].includes(data.playerCount as number)) fail(400, 'Invalid player count')
     const count = (data.playerCount ?? 4) as PlayerCount
+    if (data.movement !== undefined && !['classic', 'live'].includes(data.movement as string)) fail(400, 'Invalid movement mode')
+    const movement = data.movement as Movement | undefined
     return mutation(res, () => {
       if (db.rooms.filter(r => survivors(r.state).length > 1).length >= maxGames) fail(409, '50 active games already exist')
       let code = ''
@@ -178,7 +181,7 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
       while (db.rooms.some(r => r.code === code))
       const salt = password ? randomBytes(16).toString('hex') : undefined
       const room: Room = {code, title, owner: me, password: password && salt ? hash(password, salt) : undefined,
-        salt, seats: {red: me}, state: initialState(count), journal: [], results: [], locked: {}, created: Date.now()}
+        salt, seats: {red: me}, state: initialState(count, movement, movement === 'classic' ? shuffledPlayers(count) : undefined), journal: [], results: [], locked: {}, created: Date.now()}
       db.rooms.push(room)
       return {status: 201, value: roomView(room, me)}
     })
@@ -205,16 +208,20 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
       const seat = PLAYERS.find(p => room.seats[p] === me)!
       if (!survivors(room.state).includes(seat)) fail(409, 'Your faction is eliminated')
       if (room.locked[seat]) fail(409, 'Orders already locked')
-      room.locked[seat] = orders(data.orders, seat, room.state)
+      if (room.state.movement === 'classic' && room.state.turn !== seat) fail(409, 'It is another player’s turn')
+      const checked = orders(data.orders, seat, room.state)
+      if (requiredBoards(room.state, seat, checked).length) fail(400, 'Play every required Present board first')
       const alive = survivors(room.state)
-      if (alive.every(p => room.locked[p])) {
-        const batch = alive.flatMap(p => room.locked[p] || [])
+      const locks = {...room.locked, [seat]: checked}
+      if (room.state.movement === 'classic' || alive.every(p => locks[p])) {
+        const batch = room.state.movement === 'classic' ? checked : alive.flatMap(p => locks[p] || [])
         const result = resolveRound(room.state, batch)
+        if (result.rejected.length) fail(400, result.rejected[0].reason)
         room.state = result.state
         room.journal.push(batch)
         room.results.push(result)
         room.locked = {}
-      }
+      } else room.locked = locks
       return {status: 200, value: roomView(room, me)}
     })
   }

@@ -23,6 +23,7 @@ export function checks(s: State, player: Player): Threat[] {
   return result
 }
 export function playableBoards(s: State, player: Player, orders: readonly Order[]): Coord[] {
+  if (s.movement === 'classic' && s.turn !== player) return []
   return s.universes.flatMap(u => {
     const from = {u: u.id, t: frontier(u).t, x: 0, y: 0}
     if (!sourceBudget(s, from, orders)) return []

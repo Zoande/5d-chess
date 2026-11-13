@@ -57,7 +57,7 @@ export interface Outcome {
   captures: Capture[]
 }
 export interface TravelPoint {x: number; y: number; tick: number}
-export interface Travel {piece: Piece; from: Coord; to: Coord; points: TravelPoint[]; endTick: number; collision?: boolean}
+export interface Travel {piece: Piece; from: Coord; to: Coord; points: TravelPoint[]; distance: number; normalSpeed: number; dimensionalSpeed: number; endTick: number; collision?: boolean}
 export interface Resolution {
   travel?: Travel[]
   ticks?: number
@@ -170,8 +170,8 @@ export function nextPlayer(s: State, player: Player): Player {
   for (let step = 1; step <= order.length; step++) { const p = order[(start + step) % order.length]; if (!s.eliminated.includes(p)) return p }
   return player
 }
-export function boardTurn(s: State, u: Universe): Player | undefined {
+export function boardTurn(s: State, u: Universe, t = frontier(u).t): Player | undefined {
   if (s.movement !== 'classic') return
-  const p = frontier(u).turn ?? turnOrder(s)[0]
+  const p = getBoard(s, {u: u.id, t})?.turn ?? turnOrder(s)[0]
   return s.eliminated.includes(p) ? nextPlayer(s, p) : p
 }

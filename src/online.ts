@@ -1,9 +1,10 @@
+import {requiredBoards} from './rules.ts'
 import {awareness, nextPlayable, threatSquares} from './awareness.ts'
 import {initMatchUI, setMatchHeader} from './ui.ts'
 import {Scene} from './scene.ts'
 import {COLORS, NAMES, pieceIcon} from './art.ts'
 import {type Candidate, type Coord, type Order, type Player, type Resolution, type State,
-  coordKey, coordName, getUniverse, initialState, isMain, moveBudget, pieceAt, playerCount, players, present, survivors} from './model.ts'
+  coordKey, coordName, getUniverse, initialState, isMain, moveBudget, pieceAt, playerCount, players, present, survivors, turnOrder, boardTurn} from './model.ts'
 import {legalMoves, routeKey} from './moves.ts'
 import {sourceBudget} from './resolve.ts'
 
@@ -25,7 +26,7 @@ let caption = ''
 let first = true
 let loading = false
 let submitting = false
-let animation: {outcomes: Resolution["outcomes"]; started: number; duration: number; result: State} | undefined
+let animation: {outcomes: Resolution["outcomes"]; started: number; duration: number; result: State; travel?: Resolution['travel']; ticks?: number} | undefined
 const names: Record<Player, string> = {red:'Red',blue:'Blue',yellow:'Yellow',green:'Green'}
 let opening = initialState()
 const scene = new Scene(element<HTMLCanvasElement>('scene'), opening, {
@@ -39,14 +40,15 @@ const scene = new Scene(element<HTMLCanvasElement>('scene'), opening, {
   describe(c) {
     if (!room) return
     const piece = pieceAt(shown(), c)
-    caption = `${coordName(c, shown())}${piece ? ` · ${names[piece.player]} ${NAMES[piece.kind]}` : ''}`
+    const owner = boardTurn(shown(), getUniverse(shown(), c.u)!, c.t)
+    caption = `${coordName(c, shown())}${owner ? ` · ${names[owner]} to move` : ''}${piece ? ` · ${names[piece.player]} ${NAMES[piece.kind]}` : ''}`
     element('map-caption').textContent = caption
   },
   rift(a, b, from) { element('map-caption').textContent = `Rift U${a} ↔ U${b} · from round ${from}` }
 })
 function shown() { return frame === null ? room!.state : frame === 0 ? opening : room!.results[frame - 1].state }
 const canPlan = () => !!room && frame === null && !animation && !room.waiting && !room.finished &&
-  !!room.seat && survivors(room.state).includes(room.seat) && !room.locked[room.seat]
+  !!room.seat && (room.state.movement !== 'classic' || room.state.turn === room.seat) && survivors(room.state).includes(room.seat) && !room.locked[room.seat]
 const preview = () => routes[routeIndex] ?? hover
 function sync() {
   if (!room) return
@@ -83,22 +85,24 @@ function render() {
   document.title = `${room.title} · Multiverse Chess`
   const seat = room.seat
   const s = shown()
+  element('online-mode').textContent = s.movement ? `${s.movement.toUpperCase()} · ONLINE` : 'ONLINE MATCH'
   element('phase').textContent = animation ? 'RESOLVING' : room.finished ? 'FINISHED' : room.waiting ? 'WAITING' : frame !== null ? 'REPLAY' :
-    seat && room.locked[seat] ? 'LOCKED' : 'PLANNING'
+    room.state.movement === 'classic' && room.state.turn !== seat ? 'WAITING TURN' : seat && room.locked[seat] ? 'LOCKED' : 'PLANNING'
   setMatchHeader(seat, `${room.code} · ${element('phase').textContent?.toLowerCase()}`)
   element('metrics').textContent = `Present T${present(s)} · ${s.universes.length} universes · ${s.rifts.length} rifts`
   const seats = element('seats')
-  seats.replaceChildren(...players(room.state).map(player => {
+  seats.replaceChildren(...(room.state.movement === 'classic' ? turnOrder(room.state) : players(room.state)).map(player => {
     const span = document.createElement('span')
     span.className = `${player === seat ? 'self' : ''} ${room!.locked[player] ? 'locked' : ''}`
-    span.textContent = `${names[player]}: ${room!.seats[player] || 'Open'}${room!.locked[player] ? ' ✓' : ''}`
+    if (room!.state.movement === 'classic' && room!.state.turn === player) span.classList.add('turn-owner')
+    span.textContent = `${room!.state.movement === 'classic' && room!.state.turn === player ? '▶ ' : ''}${names[player]}: ${room!.seats[player] || 'Open'}${room!.locked[player] ? ' ✓' : ''}`
     return span
   }))
   const last = room.results.length
   element('history-label').textContent = frame === null ? `${last} rounds resolved` : frame ? `After round ${frame}` : 'Opening position'
-  element<HTMLButtonElement>('previous').disabled = !last || frame === 0
-  element<HTMLButtonElement>('next').disabled = frame === null
-  element<HTMLButtonElement>('live').disabled = frame === null
+  element<HTMLButtonElement>('previous').disabled = !!animation || !last || frame === 0
+  element<HTMLButtonElement>('next').disabled = !!animation || frame === null
+  element<HTMLButtonElement>('live').disabled = !!animation || frame === null
   const turn = element('turn')
   turn.replaceChildren()
   const head = document.createElement('div')
@@ -136,6 +140,8 @@ function render() {
     const p = document.createElement('p'); p.className = 'online-message'; p.textContent = 'Viewing an earlier round.'; panel.append(p)
   } else if (seat && room.locked[seat]) {
     const p = document.createElement('p'); p.className = 'online-message'; p.textContent = 'Orders locked. Waiting for the other players.'; panel.append(p)
+  } else if (room.state.movement === 'classic' && room.state.turn !== seat) {
+    const p = document.createElement('p'); p.className = 'online-message'; p.textContent = `${names[room.state.turn!]} is playing. Board outlines show each board’s owner.`; panel.append(p)
   } else if (canPlan()) {
     const budget = moveBudget(room.state)
     const main = draft.filter(o => isMain(getUniverse(room!.state, o.from.u)!, present(room!.state))).length
@@ -157,9 +163,10 @@ function render() {
       select.onclick = () => queue(routes[routeIndex])
       panel.append(cycle, select)
     }
-    const lock = document.createElement('button'); lock.className = 'button primary block'; lock.textContent = submitting ? 'Locking…' : draft.length ? 'Lock orders' : 'Lock in a pass'
+    const lock = document.createElement('button'); lock.className = 'button primary block'; lock.textContent = submitting ? 'Submitting…' : room.state.movement === 'classic' ? 'Submit turn' : draft.length ? 'Lock orders' : seat && requiredBoards(room.state, seat).length ? 'Plan required moves' : 'Lock in a pass'
     lock.disabled = submitting
     lock.onclick = () => {
+      if (room?.seat && requiredBoards(room.state, room.seat, draft).length) { message('Play every required Present board before submitting.', true); nextPlayable(scene, requiredBoards(room.state, room.seat, draft)); return }
       if (room?.seat && awareness(room.state, room.seat, draft).remaining.length) {
         const dialog = element<HTMLDialogElement>('check-dialog')
         dialog.showModal()
@@ -169,6 +176,7 @@ function render() {
       const warning = document.createElement('p'); warning.className = 'check-notice'; warning.textContent = 'Check threat remains. Review the red highlights.'; panel.append(warning)
     }
     panel.append(lock)
+    if (seat && requiredBoards(room.state, seat, draft).length) { const note = document.createElement('p'); note.className = 'required-notice'; note.textContent = `${requiredBoards(room.state, seat, draft).length} Present boards still need a move.`; panel.append(note) }
   }
   sync()
 }
@@ -177,8 +185,9 @@ function applyRoom(next: Room) {
   room = next
   if (before && next.results.length > before.results.length) {
     const result = next.results.at(-1)!
-    const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 260 : 1600
-    animation = {outcomes: result.outcomes, started: performance.now(), duration, result: next.state}
+    const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 260 : result.travel ? Math.max(1200, Math.min(8000, (result.ticks ?? 0) * 180)) : 1600
+    animation = {outcomes: result.outcomes, started: performance.now(), duration, result: next.state, travel: result.travel, ticks: result.ticks}
+    requestAnimationFrame(() => scene.fit())
     frame = null
     window.setTimeout(() => {
       animation = undefined; render()

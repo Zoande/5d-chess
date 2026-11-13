@@ -90,6 +90,11 @@ async function lobby() {
       location.replace('/chess/')
     } catch (cause) { error('lobby-error', cause instanceof Error ? cause.message : 'Could not log out') }
   }
+  el('local-movement').addEventListener('change', () => {
+    document.querySelectorAll<HTMLAnchorElement>('.mode-choice a').forEach(link => {
+      const url = new URL(link.href); url.searchParams.set('movement', el<HTMLSelectElement>('local-movement').value); link.href = url.toString()
+    })
+  })
   let games: Games
   const refresh = async () => {
     games = await api<Games>('/games')
@@ -118,7 +123,7 @@ async function lobby() {
     error('make-error', '')
     try {
       const result = await api<{code: string}>('/games', {title: el<HTMLInputElement>('game-title').value.trim() || `${me.user}'s game`,
-        playerCount: Number(el<HTMLSelectElement>('game-players').value), password: el<HTMLInputElement>('game-password').value})
+        playerCount: Number(el<HTMLSelectElement>('game-players').value), movement: el<HTMLSelectElement>('game-movement').value, password: el<HTMLInputElement>('game-password').value})
       online(result.code)
     } catch (cause) { error('make-error', cause instanceof Error ? cause.message : 'Could not create game') }
     finally { submit.disabled = false; submit.textContent = 'Create game' }

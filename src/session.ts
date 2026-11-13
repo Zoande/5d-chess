@@ -1,4 +1,5 @@
-import {type Coord, type Order, type Player, type PlayerCount, type Resolution, type State, initialState, insideState, playerCount, players, survivors} from './model.ts'
+import {requiredBoards} from './rules.ts'
+import {type Coord, type Order, type Player, type PlayerCount, type Movement, shuffledPlayers, turnOrder, type Resolution, type State, initialState, insideState, playerCount, players, survivors} from './model.ts'
 import {resolveRound, sourceBudget} from './resolve.ts'
 import {legalMoves, routeKey} from './moves.ts'
 
@@ -10,14 +11,22 @@ export interface Session {
   locked: Order[][]
   draft: Order[]
 }
-export const newSession = (count: PlayerCount = 4): Session => ({frames: [initialState(count)], results: [], journal: [], locked: [], draft: []})
+export const newSession = (count: PlayerCount = 4, movement?: Movement, order = movement === 'classic' ? shuffledPlayers(count) : undefined): Session => ({frames: [initialState(count, movement, order)], results: [], journal: [], locked: [], draft: []})
 export const liveState = (s: Session) => s.frames[s.frames.length - 1]
-export const planner = (s: Session) => survivors(liveState(s))[s.locked.length]
+export const planner = (s: Session) => survivors(liveState(s)).length <= 1 ? undefined : liveState(s).movement === 'classic' ? liveState(s).turn : survivors(liveState(s))[s.locked.length]
 
 const cleanCoord = ({x, y, u, t}: Coord): Coord => ({x, y, u, t})
 const cleanOrder = ({player, from, to, route}: Order): Order =>
   ({player, from: cleanCoord(from), to: cleanCoord(to), route: [...route]})
 export function commit(s: Session): Resolution | undefined {
+  const snapshot = liveState(s), p = planner(s)
+  if (p && requiredBoards(snapshot, p, s.draft).length) throw new Error('Play every required Present board first')
+  if (snapshot.movement === 'classic') {
+    const batch = s.draft.map(cleanOrder), result = resolveRound(snapshot, batch)
+    if (result.rejected.length) throw new Error(result.rejected[0].reason)
+    s.draft = []; s.journal.push(batch); s.results.push(result); s.frames.push(result.state)
+    return result
+  }
   s.locked.push(s.draft.map(cleanOrder))
   s.draft = []
   if (planner(s)) return
@@ -31,7 +40,7 @@ export function commit(s: Session): Resolution | undefined {
 }
 
 export const encode = (s: Session) => JSON.stringify({
-  format: SAVE_KEY, playerCount: playerCount(s.frames[0]), journal: s.journal, locked: s.locked, draft: s.draft.map(cleanOrder)
+  format: SAVE_KEY, playerCount: playerCount(s.frames[0]), movement: s.frames[0].movement, turnOrder: s.frames[0].turnOrder, journal: s.journal, locked: s.locked, draft: s.draft.map(cleanOrder)
 })
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const natural = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0
@@ -64,11 +73,17 @@ export function decode(text: string): Session {
   if (!isObject(raw) || raw.format !== SAVE_KEY || !Array.isArray(raw.journal) ||
     !Array.isArray(raw.locked) || !Array.isArray(raw.draft)) throw new Error('Unsupported save format')
   if (raw.playerCount !== undefined && ![2, 3, 4].includes(raw.playerCount as number)) throw new Error('Invalid player count')
-  const s = newSession((raw.playerCount ?? 4) as PlayerCount)
+  if (raw.movement !== undefined && !['classic', 'live'].includes(raw.movement as string)) throw new Error('Invalid movement mode')
+  const count = (raw.playerCount ?? 4) as PlayerCount
+  const base = initialState(count)
+  if (raw.movement === 'classic' && raw.turnOrder === undefined) throw new Error('Classic saves must preserve their turn order')
+  if (raw.turnOrder !== undefined && (!Array.isArray(raw.turnOrder) || raw.turnOrder.length !== players(base).length ||
+      new Set(raw.turnOrder).size !== raw.turnOrder.length || raw.turnOrder.some(p => !players(base).includes(p as Player)))) throw new Error('Invalid player order')
+  const s = newSession(count, raw.movement as Movement | undefined, raw.turnOrder as Player[] | undefined)
   for (const row of raw.journal) {
     const snapshot = liveState(s)
     if (survivors(snapshot).length <= 1) throw new Error('Orders after the game ended')
-    const batch = orders(row, 20, snapshot)
+    const batch = orders(row, snapshot.movement ? 512 : 20, snapshot)
     const result = resolveRound(snapshot, batch)
     if (result.rejected.length) throw new Error(`Invalid orders in round ${snapshot.round}`)
     s.journal.push(batch)
@@ -81,12 +96,14 @@ export function decode(text: string): Session {
     throw new Error('Too many locked plans')
   }
   if (alive.length <= 1 && (raw.locked.length || raw.draft.length)) throw new Error('Orders after the game ended')
+  if (current.movement === 'classic' && raw.locked.length) throw new Error('Classic saves cannot contain simultaneous locks')
   s.locked = raw.locked.map((v, i) => {
-    const batch = orders(v, 5, current)
+    const batch = orders(v, current.movement ? current.universes.length + 1 : 5, current)
     checkPlan(current, batch, alive[i])
+    if (requiredBoards(current, alive[i], batch).length) throw new Error('Incomplete locked plan')
     return batch
   })
-  s.draft = orders(raw.draft, 5, current)
-  checkPlan(current, s.draft, alive[s.locked.length])
+  s.draft = orders(raw.draft, current.movement ? current.universes.length + 1 : 5, current)
+  checkPlan(current, s.draft, planner(s))
   return s
 }

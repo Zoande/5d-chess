@@ -1,10 +1,11 @@
+import {requiredBoards} from './rules.ts'
 import {awareness, nextPlayable, threatSquares} from './awareness.ts'
 import {initMatchUI, setMatchHeader} from './ui.ts'
 import {Scene} from './scene.ts'
 import {COLORS, NAMES, pieceIcon} from './art.ts'
 import {
   type Candidate, type Coord, type Order, type Outcome, type Player, type State,
-  type PlayerCount, coordKey, coordName, frontier, getBoard, getUniverse, index, isMain, moveBudget, pieceAt, playerCount, players, present, survivors
+  type Resolution, type PlayerCount, type Movement, coordKey, coordName, frontier, getBoard, getUniverse, index, isMain, moveBudget, pieceAt, playerCount, players, present, survivors, turnOrder, boardTurn
 } from './model.ts'
 import {legalMoves, routeKey} from './moves.ts'
 import {sourceBudget} from './resolve.ts'
@@ -26,19 +27,20 @@ fetch('/api/me').then(r => r.ok ? r.json() : null).then(data => {
 const requestedCount = new URLSearchParams(location.search).get('players')
 let localMode: PlayerCount = new URLSearchParams(location.search).has('local') && ['2', '3', '4'].includes(requestedCount ?? '')
   ? Number(requestedCount) as PlayerCount : 4
-const saveKey = (count: PlayerCount) => count === 4 ? SAVE_KEY : `${SAVE_KEY}/${count}`
-let session = newSession(localMode)
+let movement: Movement = new URLSearchParams(location.search).get('movement') === 'classic' ? 'classic' : 'live'
+const saveKey = (count: PlayerCount) => `${SAVE_KEY}/${movement}/${count}`
+let session = newSession(localMode, movement)
 let saveError = false
 let restoreNotice = ''
 try {
-  const stored = localStorage.getItem(saveKey(localMode))
+  const stored = localStorage.getItem(saveKey(localMode)) ?? (movement === 'live' ? localStorage.getItem(localMode === 4 ? SAVE_KEY : `${SAVE_KEY}/${localMode}`) : null)
   if (stored) session = decode(stored)
 } catch {
   restoreNotice = 'The previous save could not be restored.'
 }
 let frame: number | null = null
 let revealing = false
-let animation: {outcomes: readonly Outcome[]; started: number; duration: number; result?: State} | undefined
+let animation: {outcomes: readonly Outcome[]; started: number; duration: number; result?: State; travel?: Resolution['travel']; ticks?: number} | undefined
 let selected: Coord | undefined
 let choices: Candidate[] = []
 let hover: Candidate | undefined
@@ -120,7 +122,7 @@ function update() {
   draftForScene = currentDraft()
   syncScene()
   const s = shown()
-  element('mode-label').textContent = `${playerCount(s) === 2 ? 'TWO' : playerCount(s) === 3 ? 'THREE' : 'FOUR'}-PLAYER`
+  element('mode-label').textContent = `${playerCount(s) === 2 ? 'TWO' : playerCount(s) === 3 ? 'THREE' : 'FOUR'}-PLAYER · ${s.movement?.toUpperCase() ?? 'LEGACY'}`
   const playing = planner(session)
   const presentTime = present(s)
   const past = frame !== null
@@ -132,7 +134,7 @@ function update() {
   element('metrics').innerHTML = `<span><i class="tiny-dot"></i> Present <b>T${presentTime}</b></span>
     <span><b>${s.universes.length}</b> ${s.universes.length === 1 ? 'universe' : 'universes'}</span>
     <span><b>${s.rifts.length}</b> ${s.rifts.length === 1 ? 'rift' : 'rifts'}</span>`
-  element('factions').innerHTML = players(s).map(p => `<span class="faction ${s.eliminated.includes(p) ? 'dead' : ''} ${playing === p && statePhase === 'PLANNING' ? 'active' : ''}" style="--faction:${COLORS[p]}" title="${seats[p]}${s.eliminated.includes(p) ? ' · Eliminated' : ''}">
+  element('factions').innerHTML = (s.movement === 'classic' ? turnOrder(s) : players(s)).map(p => `<span class="faction ${s.eliminated.includes(p) ? 'dead' : ''} ${playing === p && statePhase === 'PLANNING' ? 'active' : ''}" style="--faction:${COLORS[p]}" title="${seats[p]}${s.eliminated.includes(p) ? ' · Eliminated' : ''}">
     <i></i><span>${name(p)}</span></span>`).join('')
   element('live-label').textContent = past ? '◌ REPLAY' : '● LIVE'
   element('history-label').textContent = !last ? 'Opening position' :
@@ -198,6 +200,7 @@ function paintPanel() {
     return
   }
   const budget = moveBudget(s)
+  if (s.movement) budget.main = requiredBoards(s, p).length
   const main = session.draft.filter(o => isMain(getUniverse(s, o.from.u)!, present(s))).length
   const extra = session.draft.length - main
   const selectedPiece = selected ? pieceAt(s, selected) : null
@@ -215,17 +218,17 @@ function paintPanel() {
         'Select a piece to plan a move.'}</p></div>`}
     ${routeChoices.length ? `<div class="route-choice"><span>ROUTE ${routeIndex + 1} / ${routeChoices.length}</span><button class="text-button" data-action="route">Cycle route</button>
       <button class="text-button" data-action="queue">Queue this route</button></div>` : ''}
-    <button class="button primary block" data-action="lock">${session.draft.length ? 'Lock orders' : 'Lock in a pass'} <span>→</span></button>
+    <button class="button primary block" data-action="lock">${s.movement === 'classic' ? 'Submit turn' : session.draft.length ? 'Lock orders' : requiredBoards(s, p).length ? 'Plan required moves' : 'Lock in a pass'} <span>→</span></button>
     <div class="planning-links"><button class="text-button" data-action="undo" ${session.draft.length ? '' : 'disabled'}>↶ Undo</button>
-    <button class="text-button" data-action="pass" ${session.draft.length ? 'disabled' : ''}>Pass round</button></div>`
+    <button class="text-button" data-action="pass" ${session.draft.length || requiredBoards(s, p, session.draft).length ? 'disabled' : ''}>Pass round</button></div>`
   const info = awareness(s, p, session.draft)
-  activity.innerHTML = info.remaining.length ? '<p class="check-notice">Check threat remains. Review the red highlights.</p>' : ''
+  activity.innerHTML = (info.remaining.length ? '<p class="check-notice">Check threat remains. Review the red highlights.</p>' : '') + (requiredBoards(s, p, session.draft).length ? `<p class="required-notice">${requiredBoards(s, p, session.draft).length} Present boards still need a move.</p>` : '')
 }
 
 function outcomeText(o: Outcome) {
   const m = o.move
   let detail = o.status === 'contested' ? 'Contested · failed' : o.status === 'blocked' ? 'Blocked · failed' :
-    o.branch !== undefined ? `Created universe U${o.branch}` : m.castle ? 'Castled' : 'Applied'
+    o.branch !== undefined ? `Created universe U${o.branch}` : o.status === 'collided' ? 'Physical collision · removed' : m.castle ? 'Castled' : 'Applied'
   if (o.captures.length) detail += ` · Captured ${o.captures.map(c => `${name(c.piece.player)} ${NAMES[c.piece.kind]}`).join(', ')}`
   return `<div class="outcome">${pieceIcon(m.piece.kind, m.player, 22)}<div><b>${orderText(m)}</b><small>${detail}</small></div></div>`
 }
@@ -280,8 +283,8 @@ function animateRound(roundIndex: number, end: () => void) {
   if (!result) return
   clearSelection()
   caption = ''
-  const duration = motion.matches ? 260 : 1350
-  animation = {outcomes: result.outcomes, started: performance.now(), duration, result: result.state}
+  const duration = motion.matches ? 260 : result.travel ? Math.max(1200, Math.min(8000, (result.ticks ?? 0) * 180)) : 1600
+  animation = {outcomes: result.outcomes, started: performance.now(), duration, result: result.state, travel: result.travel, ticks: result.ticks}
   update()
   if (result.outcomes.length) scene.fit()
   window.setTimeout(() => {
@@ -296,6 +299,12 @@ function animateRound(roundIndex: number, end: () => void) {
 function lock(confirmed = false) {
   if (!planning()) return
   const p = planner(session)!
+  const missing = requiredBoards(shown(), p, session.draft)
+  if (missing.length) {
+    nextPlayable(scene, missing)
+    modal(`<p class="eyebrow">PRESENT BOARDS</p><h2>Finish the Present first</h2><p>Play one move on each of your ${missing.length} remaining Present boards before submitting. Boards without a legal move are exempt.</p><button class="button primary block" data-dialog="close">Back to the boards</button>`)
+    return
+  }
   if (!confirmed && awareness(shown(), p, session.draft).remaining.length) {
     modal('<p class="eyebrow">CHECK WARNING</p><h2>Your king is still threatened</h2><p>Your visible plan does not remove every direct or time-travel check. Hidden opponent orders may change the result.</p><div class="dialog-row"><button class="button" data-dialog="close">Review moves</button><button class="button primary" data-dialog="confirm-check">Submit anyway</button></div>')
     return
@@ -355,11 +364,13 @@ function handleDialogAction(action: string) {
   }
   if (action === 'import') file.click()
   if (action === 'new') {
-    modal(`<p class="eyebrow">NEW MATCH</p><h2>Start over?</h2><p>This replaces the current match and its autosave. Export the match first if you want to keep it.</p>
+    modal(`<p class="eyebrow">NEW MATCH</p><h2>New local game</h2><p>This replaces the current match. Export it first to keep a copy.</p><div class="new-game-options"><label>Players<select id="new-players"><option value="2">2 players</option><option value="3">3 players</option><option value="4">4 players</option></select></label><label>Movement<select id="new-movement"><option value="live">Live · simultaneous travel</option><option value="classic">Classic · take turns</option></select></label></div>
       <div class="dialog-row"><button class="button" data-dialog="close">Cancel</button><button class="button primary" data-dialog="reset">Start new match</button></div>`)
+    element<HTMLSelectElement>('new-players').value = String(localMode)
+    element<HTMLSelectElement>('new-movement').value = movement
     return
   }
-  if (action === 'reset') setSession(newSession(localMode), false)
+  if (action === 'reset') setSession(newSession(Number(element<HTMLSelectElement>('new-players').value) as PlayerCount, element<HTMLSelectElement>('new-movement').value as Movement), false)
   dialog.close()
 }
 file.addEventListener('change', async () => {
@@ -376,7 +387,8 @@ file.addEventListener('change', async () => {
 function setSession(next: Session, privateRestore: boolean) {
   session = next
   localMode = playerCount(liveState(next))
-  if (privateRestore) history.replaceState(null, '', `/chess/?local=1&players=${localMode}`)
+  movement = liveState(next).movement ?? 'live'
+  history.replaceState(null, '', `/chess/?local=1&players=${localMode}&movement=${movement}`)
   revealing = false
   frame = null
   privacy = false
@@ -454,14 +466,15 @@ element('viewport').querySelectorAll<HTMLButtonElement>('[data-overlay]').forEac
 initMatchUI()
 button('help').onclick = () => modal(`<p class="eyebrow">FIELD GUIDE</p><h2>How to play</h2>
   <div class="guide">
-    <p><b>Plan in private.</b> Select one of your pieces, choose a highlighted square, and lock your orders. Pass the device to the next faction.</p>
+    <p><b>${liveState(session).movement === 'classic' ? 'Take turns.' : 'Plan in private.'}</b> ${liveState(session).movement === 'classic' ? 'The player order is shuffled once and repeats. Board outlines show their owners. Play every owned Present board, then submit your turn.' : liveState(session).movement === 'live' ? 'Plan one move on each playable Present board and lock your orders. Every faction plans against the same snapshot; the units travel after everyone locks.' : 'Select one of your pieces, choose a highlighted square, and lock your orders. Pass the device to the next faction.'}</p>
     <p><b>Move through four dimensions.</b> Rooks use one axis, bishops two, and queens up to four. Sliding distances must match on every axis used. Knights jump two along one axis and one along another. Kings step at most one on each axis.</p>
     <p><b>Follow the tree.</b> Parent–child edges count as one universe step. Queens, bishops, and knights may use one purple Rift per move. Pawns push toward the center or down to child universes. They capture diagonally in space or along one child edge plus one time step.</p>
-    <p><b>Rewrite the past.</b> A blue arrival forks a historical board. Its original future remains intact. Active frontiers at the Present advance each round, even if everyone passes. A future or inactive frontier can supply one optional order.</p>
-    <p><b>Capture a king.</b> An enemy that moves away successfully escapes. Orders that claim the same resulting square fail together. Capturing any king eliminates its faction. The final surviving faction wins.</p>
+    <p><b>Rewrite the past.</b> A blue arrival forks a historical board. Its original future remains intact. ${liveState(session).movement === 'live' ? 'Moves into the same past board share one new timeline, supported by every contributing faction.' : ''} ${liveState(session).movement ? 'The earliest active frontier is the Present. Play all eligible Present boards; a past branch can move it backward. One future or inactive source is optional.' : 'Active frontiers at the Present advance each round, even if everyone passes. A future or inactive frontier can supply one optional order.'}</p>
+    <p><b>Capture a king.</b> ${liveState(session).movement === 'live' ? 'Rooks and pawns travel fastest; bishops and queens are slower. Kings and knights arrive instantly. Physical collisions remove both pieces, including friendly pieces. Use an instant knight to intercept an attack. ' : liveState(session).movement === 'classic' ? 'Moves resolve immediately after a player submits. ' : 'An enemy that moves away successfully escapes. Orders that claim the same resulting square fail together. '}Capturing any king eliminates its faction. Red highlights warn about direct and time-travel check; checkmate is not enforced.</p>
     <p><b>Navigate.</b> Drag, WASD, or arrow keys to pan. Scroll, pinch, or use +/− to zoom. Alt + arrows moves a square cursor, Shift + arrows moves between board nodes, and Enter selects.</p>
   </div><button class="button primary block" data-dialog="close">Back to the board</button>`)
 
+save()
 update()
 const startingPlayer = planner(session)
 if (startingPlayer) nextPlayable(scene, awareness(shown(), startingPlayer, session.draft).playable)
