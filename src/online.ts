@@ -1,3 +1,4 @@
+import {awareness, nextPlayable, threatSquares} from './awareness.ts'
 import {initMatchUI, setMatchHeader} from './ui.ts'
 import {Scene} from './scene.ts'
 import {COLORS, NAMES, pieceIcon} from './art.ts'
@@ -24,6 +25,7 @@ let caption = ''
 let first = true
 let loading = false
 let submitting = false
+let animation: {outcomes: Resolution["outcomes"]; started: number; duration: number; result: State} | undefined
 const names: Record<Player, string> = {red:'Red',blue:'Blue',yellow:'Yellow',green:'Green'}
 let opening = initialState()
 const scene = new Scene(element<HTMLCanvasElement>('scene'), opening, {
@@ -43,12 +45,13 @@ const scene = new Scene(element<HTMLCanvasElement>('scene'), opening, {
   rift(a, b, from) { element('map-caption').textContent = `Rift U${a} ↔ U${b} · from round ${from}` }
 })
 function shown() { return frame === null ? room!.state : frame === 0 ? opening : room!.results[frame - 1].state }
-const canPlan = () => !!room && frame === null && !room.waiting && !room.finished &&
+const canPlan = () => !!room && frame === null && !animation && !room.waiting && !room.finished &&
   !!room.seat && survivors(room.state).includes(room.seat) && !room.locked[room.seat]
 const preview = () => routes[routeIndex] ?? hover
 function sync() {
   if (!room) return
-  scene.update({state:shown(), moves:canPlan() ? choices : [], selected, preview:preview(), queued:draft})
+  const info = canPlan() && room?.seat ? awareness(shown(), room.seat, draft) : undefined
+  scene.update({state:shown(), animation, playable: info?.playable, checked: info && threatSquares(info.threats), moves:canPlan() ? choices : [], selected, preview:preview(), queued:draft})
 }
 function clear() { selected = undefined; choices = []; hover = undefined; routes = []; routeIndex = 0 }
 function pick(c?: Coord) {
@@ -66,7 +69,7 @@ function pick(c?: Coord) {
   }
   render()
 }
-function queue(move: Candidate) { draft.push(move); clear(); render() }
+function queue(move: Candidate) { draft.push(move); clear(); render(); if (room?.seat) nextPlayable(scene, awareness(room.state, room.seat, draft).playable, move.from) }
 function message(text: string, problem = false) {
   const box = element('activity')
   box.className = problem ? 'form-error' : 'online-message'
@@ -80,7 +83,7 @@ function render() {
   document.title = `${room.title} · Multiverse Chess`
   const seat = room.seat
   const s = shown()
-  element('phase').textContent = room.finished ? 'FINISHED' : room.waiting ? 'WAITING' : frame !== null ? 'REPLAY' :
+  element('phase').textContent = animation ? 'RESOLVING' : room.finished ? 'FINISHED' : room.waiting ? 'WAITING' : frame !== null ? 'REPLAY' :
     seat && room.locked[seat] ? 'LOCKED' : 'PLANNING'
   setMatchHeader(seat, `${room.code} · ${element('phase').textContent?.toLowerCase()}`)
   element('metrics').textContent = `Present T${present(s)} · ${s.universes.length} universes · ${s.rifts.length} rifts`
@@ -156,10 +159,32 @@ function render() {
     }
     const lock = document.createElement('button'); lock.className = 'button primary block'; lock.textContent = submitting ? 'Locking…' : draft.length ? 'Lock orders' : 'Lock in a pass'
     lock.disabled = submitting
-    lock.onclick = () => void submit()
+    lock.onclick = () => {
+      if (room?.seat && awareness(room.state, room.seat, draft).remaining.length) {
+        const dialog = element<HTMLDialogElement>('check-dialog')
+        dialog.showModal()
+      } else void submit()
+    }
+    if (seat && awareness(room.state, seat, draft).remaining.length) {
+      const warning = document.createElement('p'); warning.className = 'check-notice'; warning.textContent = 'Check threat remains. Review the red highlights.'; panel.append(warning)
+    }
     panel.append(lock)
   }
   sync()
+}
+function applyRoom(next: Room) {
+  const before = room
+  room = next
+  if (before && next.results.length > before.results.length) {
+    const result = next.results.at(-1)!
+    const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 260 : 1600
+    animation = {outcomes: result.outcomes, started: performance.now(), duration, result: next.state}
+    frame = null
+    window.setTimeout(() => {
+      animation = undefined; render()
+      if (room?.seat) nextPlayable(scene, awareness(room.state, room.seat, draft).playable)
+    }, duration + 30)
+  }
 }
 async function load() {
   if (loading) return
@@ -170,11 +195,11 @@ async function load() {
     const data = await response.json()
     if (!response.ok) throw new Error(data.error || 'Could not load game')
     const oldRound = room?.state.round
-    room = data as Room
-    opening = initialState(playerCount(room.state))
-    if (oldRound && oldRound !== room.state.round) { draft = []; clear(); frame = null; message(`Round ${oldRound} resolved. Plan the next round.`) }
+    applyRoom(data as Room)
+    opening = initialState(playerCount((data as Room).state))
+    if (oldRound && oldRound !== (data as Room).state.round) { draft = []; clear(); frame = null; message(`Round ${oldRound} resolved. Plan the next round.`) }
     render()
-    if (first) { first = false; scene.focusPlayer(room.seat, false) }
+    if (first) { first = false; scene.focusPlayer((data as Room).seat) }
   } catch (cause) { message(cause instanceof Error ? cause.message : 'Could not load game', true) }
   finally { loading = false }
 }
@@ -187,7 +212,7 @@ async function submit() {
       body:JSON.stringify({orders:draft.map(({player, from, to, route}) => ({player, from, to, route}))})})
     const data = await response.json()
     if (!response.ok) throw new Error(data.error || 'Could not lock orders')
-    room = data as Room
+    applyRoom(data as Room)
     draft = []; clear(); message('Orders locked. Waiting for the others.'); render()
   } catch (cause) { message(cause instanceof Error ? cause.message : 'Could not lock orders', true) }
   finally { submitting = false; render() }
@@ -211,5 +236,7 @@ element('viewport').querySelectorAll<HTMLButtonElement>('[data-overlay]').forEac
   scene.setOverlay(button.dataset.overlay!, enabled)
 })
 initMatchUI()
+element('review-check').onclick = () => element<HTMLDialogElement>('check-dialog').close()
+element('submit-check').onclick = () => { element<HTMLDialogElement>('check-dialog').close(); void submit() }
 void load()
 window.setInterval(() => { if (document.visibilityState === 'visible') void load() }, 3000)

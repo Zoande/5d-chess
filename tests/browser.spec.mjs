@@ -84,7 +84,7 @@ test('four players create a branch and Rift in one scene, then reload, replay, e
 
   await waitText('#turn','Red to plan')
   if (process.env.QA_SCREENSHOT) await page.screenshot({path:process.env.QA_SCREENSHOT})
-  assert.equal(await page.locator('canvas').count(),1)
+  assert.equal(await page.locator('#scene').count(),1)
   assert.equal(await page.locator('#viewport').evaluate(el => Math.round(el.getBoundingClientRect().width)), 1380)
   const riftsOverlay = page.getByRole('button',{name:'Temporal Rifts'})
   await riftsOverlay.click()
@@ -165,7 +165,7 @@ test('four players create a branch and Rift in one scene, then reload, replay, e
   await sheetButton.click()
   await phone.locator('#import-file').setInputFiles({name:'game.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(saved))})
   await phone.waitForFunction(() => document.querySelector('#metrics')?.textContent?.includes('1 rift'))
-  assert.equal(await phone.locator('canvas').count(),1)
+  assert.equal(await phone.locator('#scene').count(),1)
   assert.equal(await phone.evaluate(()=>document.documentElement.scrollWidth),393)
   await phone.setViewportSize({width:320,height:640})
   assert.equal(await phone.evaluate(()=>document.documentElement.scrollWidth),320)
@@ -212,4 +212,27 @@ test('match controls stay aligned and recover after dragging and resizing', asyn
     assert.equal(await menu.getAttribute('open'),null)
     await page.getByRole('button',{name:'Back to the board'}).click()
   }
+})
+
+test('online check warning and movable camera minimap are available without changing game rules', async t => {
+  const base = await server(t)
+  const {initialState,index} = await import('../src/model.ts')
+  const state = initialState(2)
+  const cells=Array(196).fill(null)
+  for (const [x,y,player,kind] of [[7,10,'red','K'],[7,3,'yellow','R'],[10,3,'yellow','K']]) cells[index({x,y})]={player,kind,moved:true}
+  const snapshot={...state,universes:[{...state.universes[0],boards:[{t:0,cells,enPassant:[]}]}]}
+  const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']})
+  t.after(()=>browser.close())
+  const page=await browser.newPage({viewport:{width:1380,height:900},reducedMotion:'reduce'})
+  await page.route('**/api/games/TEST',route=>route.fulfill({json:{code:'TEST',title:'Check review',seats:{red:'Alice',yellow:'Bob'},seat:'red',state:snapshot,results:[],journal:[],locked:{},waiting:false,finished:false}}))
+  await page.goto(base+'/chess/online.html?code=TEST')
+  await page.getByRole('button',{name:'Lock in a pass'}).click()
+  await page.getByRole('heading',{name:'Your king is still threatened'}).waitFor()
+  await page.getByRole('button',{name:'Review moves'}).click()
+  const mini=page.locator('.minimap')
+  const before=await mini.boundingBox(), handle=await page.locator('.minimap-handle').boundingBox()
+  await page.mouse.move(handle.x+20,handle.y+10);await page.mouse.down();await page.mouse.move(handle.x-150,handle.y+80);await page.mouse.up()
+  assert.notEqual(Math.round((await mini.boundingBox()).x),Math.round(before.x))
+  await mini.locator('canvas').click()
+  assert.equal(await page.getByText('CHRONOGRAPH').count(),0)
 })

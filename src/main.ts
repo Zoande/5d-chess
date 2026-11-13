@@ -1,3 +1,4 @@
+import {awareness, nextPlayable, threatSquares} from './awareness.ts'
 import {initMatchUI, setMatchHeader} from './ui.ts'
 import {Scene} from './scene.ts'
 import {COLORS, NAMES, pieceIcon} from './art.ts'
@@ -37,7 +38,7 @@ try {
 }
 let frame: number | null = null
 let revealing = false
-let animation: {outcomes: readonly Outcome[]; started: number; duration: number} | undefined
+let animation: {outcomes: readonly Outcome[]; started: number; duration: number; result?: State} | undefined
 let selected: Coord | undefined
 let choices: Candidate[] = []
 let hover: Candidate | undefined
@@ -77,7 +78,7 @@ const scene = new Scene(element<HTMLCanvasElement>('scene'), liveState(session),
 })
 
 function shown(): State {
-  if (animation) return session.frames[(frame ?? session.results.length) - 1]
+  if (animation) return animation.result ?? session.frames[(frame ?? session.results.length) - 1]
   return frame === null ? liveState(session) : session.frames[frame]
 }
 const planning = () => frame === null && !revealing && !animation && !privacy && !!planner(session)
@@ -103,7 +104,10 @@ function currentDraft(): Candidate[] {
 }
 let draftForScene: Candidate[] = []
 function syncScene() {
-  scene.update({state: shown(), moves: choices, selected, preview: preview(), queued: draftForScene, animation})
+  const p = planner(session)
+  const info = p && planning() ? awareness(shown(), p, session.draft) : undefined
+  scene.update({state: shown(), moves: choices, selected, preview: preview(), queued: draftForScene, animation,
+    playable: info?.playable, checked: info && threatSquares(info.threats)})
 }
 function clearSelection() {
   selected = undefined
@@ -155,8 +159,7 @@ function paintCaption() {
     const route = m.route.map(u => `U${u}`).join(' → ')
     box.innerHTML = `<b>${tags.join(' · ')}</b><span>${orderText(m)}${m.route.length > 1 ? ` <em>via ${route}</em>` : ''}</span>`
   } else {
-    box.innerHTML = `<b>CHRONOGRAPH</b><span></span>`
-    box.lastElementChild!.textContent = caption || 'Space, time & branching universes'
+    box.textContent = caption
   }
 }
 
@@ -215,7 +218,8 @@ function paintPanel() {
     <button class="button primary block" data-action="lock">${session.draft.length ? 'Lock orders' : 'Lock in a pass'} <span>→</span></button>
     <div class="planning-links"><button class="text-button" data-action="undo" ${session.draft.length ? '' : 'disabled'}>↶ Undo</button>
     <button class="text-button" data-action="pass" ${session.draft.length ? 'disabled' : ''}>Pass round</button></div>`
-  activity.innerHTML = ''
+  const info = awareness(s, p, session.draft)
+  activity.innerHTML = info.remaining.length ? '<p class="check-notice">Check threat remains. Review the red highlights.</p>' : ''
 }
 
 function outcomeText(o: Outcome) {
@@ -232,6 +236,8 @@ function queue(move: Candidate) {
   caption = 'Order queued. The board stays frozen until reveal.'
   save()
   update()
+  const p = planner(session)
+  if (p) nextPlayable(scene, awareness(shown(), p, session.draft).playable, move.from)
 }
 function pick(c?: Coord) {
   if (!planning()) return
@@ -275,7 +281,7 @@ function animateRound(roundIndex: number, end: () => void) {
   clearSelection()
   caption = ''
   const duration = motion.matches ? 260 : 1350
-  animation = {outcomes: result.outcomes, started: performance.now(), duration}
+  animation = {outcomes: result.outcomes, started: performance.now(), duration, result: result.state}
   update()
   if (result.outcomes.length) scene.fit()
   window.setTimeout(() => {
@@ -287,8 +293,13 @@ function animateRound(roundIndex: number, end: () => void) {
   }, duration + 30)
 }
 
-function lock() {
+function lock(confirmed = false) {
   if (!planning()) return
+  const p = planner(session)!
+  if (!confirmed && awareness(shown(), p, session.draft).remaining.length) {
+    modal('<p class="eyebrow">CHECK WARNING</p><h2>Your king is still threatened</h2><p>Your visible plan does not remove every direct or time-travel check. Hidden opponent orders may change the result.</p><div class="dialog-row"><button class="button" data-dialog="close">Review moves</button><button class="button primary" data-dialog="confirm-check">Submit anyway</button></div>')
+    return
+  }
   clearSelection()
   const result = commit(session)
   save()
@@ -325,6 +336,7 @@ dialog.addEventListener('click', e => {
   handleDialogAction(action)
 })
 function handleDialogAction(action: string) {
+  if (action === 'confirm-check') { dialog.close(); lock(true); return }
   if (action === 'ready') {
     privacy = false
     update()
@@ -451,4 +463,6 @@ button('help').onclick = () => modal(`<p class="eyebrow">FIELD GUIDE</p><h2>How 
   </div><button class="button primary block" data-dialog="close">Back to the board</button>`)
 
 update()
+const startingPlayer = planner(session)
+if (startingPlayer) nextPlayable(scene, awareness(shown(), startingPlayer, session.draft).playable)
 if (session.locked.length || session.draft.length) handoff()

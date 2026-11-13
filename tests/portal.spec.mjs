@@ -125,7 +125,7 @@ test('account and lobby flow uses the multiplayer server', async t => {
   await page.getByRole('button',{name:'Local play'}).click()
   await page.getByRole('link',{name:'2 players'}).click()
   await page.waitForURL(/\/chess\/\?local=1&players=2/)
-  assert.equal(await page.locator('canvas').count(),1)
+  assert.equal(await page.locator('#scene').count(),1)
   assert.equal(await page.locator('#factions .faction').count(),2)
   if (process.env.QA_MODE_SCREENSHOTS) await page.screenshot({path:'/tmp/chess-two-player.png'})
   await page.goto(base + '/chess/lobby.html')

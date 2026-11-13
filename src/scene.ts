@@ -1,25 +1,22 @@
+import {BOARD, TIME, ROW, layoutOf, dimensions, squarePoint, type Point, type Layout, type BoardNode as Node} from './geometry.ts'
 import {
   type Candidate, type Coord, type Order, type Outcome, type Player, type State, type Universe,
   SIZE, boardBounds, boardKey, coordKey, frontier, getUniverse, index, insideState, isMain, pieceAt, playerCount, present, squares
 } from './model.ts'
 import {COLORS, drawPiece} from './art.ts'
 
-interface Point {x: number; y: number}
 interface Camera extends Point {scale: number}
-interface Node extends Point {u: Universe; t: number; size: number; front: boolean}
-interface Layout {rows: Map<number, number>; nodes: Map<string, Node>; width: number; height: number}
 interface Display {
   state: State
   moves: readonly Candidate[]
   queued: readonly Order[]
   selected?: Coord
   preview?: Candidate
-  animation?: {outcomes: readonly Outcome[]; started: number; duration: number}
+  playable?: readonly Coord[]
+  checked?: ReadonlySet<string>
+  animation?: {outcomes: readonly Outcome[]; started: number; duration: number; result?: State}
 }
 
-const BOARD = 448
-const TIME = 616
-const ROW = 568
 const MIN_SCALE = .015
 const MAX_SCALE = 3.5
 const reduced = matchMedia('(prefers-reduced-motion: reduce)')
@@ -28,30 +25,6 @@ const ease = (p: number) => p * p * (3 - 2 * p)
 const colorOf = (m: Candidate) => m.rift ? pathColors.rift : m.branch ? pathColors.branch :
   m.capture ? pathColors.capture : m.needsVacancy ? pathColors.gold : pathColors.normal
 const clamp = (x: number, min: number, max: number) => Math.min(max, Math.max(min, x))
-
-function layoutOf(s: State): Layout {
-  const kids = Map.groupBy(s.universes, u => u.parent)
-  const rows = new Map<number, number>()
-  const stack = [...(kids.get(null) ?? [])].reverse()
-  while (stack.length) {
-    const u = stack.pop()!
-    rows.set(u.id, rows.size)
-    for (const child of [...(kids.get(u.id) ?? [])].reverse()) stack.push(child)
-  }
-  const nodes = new Map<string, Node>()
-  let maxTime = 0
-  for (const u of s.universes) {
-    const y = rows.get(u.id)! * ROW
-    const end = frontier(u).t
-    maxTime = Math.max(maxTime, end)
-    for (const b of u.boards) {
-      const front = b.t === end
-      const node = {u, t: b.t, x: b.t * TIME, y, size: front ? BOARD : BOARD * .85, front}
-      nodes.set(boardKey({u: u.id, t: b.t}), node)
-    }
-  }
-  return {rows, nodes, width: maxTime * TIME, height: (rows.size - 1) * ROW}
-}
 
 export class Scene {
   private ctx: CanvasRenderingContext2D
@@ -76,6 +49,9 @@ export class Scene {
   private panKeys = new Set<string>()
   private panVelocity: Point = {x: 0, y: 0}
   private lastFrame = 0
+  private pulse = 1
+  private mini?: HTMLCanvasElement
+  private miniMap?: {x: number; y: number; scale: number}
 
   setOverlay(name: string, enabled: boolean) { this.overlays[name] = enabled; this.request() }
 
@@ -85,6 +61,7 @@ export class Scene {
     this.ctx = canvas.getContext('2d')!
     this.view = {state, moves: [], queued: []}
     this.layout = layoutOf(state)
+    this.installMinimap()
     new ResizeObserver(() => this.resize()).observe(canvas)
     canvas.addEventListener('wheel', e => {
       e.preventDefault()
@@ -118,10 +95,87 @@ export class Scene {
         if (out.status !== 'applied') continue
         this.animatedDepartures.add(coordKey(out.move.from))
         if (out.move.castle) this.animatedDepartures.add(coordKey(out.move.castle.from))
+        if (view.animation?.result) for (const leg of out.move.castle ? [out.move, out.move.castle] : [out.move]) {
+          const u = out.branch ?? leg.to.u
+          const t = frontier(getUniverse(view.animation.result, u)!).t
+          this.animatedDepartures.add(coordKey({...leg.to, u, t}))
+        }
       }
     }
     this.view = view
     this.request()
+  }
+
+  private installMinimap() {
+    const island = document.createElement('section')
+    island.className = 'minimap'
+    island.setAttribute('aria-label', 'Movable minimap')
+    const handle = document.createElement('button')
+    handle.className = 'minimap-handle'
+    handle.textContent = 'Minimap  ⠿'
+    handle.title = 'Drag to move minimap'
+    const canvas = document.createElement('canvas')
+    canvas.width = 300; canvas.height = 180
+    canvas.setAttribute('aria-label', 'Minimap. Click to move the camera; green boards are playable.')
+    canvas.tabIndex = 0
+    canvas.addEventListener('pointerdown', event => {
+      event.preventDefault(); canvas.setPointerCapture(event.pointerId)
+      const navigate = (e: PointerEvent) => {
+        const rect = canvas.getBoundingClientRect(), map = this.miniMap
+        if (map) this.center({x: ((e.clientX - rect.left) * 300 / rect.width - map.x) / map.scale,
+          y: ((e.clientY - rect.top) * 180 / rect.height - map.y) / map.scale, scale: this.camera.scale}, false)
+      }
+      navigate(event)
+      canvas.addEventListener('pointermove', navigate)
+      canvas.addEventListener('lostpointercapture', () => canvas.removeEventListener('pointermove', navigate), {once: true})
+    })
+    canvas.addEventListener('keydown', e => {
+      const delta = {ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1]}[e.key]
+      if (!delta) return
+      e.preventDefault()
+      this.center({...this.camera, x: this.camera.x + delta[0] * TIME, y: this.camera.y + delta[1] * ROW})
+    })
+    island.append(handle, canvas)
+    this.canvas.parentElement!.append(island)
+    this.mini = canvas
+    handle.addEventListener('pointerdown', e => {
+      const area = this.canvas.parentElement!.getBoundingClientRect(), rect = island.getBoundingClientRect()
+      const dx = e.clientX - rect.left, dy = e.clientY - rect.top
+      handle.setPointerCapture(e.pointerId)
+      const move = (event: PointerEvent) => {
+        island.style.left = `${clamp(event.clientX - area.left - dx, 0, Math.max(0, area.width - rect.width))}px`
+        island.style.top = `${clamp(event.clientY - area.top - dy, 0, Math.max(0, area.height - rect.height))}px`
+        island.style.right = 'auto'
+      }
+      handle.addEventListener('pointermove', move)
+      handle.addEventListener('lostpointercapture', () => handle.removeEventListener('pointermove', move), {once: true})
+    })
+    window.addEventListener('resize', () => {island.style.left = ''; island.style.top = ''; island.style.right = ''})
+  }
+
+  private drawMinimap() {
+    if (!this.mini) return
+    const ctx = this.mini.getContext('2d')!, {width, height} = this.layout
+    const d = this.dimensions(BOARD), margin = 28
+    const left = Math.min(-d.width / 2 - margin, this.camera.x - this.width / (2 * this.camera.scale))
+    const right = Math.max(width + d.width / 2 + margin, this.camera.x + this.width / (2 * this.camera.scale))
+    const top = Math.min(-d.height / 2 - margin, this.camera.y - this.height / (2 * this.camera.scale))
+    const bottom = Math.max(height + d.height / 2 + margin, this.camera.y + this.height / (2 * this.camera.scale))
+    const scale = Math.min(280 / (right - left), 160 / (bottom - top))
+    const x = 150 - (left + right) / 2 * scale, y = 90 - (top + bottom) / 2 * scale
+    this.miniMap = {x, y, scale}
+    ctx.clearRect(0, 0, 300, 180)
+    ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale)
+    for (const node of this.layout.nodes.values()) {
+      const box = this.dimensions(node.size)
+      const playable = this.view.playable?.some(c => boardKey(c) === boardKey({u: node.u.id, t: node.t}))
+      ctx.fillStyle = playable ? `rgba(166,218,113,${this.pulse})` : node.front ? '#827052' : '#4e463b'
+      ctx.fillRect(node.x - box.width / 2, node.y - box.height / 2, box.width, box.height)
+    }
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2 / scale
+    ctx.strokeRect(this.camera.x - this.width / (2 * this.camera.scale), this.camera.y - this.height / (2 * this.camera.scale),
+      this.width / this.camera.scale, this.height / this.camera.scale)
+    ctx.restore()
   }
 
   private resize() {
@@ -148,12 +202,7 @@ export class Scene {
       y: this.camera.y + (point.y - this.height / 2) / this.camera.scale}
   }
 
-  private dimensions(size: number) {
-    const bounds = boardBounds(this.view.state)
-    const tile = size / SIZE
-    return {...bounds, tile, width: (bounds.maxX - bounds.minX + 1) * tile,
-      height: (bounds.maxY - bounds.minY + 1) * tile}
-  }
+  private dimensions(size: number) { return dimensions(this.view.state, size) }
 
   private hit(point: Point, allowFrame = false): Coord | undefined {
     const w = this.world(point)
@@ -376,6 +425,8 @@ export class Scene {
 
   private render(now: number) {
     this.frame = 0
+    this.pulse = reduced.matches ? 1 : .72 + .18 * Math.sin(now / 420)
+    if (this.view.playable?.length && !reduced.matches) this.request()
     const dt = Math.min(0.05, this.lastFrame ? (now - this.lastFrame) / 1000 : 0)
     this.lastFrame = now
     if (this.motion) {
@@ -422,6 +473,7 @@ export class Scene {
       if (move.path) this.drawPath(move, COLORS[move.player], .54, true)
     }
     if (selectedPreview && this.overlays.paths) this.drawPath(selectedPreview, pathColors.gold, .93, false)
+    this.drawMinimap()
     if (this.view.animation) {
       const {outcomes, started, duration} = this.view.animation
       const p = clamp((now - started) / duration, 0, 1)
@@ -520,7 +572,8 @@ export class Scene {
     const {u, t, size, front} = node
     const b = u.boards[t - u.boards[0].t]
     const id = boardKey({u: u.id, t})
-    const accent = this.targetBoards.get(id)
+    const playable = this.view.playable?.some(c => boardKey(c) === id)
+    const accent = this.targetBoards.get(id) ?? (playable ? `rgba(176,222,120,${this.pulse})` : undefined)
     const now = front && u.active && t === current
     const optional = front && !now
     const selected = this.view.selected && id === boardKey(this.view.selected)
@@ -533,10 +586,10 @@ export class Scene {
     ctx.globalAlpha = (accent || selected) ? 1 : !u.active ? .58 : front ? 1 : .76
     ctx.fillStyle = '#28221a'
     ctx.strokeStyle = selected ? pathColors.gold : accent ?? (now ? '#c6a46a' : optional ? '#8f826e' : '#6d583e')
-    ctx.lineWidth = selected || accent ? 2.8 : 1.5
+    ctx.lineWidth = selected ? 2.8 : playable ? 1.8 : accent ? 2.8 : 1.5
     if (scale > .27 && (now || accent)) {
       ctx.shadowColor = accent ?? '#c6a46a30'
-      ctx.shadowBlur = accent ? 11 : 14
+      ctx.shadowBlur = playable ? 6 : accent ? 11 : 14
     }
     ctx.beginPath()
     if (playerCount(this.view.state) === 3) {
@@ -592,7 +645,13 @@ export class Scene {
         if (piece && !this.animatedDepartures.has(key)) {
           const ghost = front && this.view.state.eliminated.includes(piece.player)
           if (ghost) ctx.globalAlpha *= .27
+          if (this.view.checked?.has(key)) {
+            ctx.shadowColor = '#ff3030'; ctx.shadowBlur = 16
+            ctx.fillStyle = '#ff303066'; ctx.fillRect(sx, sy, tile, tile)
+            ctx.strokeStyle = '#ff4f4f'; ctx.lineWidth = 2; ctx.strokeRect(sx + 1, sy + 1, tile - 2, tile - 2)
+          }
           drawPiece(ctx, piece.kind, piece.player, sx + tile / 2, sy + tile / 2 + .4, tile * .98)
+          ctx.shadowBlur = 0
           if (ghost) ctx.globalAlpha /= .27
         }
       }
@@ -631,13 +690,7 @@ export class Scene {
     ctx.restore()
   }
 
-  private squarePoint(c: Coord): Point {
-    const node = this.layout.nodes.get(boardKey(c))
-    const size = node?.size ?? BOARD
-    const d = this.dimensions(size)
-    return {x: c.t * TIME + (c.x - d.minX + .5) * d.tile - d.width / 2,
-      y: (this.layout.rows.get(c.u) ?? 0) * ROW + (c.y - d.minY + .5) * d.tile - d.height / 2}
-  }
+  private squarePoint(c: Coord): Point { return squarePoint(this.view.state, c, this.layout) }
 
   private drawPath(m: Candidate, color: string, alpha: number, dashed: boolean) {
     const ctx = this.ctx
@@ -664,15 +717,20 @@ export class Scene {
 
   private drawAnimation(outcomes: readonly Outcome[], p: number) {
     const ctx = this.ctx
-    for (const {move, status, captures} of outcomes) {
+    for (const {move, status, captures, branch: outBranch} of outcomes) {
       this.drawPath(move, status === 'applied' ? COLORS[move.player] : '#ff8c85', .66 - p * .26, status !== 'applied')
-      const end = this.squarePoint(move.to)
+      const arrival = (c: Coord) => {
+        const u = outBranch ?? c.u
+        return this.view.animation?.result ? {...c, u, t: frontier(getUniverse(this.view.animation.result, u)!).t} : c
+      }
+      const end = this.squarePoint(arrival(move.to))
       if (status === 'applied') {
         const parts = move.castle ? [move, {...move.castle, path: [move.castle.from, move.castle.to]}] : [move]
         for (const leg of parts) {
-          const position = ease(Math.min(1, p * 1.28)) * (leg.path.length - 1)
-          const a = this.squarePoint(leg.path[Math.floor(position)])
-          const b = this.squarePoint(leg.path[Math.min(leg.path.length - 1, Math.ceil(position))])
+          const path = [...leg.path.slice(0, -1), arrival(leg.to)]
+          const position = ease(Math.min(1, p * 1.15)) * (path.length - 1)
+          const a = this.squarePoint(path[Math.floor(position)])
+          const b = this.squarePoint(path[Math.min(path.length - 1, Math.ceil(position))])
           const k = position % 1
           drawPiece(ctx, leg.piece.kind, leg.piece.player, a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, 33)
         }
