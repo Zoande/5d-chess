@@ -1,3 +1,5 @@
+> These are the original production rules. The Classic and Live modes on development are specified in [Development movement rules](docs/movement-modes.md).
+
 # Four-Player Multiverse Chess rules
 
 ## Setup and victory

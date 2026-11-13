@@ -1,6 +1,6 @@
 # Four-Player Multiverse Chess
 
-The `main` branch contains the deployed four-player game. This `development` branch adds two- and three-player modes to the local game and online server. It must be deployed to the Raspberry Pi and Cloudflare together. See [Multiplayer setup](docs/multiplayer.md). Local play remains available without an account.
+The `main` branch contains the deployed game and board UI improvements. The `development` branch adds Classic and Live movement, physical travel and collisions, shared timelines, and compulsory Present-board moves. See [Development movement rules](docs/movement-modes.md) for the implemented rules and choices. The development frontend and Node server must be deployed together for online play; existing production games keep their original behavior.
 
 [Play at chess.316123.nl](https://chess.316123.nl/)
 
@@ -61,7 +61,11 @@ npm run deploy
 | `src/model.ts` | Immutable board and timeline data, geometry, activation, Present |
 | `src/moves.ts` | Universe route search, movement, occupancy, castling, en passant |
 | `src/resolve.ts` | Order validation, claims and departures, capture, branch and Rift creation |
-| `src/scene.ts` | Canvas layout, camera, hit testing, paths, simultaneous reveal |
+| `src/scene.ts` | Canvas rendering, camera, minimap, check highlights and reveal |
+| `src/geometry.ts` | Shared client/server board layout and path distances |
+| `src/continuous.ts` | Live tick speeds, swept collisions and recorded playback traces |
+| `src/rules.ts` | Required Present-board orders |
+| `src/awareness.ts` | Check detection and client plan preview |
 | `src/main.ts` | Pass-and-play flow, planning controls, round history |
 | `src/session.ts` | Deterministic save journal and replay reconstruction |
 

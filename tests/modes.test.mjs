@@ -108,3 +108,26 @@ test('new movement sessions round-trip their fixed order, plans and journals',as
   assert.deepEqual(liveState(session).turnOrder,['blue','red','yellow'])
  }
 })
+
+test('plan safety warns if a physical king capture would also destroy your own king',async()=>{
+ const {awareness}=await import('../src/awareness.ts')
+ const s=setup([[7,7,'red','K'],[8,8,'yellow','N'],[10,3,'yellow','K']])
+ const capture=move(s,c(7,7),c(8,8))
+ assert.equal(awareness(s,'red',[capture]).kingLost,true)
+})
+
+test('a slower, late queen block can miss the bishop and lose its king',()=>{
+ const s=setup([[3,3,'yellow','B'],[8,8,'red','K'],[10,5,'red','Q'],[10,3,'yellow','K']])
+ const r=resolveRound(s,[move(s,c(3,3),c(8,8)),move(s,c(10,5),c(5,5))])
+ assert.equal(r.rejected.length,0)
+ assert.ok(r.eliminated.includes('red'))
+ assert.equal(r.outcomes.find(o=>o.move.piece.kind==='Q').status,'applied')
+ assert.equal(r.outcomes.find(o=>o.move.piece.kind==='B').status,'collided')
+})
+
+test('a Live batch cannot skip another faction’s required Present source',()=>{
+ const s=initialState(2,'live')
+ const r=resolveRound(s,[move(s,c(4,10),c(5,8))])
+ assert.equal(r.state,s)
+ assert.match(r.rejected[0].reason,/Present/)
+})

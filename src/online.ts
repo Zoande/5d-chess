@@ -167,12 +167,12 @@ function render() {
     lock.disabled = submitting
     lock.onclick = () => {
       if (room?.seat && requiredBoards(room.state, room.seat, draft).length) { message('Play every required Present board before submitting.', true); nextPlayable(scene, requiredBoards(room.state, room.seat, draft)); return }
-      if (room?.seat && awareness(room.state, room.seat, draft).remaining.length) {
+      if (room?.seat && (awareness(room.state, room.seat, draft).remaining.length || awareness(room.state, room.seat, draft).kingLost)) {
         const dialog = element<HTMLDialogElement>('check-dialog')
         dialog.showModal()
       } else void submit()
     }
-    if (seat && awareness(room.state, seat, draft).remaining.length) {
+    if (seat && (awareness(room.state, seat, draft).remaining.length || awareness(room.state, seat, draft).kingLost)) {
       const warning = document.createElement('p'); warning.className = 'check-notice'; warning.textContent = 'Check threat remains. Review the red highlights.'; panel.append(warning)
     }
     panel.append(lock)

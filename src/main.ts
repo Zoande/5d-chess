@@ -222,7 +222,7 @@ function paintPanel() {
     <div class="planning-links"><button class="text-button" data-action="undo" ${session.draft.length ? '' : 'disabled'}>↶ Undo</button>
     <button class="text-button" data-action="pass" ${session.draft.length || requiredBoards(s, p, session.draft).length ? 'disabled' : ''}>Pass round</button></div>`
   const info = awareness(s, p, session.draft)
-  activity.innerHTML = (info.remaining.length ? '<p class="check-notice">Check threat remains. Review the red highlights.</p>' : '') + (requiredBoards(s, p, session.draft).length ? `<p class="required-notice">${requiredBoards(s, p, session.draft).length} Present boards still need a move.</p>` : '')
+  activity.innerHTML = ((info.remaining.length || info.kingLost) ? '<p class="check-notice">Check threat remains. Review the red highlights.</p>' : '') + (requiredBoards(s, p, session.draft).length ? `<p class="required-notice">${requiredBoards(s, p, session.draft).length} Present boards still need a move.</p>` : '')
 }
 
 function outcomeText(o: Outcome) {
@@ -305,7 +305,8 @@ function lock(confirmed = false) {
     modal(`<p class="eyebrow">PRESENT BOARDS</p><h2>Finish the Present first</h2><p>Play one move on each of your ${missing.length} remaining Present boards before submitting. Boards without a legal move are exempt.</p><button class="button primary block" data-dialog="close">Back to the boards</button>`)
     return
   }
-  if (!confirmed && awareness(shown(), p, session.draft).remaining.length) {
+  const safety = awareness(shown(), p, session.draft)
+  if (!confirmed && (safety.remaining.length || safety.kingLost)) {
     modal('<p class="eyebrow">CHECK WARNING</p><h2>Your king is still threatened</h2><p>Your visible plan does not remove every direct or time-travel check. Hidden opponent orders may change the result.</p><div class="dialog-row"><button class="button" data-dialog="close">Review moves</button><button class="button primary" data-dialog="confirm-check">Submit anyway</button></div>')
     return
   }
