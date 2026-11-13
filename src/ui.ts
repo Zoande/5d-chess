@@ -58,3 +58,9 @@ export function initMatchUI() {
     })
   }
 }
+
+export function collapseControls() {
+  if (!matchMedia('(max-width: 1000px)').matches) return
+  document.getElementById('sidebar')?.classList.remove('mobile-open')
+  document.getElementById('panel-handle')?.setAttribute('aria-expanded', 'false')
+}

@@ -333,8 +333,14 @@ export class Scene {
   fit() {
     const {width, height} = this.layout
     const d = this.dimensions(BOARD)
-    this.center({x: width / 2, y: height / 2, scale: clamp(
-      Math.min((this.width - 40) / (width + d.width + 52), (this.height - 54) / (height + d.height + 102)), MIN_SCALE, 1.38)})
+    const area = this.canvas.getBoundingClientRect()
+    const panel = document.getElementById('sidebar')?.getBoundingClientRect()
+    const right = this.width > 1000 && panel && panel.left > area.left + this.width * .55
+      ? Math.min(this.width * .4, area.right - panel.left + 16) : 0
+    const bottom = this.width <= 1000 ? 122 : 0
+    const scale = clamp(Math.min((this.width - right - 40) / (width + d.width + 52),
+      (this.height - bottom - 54) / (height + d.height + 102)), MIN_SCALE, 1.38)
+    this.center({x: width / 2 + right / (2 * scale), y: height / 2 + bottom / (2 * scale), scale})
   }
 
   focus(c = this.view.selected ?? this.inspected) {
