@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#0b1117">
+  <meta name="theme-color" content="#1c1a17">
   <meta name="description" content="Four factions. One shared board. Infinite futures. A local simultaneous chess game across space, time, and branching universes.">
   <title>Four-Player Multiverse Chess</title>
   <link rel="icon" href="/chess/emblem.svg" type="image/svg+xml">
@@ -19,6 +19,13 @@
     <div class="factions" id="factions" aria-label="Factions"></div>
     <div class="header-actions">
       <a id="account-link" class="button subtle" href="/chess/login.html">Log in</a>
+      <details class="match-menu"><summary class="button subtle">Match <span aria-hidden="true">⌄</span></summary><div class="match-menu-items">
+        <button id="help" class="button subtle">How to play</button>
+        <button id="export" class="button subtle">Export</button>
+        <button id="import" class="button subtle">Import</button>
+        <button id="new" class="button subtle">New match</button>
+      </div></details>
+    </div>
       <div class="top-history" aria-label="Round history">
         <button class="button square" id="previous" aria-label="Previous round">‹</button>
         <span id="history-label">Opening position</span>
@@ -27,11 +34,6 @@
         <button class="text-button" id="replay">▶ Play round</button>
         <button class="text-button" id="live">Return to live</button>
       </div>
-      <button id="help" class="button subtle">How to play</button>
-      <button id="export" class="button subtle">Export</button>
-      <button id="import" class="button subtle">Import</button>
-      <button id="new" class="button subtle">New match</button>
-    </div>
   </header>
   <main class="workspace">
     <section class="theater" aria-labelledby="scene-title">
@@ -42,7 +44,7 @@
       <div class="viewport" id="viewport">
         <canvas id="scene" tabindex="0" aria-label="Multiverse boards. Use WASD or arrow keys to pan, Alt plus arrows to move the square cursor, Enter to select, and plus or minus to zoom."></canvas>
         <div class="map-caption" id="map-caption"></div>
-        <div class="camera" role="group" aria-label="Camera controls">
+        <div class="map-tools" aria-label="Board tools"><div class="camera" role="group" aria-label="Camera controls">
           <button data-camera="minus" aria-label="Zoom out" title="Zoom out">−</button>
           <span id="scale">100%</span>
           <button data-camera="plus" aria-label="Zoom in" title="Zoom in">+</button>
@@ -67,6 +69,7 @@
           <button type="button" data-overlay="labels" aria-label="Board labels" title="Board labels" aria-pressed="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 10h10M7 14h6"/></svg></button>
           <button type="button" data-overlay="paths" aria-label="Move paths" title="Move paths" aria-pressed="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="18" r="2"/><path d="M7 17C10 3 14 19 20 5m-5 0h5v5"/></svg></button>
         </div>
+        </div>
         <div class="scene-hint">DRAG TO PAN <b>·</b> SCROLL OR PINCH TO ZOOM</div>
       </div>
       <div class="legend" aria-label="Map legend">
@@ -88,7 +91,7 @@
       <div class="save-status" id="save-status" role="status"></div>
     </aside>
   </main>
-  <dialog id="dialog"><div id="dialog-inner"></div></dialog>
+  <dialog id="dialog" aria-labelledby="dialog-title"><div id="dialog-inner"></div></dialog>
   <input id="import-file" type="file" accept=".json,application/json" hidden>
 </body>
 </html>

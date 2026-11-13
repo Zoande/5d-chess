@@ -1,3 +1,4 @@
+import {initMatchUI} from './ui.ts'
 import {Scene} from './scene.ts'
 import {COLORS, NAMES, pieceIcon} from './art.ts'
 import {
@@ -309,6 +310,7 @@ function goTo(n: number | null) {
 
 function modal(body: string, locked = false) {
   element('dialog-inner').innerHTML = body
+  element('dialog-inner').querySelector('h2')?.setAttribute('id', 'dialog-title')
   dialog.dataset.locked = locked ? 'yes' : 'no'
   if (!dialog.open) dialog.showModal()
 }
@@ -437,27 +439,7 @@ element('viewport').querySelectorAll<HTMLButtonElement>('[data-overlay]').forEac
     scene.setOverlay(control.dataset.overlay!, enabled)
   }
 })
-const panel = element('sidebar')
-const handle = element('panel-handle')
-const mobilePanel = matchMedia('(max-width: 760px)')
-handle.addEventListener('click', () => {
-  if (!mobilePanel.matches) return
-  const open = panel.classList.toggle('mobile-open')
-  handle.setAttribute('aria-expanded', String(open))
-})
-handle.addEventListener('pointerdown', e => {
-  if (mobilePanel.matches) return
-  const rect = panel.getBoundingClientRect()
-  const dx = e.clientX - rect.left, dy = e.clientY - rect.top
-  handle.setPointerCapture(e.pointerId)
-  const move = (event: PointerEvent) => {
-    panel.style.left = `${Math.max(0, Math.min(window.innerWidth - rect.width, event.clientX - dx))}px`
-    panel.style.top = `${Math.max(0, Math.min(window.innerHeight - 55, event.clientY - dy))}px`
-    panel.style.right = 'auto'
-  }
-  handle.addEventListener('pointermove', move)
-  handle.addEventListener('pointerup', () => handle.removeEventListener('pointermove', move), {once: true})
-})
+initMatchUI()
 button('help').onclick = () => modal(`<p class="eyebrow">FIELD GUIDE</p><h2>How to play</h2>
   <div class="guide">
     <p><b>Plan in private.</b> Select one of your pieces, choose a highlighted square, and lock your orders. Pass the device to the next faction.</p>

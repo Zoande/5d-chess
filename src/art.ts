@@ -1,6 +1,6 @@
 import {type Kind, type Player} from './model.ts'
 
-export const COLORS: Record<Player, string> = {red: '#ff8785', blue: '#84caff', yellow: '#f1cb73', green: '#7fe0ad'}
+export const COLORS: Record<Player, string> = {red: '#df9187', blue: '#91bad5', yellow: '#f3d58d', green: '#a5c69a'}
 export const NAMES: Record<Kind, string> = {K: 'King', Q: 'Queen', R: 'Rook', B: 'Bishop', N: 'Knight', P: 'Pawn'}
 
 const silhouette: Record<Kind, string> = {
@@ -23,16 +23,16 @@ export function drawPiece(ctx: CanvasRenderingContext2D, kind: Kind, player: Pla
   ctx.scale(size / 24, size / 24)
   ctx.lineJoin = 'round'
   ctx.lineCap = 'round'
-  ctx.strokeStyle = '#14232a'
+  ctx.strokeStyle = '#2c241c'
   ctx.lineWidth = 1.55
   ctx.stroke(art[kind])
   ctx.fillStyle = COLORS[player]
   ctx.fill(art[kind])
   ctx.lineWidth = .8
-  ctx.strokeStyle = '#233842'
+  ctx.strokeStyle = '#33271e'
   ctx.stroke(lines[kind])
   ctx.restore()
 }
 export function pieceIcon(kind: Kind, player: Player, size = 24) {
-  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><path fill="${COLORS[player]}" d="${silhouette[kind]}"/><path d="${detail[kind]}" fill="none" stroke="#233842" stroke-width=".8" stroke-linecap="round"/></svg>`
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><path fill="${COLORS[player]}" d="${silhouette[kind]}"/><path d="${detail[kind]}" fill="none" stroke="#33271e" stroke-width=".8" stroke-linecap="round"/></svg>`
 }

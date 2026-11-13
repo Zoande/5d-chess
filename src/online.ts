@@ -1,5 +1,6 @@
+import {initMatchUI} from './ui.ts'
 import {Scene} from './scene.ts'
-import {NAMES} from './art.ts'
+import {COLORS, NAMES, pieceIcon} from './art.ts'
 import {type Candidate, type Coord, type Order, type Player, type Resolution, type State,
   coordKey, coordName, getUniverse, initialState, isMain, moveBudget, pieceAt, playerCount, players, present, survivors} from './model.ts'
 import {legalMoves, routeKey} from './moves.ts'
@@ -22,6 +23,7 @@ let draft: Candidate[] = []
 let caption = ''
 let first = true
 let loading = false
+let submitting = false
 const names: Record<Player, string> = {red:'Red',blue:'Blue',yellow:'Yellow',green:'Green'}
 let opening = initialState()
 const scene = new Scene(element<HTMLCanvasElement>('scene'), opening, {
@@ -74,6 +76,7 @@ function render() {
   if (!room) return
   element('game-code').textContent = room.code
   element('game-title').textContent = room.title
+  element('game-title').title = room.title
   document.title = `${room.title} · Multiverse Chess`
   const seat = room.seat
   const s = shown()
@@ -98,8 +101,20 @@ function render() {
   const head = document.createElement('div')
   head.className = 'turn'
   const title = document.createElement('h3')
-  title.textContent = seat ? `${names[seat]} · ${room.seats[seat]}` : 'Spectating'
-  head.append(title)
+  title.textContent = seat ? `${names[seat]} faction` : 'Spectating'
+  const identity = document.createElement('div')
+  identity.append(title)
+  if (seat) {
+    const icon = document.createElement('div')
+    icon.className = 'turn-icon'
+    icon.style.setProperty('--faction', COLORS[seat])
+    icon.innerHTML = pieceIcon('K', seat, 33)
+    const username = document.createElement('p')
+    username.textContent = room.seats[seat] || ''
+    identity.append(username)
+    head.append(icon)
+  }
+  head.append(identity)
   turn.append(head)
   const panel = element('planning')
   panel.replaceChildren()
@@ -139,7 +154,8 @@ function render() {
       select.onclick = () => queue(routes[routeIndex])
       panel.append(cycle, select)
     }
-    const lock = document.createElement('button'); lock.className = 'button primary block'; lock.textContent = draft.length ? 'Lock orders' : 'Lock in a pass'
+    const lock = document.createElement('button'); lock.className = 'button primary block'; lock.textContent = submitting ? 'Locking…' : draft.length ? 'Lock orders' : 'Lock in a pass'
+    lock.disabled = submitting
     lock.onclick = () => void submit()
     panel.append(lock)
   }
@@ -164,7 +180,9 @@ async function load() {
   finally { loading = false }
 }
 async function submit() {
-  if (!canPlan()) return
+  if (!canPlan() || submitting) return
+  submitting = true
+  render()
   try {
     const response = await fetch(`/api/games/${code}/orders`, {method:'POST', headers:{'content-type':'application/json'},
       body:JSON.stringify({orders:draft.map(({player, from, to, route}) => ({player, from, to, route}))})})
@@ -173,6 +191,7 @@ async function submit() {
     room = data as Room
     draft = []; clear(); message('Orders locked. Waiting for the others.'); render()
   } catch (cause) { message(cause instanceof Error ? cause.message : 'Could not lock orders', true) }
+  finally { submitting = false; render() }
 }
 element<HTMLButtonElement>('previous').onclick = () => { if (!room?.results.length) return; frame = Math.max(0, (frame ?? room.results.length) - 1); clear(); render() }
 element<HTMLButtonElement>('next').onclick = () => { if (frame === null || !room) return; frame = frame >= room.results.length ? null : frame + 1; clear(); render() }
@@ -184,6 +203,7 @@ element('viewport').querySelectorAll<HTMLButtonElement>('[data-camera]').forEach
     case 'fit': scene.fit(); break
     case 'focus': scene.focus(); break
     case 'player': scene.focusPlayer(room?.seat); break
+    case 'reset': scene.focusPlayer(); break
   }
 })
 element('viewport').querySelectorAll<HTMLButtonElement>('[data-overlay]').forEach(button => button.onclick = () => {
@@ -191,24 +211,6 @@ element('viewport').querySelectorAll<HTMLButtonElement>('[data-overlay]').forEac
   button.setAttribute('aria-pressed', String(enabled))
   scene.setOverlay(button.dataset.overlay!, enabled)
 })
-const panel = element('sidebar'), handle = element('panel-handle')
-const mobilePanel = matchMedia('(max-width: 760px)')
-handle.addEventListener('click', () => {
-  if (!mobilePanel.matches) return
-  const open = panel.classList.toggle('mobile-open')
-  handle.setAttribute('aria-expanded', String(open))
-})
-handle.addEventListener('pointerdown', event => {
-  if (mobilePanel.matches) return
-  const rect = panel.getBoundingClientRect(), dx = event.clientX - rect.left, dy = event.clientY - rect.top
-  handle.setPointerCapture(event.pointerId)
-  const move = (e: PointerEvent) => {
-    panel.style.left = `${Math.max(0, Math.min(window.innerWidth - rect.width, e.clientX - dx))}px`
-    panel.style.top = `${Math.max(0, Math.min(window.innerHeight - 55, e.clientY - dy))}px`
-    panel.style.right = 'auto'
-  }
-  handle.addEventListener('pointermove', move)
-  handle.addEventListener('pointerup', () => handle.removeEventListener('pointermove', move), {once:true})
-})
+initMatchUI()
 void load()
 window.setInterval(() => { if (document.visibilityState === 'visible') void load() }, 3000)

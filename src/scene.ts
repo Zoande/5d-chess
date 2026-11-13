@@ -23,7 +23,7 @@ const ROW = 568
 const MIN_SCALE = .015
 const MAX_SCALE = 3.5
 const reduced = matchMedia('(prefers-reduced-motion: reduce)')
-const pathColors = {normal: '#79dfb4', capture: '#ff8582', branch: '#83b4ff', rift: '#c99dff', gold: '#f0cc83'}
+const pathColors = {normal: '#b6c58b', capture: '#e49585', branch: '#95b8d0', rift: '#c2a0cf', gold: '#f0cc83'}
 const ease = (p: number) => p * p * (3 - 2 * p)
 const colorOf = (m: Candidate) => m.rift ? pathColors.rift : m.branch ? pathColors.branch :
   m.capture ? pathColors.capture : m.needsVacancy ? pathColors.gold : pathColors.normal
@@ -436,9 +436,9 @@ export class Scene {
     const d = this.dimensions(BOARD)
     const top = -d.height / 2 - 40
     const bottom = Math.max(d.height / 2 + 36, this.layout.height + d.height / 2 + 36)
-    ctx.fillStyle = '#78cdb00c'
+    ctx.fillStyle = '#c6a46a08'
     ctx.fillRect(x - d.width / 2 - 38, Math.min(top, low.y), d.width + 76, Math.max(bottom, high.y) - Math.min(top, low.y))
-    ctx.strokeStyle = '#77cfa72e'
+    ctx.strokeStyle = '#c6a46a20'
     ctx.setLineDash([4, 8])
     ctx.lineWidth = 1.2
     for (const edge of [x - d.width / 2 - 38, x + d.width / 2 + 38]) {
@@ -451,10 +451,10 @@ export class Scene {
     for (let t = Math.max(0, Math.floor(low.x / TIME)); t <= Math.min(this.layout.width / TIME, Math.ceil(high.x / TIME)); t++) {
       const col = t * TIME
       if (t === current) {
-        ctx.fillStyle = '#18342c'
+        ctx.fillStyle = '#433722'
         ctx.beginPath(); ctx.roundRect(col - 63, top - 13, 126, 24, 5); ctx.fill()
       }
-      ctx.fillStyle = t === current ? '#a8f4cf' : '#a2acb5'
+      ctx.fillStyle = t === current ? '#ddc18b' : '#b0a18a'
       ctx.fillText(t === current ? `◆ PRESENT · T${t}` : `TIME · T${t}`, col, top + 3)
     }
   }
@@ -468,13 +468,13 @@ export class Scene {
       const selectedEdge = (a: number, b: number) => preview?.route.some((id, i, path) =>
         i > 0 && ((id === a && path[i - 1] === b) || (id === b && path[i - 1] === a)))
       ctx.lineWidth = 2.2
-      ctx.strokeStyle = u.active ? '#68a88b75' : '#66838e47'
+      ctx.strokeStyle = u.active ? '#b89b6775' : '#9a896747'
       ctx.setLineDash(u.active ? [] : [8, 8])
       ctx.beginPath(); ctx.moveTo(first.x, first.y); ctx.lineTo(end.x, end.y); ctx.stroke()
       if (u.parent !== null) {
         const parent = this.layout.nodes.get(boardKey({u: u.parent, t: u.divergence}))!
         const chosen = selectedEdge(u.parent, u.id)
-        ctx.strokeStyle = chosen ? pathColors.gold : u.active ? '#75cba18a' : '#66838e70'
+        ctx.strokeStyle = chosen ? pathColors.gold : u.active ? '#c6a46a8a' : '#9a896770'
         ctx.lineWidth = chosen ? 4 : 2.6
         ctx.beginPath()
         ctx.moveTo(parent.x + this.dimensions(parent.size).width / 2, parent.y)
@@ -531,11 +531,11 @@ export class Scene {
     ctx.save()
     ctx.translate(L, T)
     ctx.globalAlpha = (accent || selected) ? 1 : !u.active ? .58 : front ? 1 : .76
-    ctx.fillStyle = '#0b171d'
-    ctx.strokeStyle = selected ? pathColors.gold : accent ?? (now ? '#75c9a4' : optional ? '#6d7484' : '#344a51')
+    ctx.fillStyle = '#28221a'
+    ctx.strokeStyle = selected ? pathColors.gold : accent ?? (now ? '#c6a46a' : optional ? '#8f826e' : '#6d583e')
     ctx.lineWidth = selected || accent ? 2.8 : 1.5
     if (scale > .27 && (now || accent)) {
-      ctx.shadowColor = accent ?? '#64c49761'
+      ctx.shadowColor = accent ?? '#c6a46a30'
       ctx.shadowBlur = accent ? 11 : 14
     }
     ctx.beginPath()
@@ -561,7 +561,7 @@ export class Scene {
       for (const square of squares(this.view.state)) {
         const {x, y} = square
         const sx = (x - d.minX) * tile, sy = (y - d.minY) * tile
-        ctx.fillStyle = (x + y) % 2 ? '#284e50' : '#426969'
+        ctx.fillStyle = (x + y) % 2 ? '#846449' : '#c7ad85'
         ctx.fillRect(sx, sy, tile, tile)
         const c = {u: u.id, t, x, y}
         const key = coordKey(c)
@@ -599,7 +599,7 @@ export class Scene {
     }
     if (scale > .38) {
       // Coordinates sit just outside the playable area.
-      ctx.fillStyle = '#89a5a8'
+      ctx.fillStyle = '#b7a180'
       ctx.font = '10px ui-monospace, monospace'
       ctx.textAlign = 'center'
       for (let i = 0; i <= d.maxX - d.minX; i++) {
@@ -624,7 +624,7 @@ export class Scene {
       ctx.globalAlpha = 1
       ctx.textAlign = 'center'
       ctx.font = '650 12px ui-monospace, monospace'
-      ctx.fillStyle = now ? '#b5efd4' : '#a9b8c3'
+      ctx.fillStyle = now ? '#ddc18b' : '#b0a18a'
       const marker = u.creator ? `  ·  ${u.creator.toUpperCase()}` : ''
       ctx.fillText(`U${u.id}  /  T${t}${front ? now ? '   ·   PRESENT' : u.active ? '   ·   FUTURE' : '   ·   INACTIVE' : '   ·   HISTORY'}${marker}`, d.width / 2, d.height + 29)
     }
