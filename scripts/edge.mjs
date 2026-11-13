@@ -8,8 +8,9 @@ export default {
     if (!url.pathname.startsWith('/chess/')) return new Response('Not found', {status: 404})
     const name = url.pathname.slice('/chess/'.length) || 'index.html'
     if (!Object.hasOwn(assets, name)) return new Response('Not found', {status: 404})
-    const {body, type} = assets[name]
-    return new Response(request.method === 'HEAD' ? null : body, {headers: {
+    const {body, type, binary} = assets[name]
+    const content = request.method === 'HEAD' ? null : binary ? Uint8Array.from(atob(body), c => c.charCodeAt(0)) : body
+    return new Response(content, {headers: {
       'Content-Type': type,
       'Cache-Control': 'public, max-age=0, must-revalidate',
       'X-Content-Type-Options': 'nosniff',

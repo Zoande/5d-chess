@@ -5,36 +5,25 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#161616">
   <meta name="description" content="Four factions. One shared board. Infinite futures. A local simultaneous chess game across space, time, and branching universes.">
-  <title>Four-Player Multiverse Chess</title>
+  <title>5D Chess · Local play</title>
   <link rel="icon" href="/chess/emblem.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/chess/styles.css">
+  <link rel="stylesheet" href="/chess/styles.css"><link rel="stylesheet" href="/chess/shell.css">
   <script type="module" src="/chess/game.js"></script>
 </head>
 <body>
-  <header class="masthead">
-    <div class="identity">
-      <img src="/chess/emblem.svg" width="42" height="42" alt="">
-      <div><p class="eyebrow" id="mode-label">FOUR-PLAYER</p><h1>Multiverse Chess</h1></div>
-    </div>
-    <div class="factions" id="factions" aria-label="Factions"></div>
-    <div class="header-actions">
-      <a id="account-link" class="button subtle" href="/chess/login.html">Log in</a>
-      <details class="match-menu"><summary class="button subtle">Match <span aria-hidden="true">⌄</span></summary><div class="match-menu-items">
+<header class="masthead app-topbar"><a class="brand" id="brand-home" href="/chess/"><img src="/chess/logo.png" width="48" height="48" alt=""><span><b>5D</b> Chess</span></a><div class="match-meta"><p class="eyebrow" id="mode-label">FOUR-PLAYER</p><div class="factions" id="factions" aria-label="Factions"></div></div><div class="header-actions"><div id="account-area" class="account-area"><a id="account-link" class="button subtle" href="/chess/login.html">Log in</a></div><details class="match-menu"><summary class="button subtle">Match <span aria-hidden="true">⌄</span></summary><div class="match-menu-items">
         <button id="help" class="button subtle">How to play</button>
         <button id="export" class="button subtle">Export</button>
         <button id="import" class="button subtle">Import</button>
         <button id="new" class="button subtle">New match</button>
-      </div></details>
-    </div>
-      <div class="top-history" aria-label="Round history">
+      </div></details></div><div class="top-history" aria-label="Round history">
         <button class="button square" id="previous" aria-label="Previous round">‹</button>
         <span id="history-label">Opening position</span>
         <button class="button square" id="next" aria-label="Next round">›</button>
         <span class="live-label" id="live-label">● LIVE</span>
         <button class="text-button" id="replay">▶ Play round</button>
         <button class="text-button" id="live">Return to live</button>
-      </div>
-  </header>
+      </div></header>
   <main class="workspace">
     <section class="theater" aria-labelledby="scene-title">
       <div class="scene-heading">

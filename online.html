@@ -1,14 +1,12 @@
 <!doctype html>
 <html lang="en"><head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Online game · Multiverse Chess</title>
+  <title>Online game · 5D Chess</title>
   <link rel="icon" href="/chess/emblem.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/chess/styles.css"><link rel="stylesheet" href="/chess/portal.css">
+  <link rel="stylesheet" href="/chess/styles.css"><link rel="stylesheet" href="/chess/portal.css"><link rel="stylesheet" href="/chess/shell.css">
   <script type="module" src="/chess/online.js"></script>
 </head><body>
-  <header class="masthead"><a class="identity" href="/chess/lobby.html"><img src="/chess/emblem.svg" width="42" height="42" alt=""><div><p class="eyebrow" id="online-mode">ONLINE MATCH</p><h1 id="game-title">Multiverse Chess</h1></div></a>
-    <div class="header-actions"><a class="button subtle" href="/chess/lobby.html">Lobby</a></div>
-<div class="top-history"><button class="button square" id="previous" aria-label="Previous round">‹</button><span id="history-label">Opening position</span><button class="button square" id="next" aria-label="Next round">›</button><button id="live" class="text-button">Return to live</button></div>  </header>
+<header class="masthead app-topbar"><a class="brand" id="brand-home" href="/chess/"><img src="/chess/logo.png" width="48" height="48" alt=""><span><b>5D</b> Chess</span></a><div class="match-meta"><div class="match-context"><p class="eyebrow" id="online-mode">ONLINE MATCH</p><span class="match-title" id="game-title">Online game</span></div></div><div class="header-actions"><div id="account-area" class="account-area"><a id="account-link" class="button subtle" href="/chess/login.html">Log in</a></div></div><div class="top-history"><button class="button square" id="previous" aria-label="Previous round">‹</button><span id="history-label">Opening position</span><button class="button square" id="next" aria-label="Next round">›</button><button id="live" class="text-button">Return to live</button></div></header>
   <main class="workspace"><section class="theater"><div class="scene-heading"><div class="scene-name"><span class="orb"></span><h2>Multiverse</h2></div><div class="metrics" id="metrics"></div></div>
     <div class="viewport" id="viewport"><canvas id="scene" tabindex="0" aria-label="Multiverse boards. Drag, use WASD or arrow keys to pan; Alt plus arrows moves the square cursor."></canvas><div class="map-caption" id="map-caption"></div>
       <div class="map-tools" aria-label="Board tools"><div class="camera" role="group" aria-label="Camera controls">

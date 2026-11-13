@@ -1,22 +1,14 @@
-type ApiError = {error?: string}
-type Game = {code: string; title: string; players: number; maxPlayers: number; protected: boolean; round: number; finished: boolean}
-type Games = {available: Game[]; mine: Game[]; limit: number}
-
-const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
-// Keep forms on the page while the session check initializes their handlers.
-document.querySelectorAll('form').forEach(form => form.addEventListener('submit', event => event.preventDefault()))
-async function api<T>(path: string, data?: unknown): Promise<T> {
-  const response = await fetch(`/api${path}`, {method: data === undefined ? 'GET' : 'POST',
-    headers: data === undefined ? {} : {'content-type': 'application/json'},
-    body: data === undefined ? undefined : JSON.stringify(data)})
-  let result: T & ApiError
-  try { result = await response.json() } catch { throw new Error('Online play is unavailable. Check the game server.') }
-  if (!response.ok) throw new Error(result.error || 'Request failed')
-  return result
-}
-const error = (id: string, message: string) => { const box = el(id); box.textContent = message; box.hidden = !message }
-const online = (code: string) => { location.href = `/chess/online.html?code=${encodeURIComponent(code)}` }
-
+import {api,ApiError,getSession,initShell,refreshRating,renderAccount,setShellPool,fetchNotices,updateNoticeCount} from './shell.ts'
+import {type Notice,type Profile,type RatingPool,type Preferences,poolFor,poolLabel} from './account-model.ts'
+import {type Movement} from './model.ts'
+import {icon} from './icons.ts'
+type Game = {code:string;title:string;players:number;maxPlayers:number;protected:boolean;round:number;finished:boolean;movement?:Movement|'legacy';rated?:boolean;myTurn?:boolean}
+type Games = {available:Game[];mine:Game[];limit:number}
+const el=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T
+const error=(id:string,message:string)=>{const box=el(id);box.textContent=message;box.hidden=!message}
+const online=(code:string)=>{location.href=`/chess/online.html?code=${encodeURIComponent(code)}`}
+document.querySelectorAll('form').forEach(form=>form.addEventListener('submit',event=>event.preventDefault()))
+void initShell()
 async function login() {
   let signup = false
   const setMode = (value: boolean) => {
@@ -60,90 +52,171 @@ async function login() {
       el<HTMLButtonElement>('switch-mode').disabled = false
     }
   }
-  try { if ((await api<{user: string | null}>('/me')).user) location.replace('/chess/lobby.html') } catch { /* form will show server errors */ }
+  try { if ((await getSession()).user) location.replace('/chess/lobby.html') } catch { /* form will show server errors */ }
 }
 
-function row(game: Game, action: string, click: () => void) {
-  const item = document.createElement('div')
-  item.className = 'game-row'
-  const description = document.createElement('div')
-  const title = document.createElement('strong')
-  title.textContent = game.title
-  const detail = document.createElement('small')
-  detail.textContent = `${game.code} · ${game.players}/${game.maxPlayers ?? 4} players · Round ${game.round}${game.finished ? ' · Finished' : ''}`
-  description.append(title, detail)
-  const button = document.createElement('button')
-  button.className = 'button'
-  button.textContent = action
-  button.onclick = click
-  item.append(description, button)
-  return item
+
+function gameRow(game:Game,action:string,click:()=>void){
+  const row=document.createElement('div');row.className='game-row'
+  const copy=document.createElement('div'),title=document.createElement('strong'),detail=document.createElement('small'),button=document.createElement('button')
+  title.textContent=game.title
+  const movement=game.movement==='classic'?'Classic':game.movement==='live'?'Live':'Legacy live'
+  detail.textContent=`${game.code} · ${game.players}/${game.maxPlayers} players · ${movement} · ${game.rated?'Rated':'Casual'}${game.finished?' · Finished':game.myTurn?' · Your move':` · Round ${game.round}`}`
+  copy.append(title,detail);button.className='button';button.textContent=action;button.onclick=click;row.append(copy,button);return row
 }
-async function lobby() {
-  let me: {user: string | null}
-  try { me = await api('/me') } catch { location.replace('/chess/login.html'); return }
-  if (!me.user) { location.replace('/chess/login.html'); return }
-  el('account-name').textContent = me.user
-  el('logout').onclick = async () => {
-    try {
-      await api('/logout', {})
-      location.replace('/chess/')
-    } catch (cause) { error('lobby-error', cause instanceof Error ? cause.message : 'Could not log out') }
+const relative=(time:number)=>{const seconds=Math.max(0,Math.floor((Date.now()-time)/1000));return seconds<60?'Just now':seconds<3600?`${Math.floor(seconds/60)}m ago`:seconds<86400?`${Math.floor(seconds/3600)}h ago`:`${Math.floor(seconds/86400)}d ago`}
+function noticeRow(notice:Notice,open:()=>void){
+  const row=document.createElement('button');row.type='button';row.className=`notice-row${notice.read?'':' unread'}`
+  row.innerHTML=`<span class="notice-symbol">${icon(notice.kind==='rating'?'chart':notice.kind==='result'?'trophy':notice.kind==='join'?'person':notice.kind==='turn'?'play':'knight')}</span><span class="notice-copy"><strong></strong><small></small></span><time></time>`
+  row.querySelector('strong')!.textContent=notice.title;row.querySelector('small')!.textContent=notice.detail
+  const time=row.querySelector('time')!;time.textContent=relative(notice.created);time.dateTime=new Date(notice.created).toISOString()
+  row.onclick=open;return row
+}
+async function lobby(){
+  const session=await getSession().catch(()=>null)
+  if(!session?.user){location.replace('/chess/login.html');return}
+  if(!session.profile){error('lobby-error','The home page needs the matching updated game server.');return}
+  let profile:Profile=session.profile
+  let count=profile.settings.players,movement:Movement=profile.settings.movement,place:'online'|'local'='online',showAll=false
+  let games:Games={available:[],mine:[],limit:50},notices:Notice[]=[],leaderboardRequest=0
+  const localURL=()=>`/chess/?local=1&players=${count}&movement=${movement}`
+  const currentPool=()=>poolFor(movement,count)
+  const updateLocalLinks=()=>document.querySelectorAll<HTMLAnchorElement>('.mode-choice a').forEach(link=>{const url=new URL(link.href);url.searchParams.set('movement',el<HTMLSelectElement>('local-movement').value);link.href=url.toString()})
+  const renderGames=()=>{
+    const filtered=games.available.filter(g=>showAll||(g.maxPlayers===count&&g.movement===movement))
+    el('available-games').replaceChildren(...filtered.map(g=>gameRow(g,'Join',()=>{el<HTMLInputElement>('join-code').value=g.code;el<HTMLFormElement>('join-form').requestSubmit()})))
+    if(!filtered.length)el('available-games').textContent=showAll?'No open games right now. Create one and invite friends.':'No matching games yet. Create a game, or show all open games.'
+    el('game-filter').textContent=showAll?'All player counts and movement modes.':`${count} players · ${movement==='classic'?'Classic':'Live'}`
+    el('show-all-games').hidden=showAll
+    el('my-games').replaceChildren(...[...games.mine].sort((a,b)=>Number(a.finished)-Number(b.finished)||Number(b.myTurn)-Number(a.myTurn)).map(g=>gameRow(g,g.finished?'Review':'Continue',()=>online(g.code))))
+    if(!games.mine.length)el('my-games').textContent='No games yet. Create one or find an open seat.'
   }
-  el('local-movement').addEventListener('change', () => {
-    document.querySelectorAll<HTMLAnchorElement>('.mode-choice a').forEach(link => {
-      const url = new URL(link.href); url.searchParams.set('movement', el<HTMLSelectElement>('local-movement').value); link.href = url.toString()
-    })
-  })
-  let games: Games
-  const refresh = async () => {
-    games = await api<Games>('/games')
-    const available = el('available-games')
-    available.replaceChildren(...games.available.map(game => row(game, 'Join', () => {
-      el<HTMLInputElement>('join-code').value = game.code
-      el<HTMLFormElement>('join-form').requestSubmit()
-    })))
-    if (!games.available.length) available.textContent = 'No open games right now.'
-    const mine = el('my-games')
-    mine.replaceChildren(...games.mine.map(game => row(game, 'Continue', () => online(game.code))))
-    if (!games.mine.length) mine.textContent = 'You have no games yet.'
+  const loadGames=async()=>{games=await api<Games>('/games');renderGames()}
+  const markRead=async(ids?:string[])=>{
+    const result=await api<{items:Notice[];unread:number}>('/notifications/read',ids?{ids}:{all:true})
+    notices=result.items;updateNoticeCount(result.unread);renderNotices()
   }
-  document.querySelectorAll<HTMLButtonElement>('[data-view]').forEach(button => button.onclick = async () => {
-    document.querySelectorAll<HTMLElement>('.lobby-view').forEach(view => view.hidden = view.id !== button.dataset.view)
-    document.querySelectorAll<HTMLButtonElement>('[data-view]').forEach(other => other.setAttribute('aria-pressed', String(other === button)))
-    error('lobby-error', '')
-    try { await refresh() } catch (cause) { error('lobby-error', cause instanceof Error ? cause.message : 'Could not load games') }
+  const renderNotices=()=>{
+    const rows=(items:Notice[])=>items.map(n=>noticeRow(n,()=>{void markRead([n.id]).then(()=>online(n.code)).catch(cause=>error('lobby-error',String(cause.message??cause)))}))
+    el('notification-feed').replaceChildren(...rows(notices.slice(0,5)))
+    el('all-notifications').replaceChildren(...rows(notices))
+    if(!notices.length){
+      for(const id of ['notification-feed','all-notifications']){const empty=document.createElement('p');empty.className='card-empty';empty.textContent='You’re all caught up. Game activity and rating updates will appear here.';el(id).append(empty)}
+    }
+    const unread=notices.some(n=>!n.read)
+    el<HTMLButtonElement>('read-all').disabled=!unread;el<HTMLButtonElement>('read-all-page').disabled=!unread
+    document.querySelector<HTMLElement>('.view-all')!.hidden=notices.length<=5
+  }
+  const loadNotices=async()=>{const data=await fetchNotices();notices=data.items;renderNotices()}
+  const loadLeaderboard=async()=>{
+    const request=++leaderboardRequest,pool=currentPool();setShellPool(pool);el('rating-pool-label').textContent=poolLabel(pool)
+    const data=await api<{players:{name:string;avatar:string;rating:number;games:number;rank:number}[];me:{rating:number;games:number;rank:number|null}}>(`/leaderboard?pool=${pool}`)
+    if(request!==leaderboardRequest)return
+    const table=document.createElement('table');table.innerHTML='<thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">Elo</th></tr></thead><tbody></tbody>'
+    for(const p of data.players){
+      const row=document.createElement('tr');row.classList.toggle('self',p.name===profile.name)
+      row.innerHTML=`<td></td><td><span class="rank-player"><span class="small-avatar">${icon(p.avatar)}</span><strong></strong></span></td><td></td>`
+      row.cells[0].textContent=String(p.rank);row.querySelector('strong')!.textContent=p.name;row.cells[2].textContent=String(p.rating);table.querySelector('tbody')!.append(row)
+    }
+    el('leaderboard').replaceChildren(table)
+    if(!data.players.length){const empty=document.createElement('p');empty.className='card-empty';empty.textContent='The board is open. Finish a rated game to earn a place here.';el('leaderboard').append(empty)}
+    el('my-rating-summary').textContent=`Your rating: ${data.me.rating}${data.me.games<10?' · Provisional':''} · ${data.me.games} rated ${data.me.games===1?'game':'games'}${data.me.rank?` · #${data.me.rank}`:''}`
+  }
+  const updateChoices=()=>{
+    document.querySelectorAll<HTMLElement>('[data-place]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.place===place)))
+    document.querySelectorAll<HTMLElement>('[data-players]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.players)===count)))
+    document.querySelectorAll<HTMLElement>('[data-movement]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.movement===movement)))
+    el('movement-hint').textContent=movement==='classic'?'Take turns in a fixed player order.':'Everyone plans, then the pieces travel.'
+    el('find-label').textContent=place==='online'?'Find game':'Play locally'
+    document.querySelector<HTMLElement>('.home-actions [data-view="make"]')!.hidden=place==='local'
+    el('play-hint').textContent=place==='online'?'Play online with your account. Choose rated or casual when creating a game.':'Share this device. Your local game saves automatically and is always unrated.'
+    const resume=document.querySelector<HTMLButtonElement>('.home-actions [data-view="continue"]')!
+    resume.disabled=place==='local'&&!localStorage.getItem(`four-player-multiverse-chess/v1/${movement}/${count}`)
+    resume.title=resume.disabled?'No local game saved for these options.':''
+    showAll=false;renderGames();setShellPool(currentPool())
+    void loadLeaderboard().catch(cause=>{el('leaderboard').textContent=cause.message??'Could not load leaderboard'})
+  }
+  const titles:Record<string,[string,string]>={make:['Create game','Choose the game details, then share its four-letter code.'],join:['Find a game','Join an open game or use an invite code.'],continue:['Continue game','Pick up where you left off. Finished games stay available for review.'],local:['Local play','Play together on one device.'],settings:['Settings','Make 5D Chess your own.'],notifications:['Notifications','Updates from your games and ratings.']}
+  const renderView=(view:string)=>{
+    if(!['home',...Object.keys(titles)].includes(view))view='home'
+    document.querySelectorAll<HTMLElement>('.lobby-view').forEach(v=>v.hidden=v.id!==view)
+    el('flow-header').hidden=view==='home'
+    if(titles[view]){el('flow-title').textContent=titles[view][0];el('flow-description').textContent=titles[view][1]}
+    if(view==='make'){el<HTMLSelectElement>('game-players').value=String(count);el<HTMLSelectElement>('game-movement').value=movement}
+    if(view==='local'){el<HTMLSelectElement>('local-movement').value=movement;updateLocalLinks()}
+    document.title=`${view==='home'?'Home':titles[view][0]} · 5D Chess`
+  }
+  const showView=(view:string)=>{location.hash=view==='home'?'':view;renderView(view);window.scrollTo({top:0})}
+  document.querySelectorAll<HTMLButtonElement>('[data-view]').forEach(b=>b.onclick=()=>{
+    if(b.dataset.view==='continue'&&place==='local'){location.href=localURL();return}
+    showView(b.dataset.view!)
+    if(['continue','join'].includes(b.dataset.view!))void loadGames().catch(cause=>error('lobby-error',cause.message))
   })
-  el<HTMLFormElement>('make-form').onsubmit = async event => {
-    event.preventDefault()
-    const submit = el<HTMLFormElement>('make-form').querySelector<HTMLButtonElement>('button[type=submit]')!
-    if (submit.disabled) return
-    submit.disabled = true
-    submit.textContent = 'Creating…'
-    error('make-error', '')
-    try {
-      const result = await api<{code: string}>('/games', {title: el<HTMLInputElement>('game-title').value.trim() || `${me.user}'s game`,
-        playerCount: Number(el<HTMLSelectElement>('game-players').value), movement: el<HTMLSelectElement>('game-movement').value, password: el<HTMLInputElement>('game-password').value})
+  window.addEventListener('hashchange',()=>renderView(location.hash.slice(1)||'home'))
+  document.querySelectorAll<HTMLButtonElement>('[data-place]').forEach(b=>b.onclick=()=>{place=b.dataset.place as typeof place;updateChoices()})
+  document.querySelectorAll<HTMLButtonElement>('[data-players]').forEach(b=>b.onclick=()=>{count=Number(b.dataset.players) as typeof count;updateChoices()})
+  document.querySelectorAll<HTMLButtonElement>('[data-movement]').forEach(b=>b.onclick=()=>{movement=b.dataset.movement as Movement;updateChoices()})
+  el('find-game').onclick=()=>{if(place==='local')location.href=localURL();else{showView('join');void loadGames().catch(cause=>error('lobby-error',cause.message))}}
+  el('local-movement').onchange=updateLocalLinks
+  el('show-all-games').onclick=()=>{showAll=true;renderGames()}
+  for(const id of ['read-all','read-all-page'])el(id).onclick=()=>void markRead().catch(cause=>error('lobby-error',cause.message))
+  el('rating-info').onclick=()=>el<HTMLDialogElement>('rating-dialog').showModal()
+  el('close-rating-info').onclick=()=>el<HTMLDialogElement>('rating-dialog').close()
+  const busy=async(formId:string,pending:string,work:()=>Promise<void>)=>{
+    const button=el<HTMLFormElement>(formId).querySelector<HTMLButtonElement>('button[type="submit"]')!
+    if(button.disabled)return
+    const label=button.textContent;button.disabled=true;button.textContent=pending
+    try{await work()}finally{button.disabled=false;button.textContent=label}
+  }
+  let ratedBeforePrivate=true
+  el<HTMLInputElement>('game-password').oninput=()=>{
+    const checkbox=el<HTMLInputElement>('game-rated'),privateGame=!!el<HTMLInputElement>('game-password').value
+    if(privateGame&&!checkbox.disabled){ratedBeforePrivate=checkbox.checked;checkbox.checked=false}
+    if(!privateGame&&checkbox.disabled)checkbox.checked=ratedBeforePrivate
+    checkbox.disabled=privateGame
+  }
+  el<HTMLSelectElement>('game-players').onchange=()=>{count=Number(el<HTMLSelectElement>('game-players').value) as typeof count;updateChoices()}
+  el<HTMLSelectElement>('game-movement').onchange=()=>{movement=el<HTMLSelectElement>('game-movement').value as Movement;updateChoices()}
+  el<HTMLFormElement>('make-form').onsubmit=event=>{event.preventDefault();void busy('make-form','Creating…',async()=>{
+    error('make-error','')
+    try{
+      const password=el<HTMLInputElement>('game-password').value
+      const result=await api<{code:string}>('/games',{title:el<HTMLInputElement>('game-title').value.trim()||`${profile.name}'s game`,playerCount:Number(el<HTMLSelectElement>('game-players').value),movement:el<HTMLSelectElement>('game-movement').value,password,rated:el<HTMLInputElement>('game-rated').checked&&!password})
       online(result.code)
-    } catch (cause) { error('make-error', cause instanceof Error ? cause.message : 'Could not create game') }
-    finally { submit.disabled = false; submit.textContent = 'Create game' }
+    }catch(cause){error('make-error',cause instanceof Error?cause.message:'Could not create game')}
+  })}
+  el<HTMLFormElement>('join-form').onsubmit=event=>{event.preventDefault();void busy('join-form','Joining…',async()=>{
+    error('join-error','');const code=el<HTMLInputElement>('join-code').value.trim().toUpperCase()
+    try{await api(`/games/${code}/join`,{password:el<HTMLInputElement>('join-password').value});online(code)}catch(cause){error('join-error',cause instanceof Error?cause.message:'Could not join game')}
+  })}
+  el<HTMLFormElement>('quick-join-form').onsubmit=event=>{event.preventDefault();void busy('quick-join-form','Joining…',async()=>{
+    error('quick-error','');const code=el<HTMLInputElement>('quick-code').value.trim().toUpperCase()
+    try{await api(`/games/${code}/join`,{});online(code)}catch(cause){
+      if(cause instanceof ApiError&&cause.status===403){showView('join');el<HTMLInputElement>('join-code').value=code;el('join-password').focus();error('join-error','This game needs its password.')}else error('quick-error',cause instanceof Error?cause.message:'Could not join game')
+    }
+  })}
+  el<HTMLSelectElement>('setting-avatar').value=profile.settings.avatar
+  el<HTMLSelectElement>('setting-players').value=String(profile.settings.players)
+  el<HTMLSelectElement>('setting-movement').value=profile.settings.movement
+  el<HTMLInputElement>('setting-notifications').checked=profile.settings.moveNotifications
+  const previewAvatar=()=>el('avatar-preview').innerHTML=icon(el<HTMLSelectElement>('setting-avatar').value)
+  el('setting-avatar').onchange=previewAvatar;previewAvatar()
+  el<HTMLFormElement>('settings-form').onsubmit=event=>{event.preventDefault();void busy('settings-form','Saving…',async()=>{
+    error('settings-error','');el('settings-status').hidden=true
+    try{
+      const result=await api<{profile:Profile}>('/settings',{avatar:el<HTMLSelectElement>('setting-avatar').value,movement:el<HTMLSelectElement>('setting-movement').value,players:Number(el<HTMLSelectElement>('setting-players').value),moveNotifications:el<HTMLInputElement>('setting-notifications').checked})
+      profile=result.profile;renderAccount(profile);void loadNotices().catch(cause=>error('lobby-error',cause.message));el('settings-status').textContent='Settings saved.';el('settings-status').hidden=false
+    }catch(cause){error('settings-error',cause instanceof Error?cause.message:'Could not save settings')}
+  })}
+  updateChoices();renderView(location.hash.slice(1)||'home')
+  const refresh=async()=>{
+    const results=await Promise.allSettled([loadGames(),loadNotices(),loadLeaderboard(),refreshRating()])
+    const failure=results.find(r=>r.status==='rejected')
+    if(failure?.status==='rejected')error('lobby-error',failure.reason instanceof Error?failure.reason.message:'Some updates could not be loaded.')
+    else error('lobby-error','')
   }
-  el<HTMLFormElement>('join-form').onsubmit = async event => {
-    event.preventDefault()
-    const submit = el<HTMLFormElement>('join-form').querySelector<HTMLButtonElement>('button[type=submit]')!
-    if (submit.disabled) return
-    submit.disabled = true
-    submit.textContent = 'Joining…'
-    error('join-error', '')
-    const code = el<HTMLInputElement>('join-code').value.trim().toUpperCase()
-    try {
-      await api(`/games/${code}/join`, {password: el<HTMLInputElement>('join-password').value})
-      online(code)
-    } catch (cause) { error('join-error', cause instanceof Error ? cause.message : 'Could not join game') }
-    finally { submit.disabled = false; submit.textContent = 'Join' }
-  }
-  try { await refresh() } catch (cause) { error('lobby-error', cause instanceof Error ? cause.message : 'Could not load games') }
+  await refresh()
+  window.setInterval(()=>{if(document.visibilityState==='visible')void refresh()},15000)
 }
-
-if (document.body.dataset.page === 'login') void login()
-if (document.body.dataset.page === 'lobby') void lobby()
+if(document.body.dataset.page==='login')void login()
+if(document.body.dataset.page==='lobby')void lobby()

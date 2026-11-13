@@ -22,9 +22,9 @@ const types = {'index.html': 'text/html; charset=utf-8', 'login.html': 'text/htm
   'lobby.html': 'text/html; charset=utf-8', 'online.html': 'text/html; charset=utf-8',
   'game.js': 'text/javascript; charset=utf-8', 'portal.js': 'text/javascript; charset=utf-8',
   'online.js': 'text/javascript; charset=utf-8', 'styles.css': 'text/css; charset=utf-8',
-  'portal.css': 'text/css; charset=utf-8', 'emblem.svg': 'image/svg+xml'}
+  'portal.css': 'text/css; charset=utf-8', 'shell.css': 'text/css; charset=utf-8', 'logo.png': 'image/png', 'emblem.svg': 'image/svg+xml'}
 const assets = Object.fromEntries(await Promise.all(Object.entries(types).map(async ([name, type]) =>
-  [name, {type, body: await readFile(`dist/chess/${name}`, 'utf8')}])))
+  [name, {type, binary: name.endsWith('.png'), body: name.endsWith('.png') ? (await readFile(`dist/chess/${name}`)).toString('base64') : await readFile(`dist/chess/${name}`, 'utf8')}])))
 await mkdir('.cloudflare', {recursive: true})
 await writeFile('.cloudflare/worker.mjs', `const assets = ${JSON.stringify(assets)};
 ${await readFile('scripts/edge.mjs', 'utf8')}`)

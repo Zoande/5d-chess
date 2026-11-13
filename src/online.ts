@@ -1,3 +1,5 @@
+import {initShell,setShellPool,refreshAccount} from './shell.ts'
+import {poolFor} from './account-model.ts'
 import {requiredBoards} from './rules.ts'
 import {awareness, nextPlayable, threatSquares} from './awareness.ts'
 import {initMatchUI, setMatchHeader, collapseControls} from './ui.ts'
@@ -82,7 +84,8 @@ function render() {
   element('game-code').textContent = room.code
   element('game-title').textContent = room.title
   element('game-title').title = room.title
-  document.title = `${room.title} · Multiverse Chess`
+  document.title = `${room.title} · 5D Chess`
+  setShellPool(poolFor(room.state.movement,playerCount(room.state)))
   const seat = room.seat
   const s = shown()
   element('online-mode').textContent = s.movement ? `${s.movement.toUpperCase()} · ONLINE` : 'ONLINE MATCH'
@@ -185,6 +188,7 @@ function applyRoom(next: Room) {
   room = next
   if (before && next.results.length > before.results.length) {
     const result = next.results.at(-1)!
+    void refreshAccount().catch(()=>{})
     const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 260 : result.travel ? Math.max(1200, Math.min(8000, (result.ticks ?? 0) * 180)) : 1600
     animation = {outcomes: result.outcomes, started: performance.now(), duration, result: next.state, travel: result.travel, ticks: result.ticks}
     requestAnimationFrame(() => scene.fit())
@@ -246,6 +250,7 @@ element('viewport').querySelectorAll<HTMLButtonElement>('[data-overlay]').forEac
   button.setAttribute('aria-pressed', String(enabled))
   scene.setOverlay(button.dataset.overlay!, enabled)
 })
+void initShell()
 initMatchUI()
 element('review-check').onclick = () => element<HTMLDialogElement>('check-dialog').close()
 element('submit-check').onclick = () => { element<HTMLDialogElement>('check-dialog').close(); void submit() }
