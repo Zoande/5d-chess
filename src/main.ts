@@ -1,4 +1,4 @@
-import {initMatchUI} from './ui.ts'
+import {initMatchUI, setMatchHeader} from './ui.ts'
 import {Scene} from './scene.ts'
 import {COLORS, NAMES, pieceIcon} from './art.ts'
 import {
@@ -122,7 +122,7 @@ function update() {
   const past = frame !== null
   const last = session.results.length
   const statePhase = phase()
-  element('mobile-summary').textContent = `${playing ? name(playing) : 'Match'} · Round ${s.round}${session.draft.length ? ` · ${session.draft.length} queued` : ''} · ${statePhase.toLowerCase()}`
+  setMatchHeader(playing, `Round ${s.round}${session.draft.length ? ` · ${session.draft.length} queued` : ''} · ${statePhase.toLowerCase()}`)
   element('round-number').textContent = String(statePhase === 'PLANNING' || past || animation ? s.round : Math.max(1, s.round - 1)).padStart(2, '0')
   element('phase').textContent = statePhase
   element('metrics').innerHTML = `<span><i class="tiny-dot"></i> Present <b>T${presentTime}</b></span>
@@ -199,7 +199,7 @@ function paintPanel() {
   const extra = session.draft.length - main
   const selectedPiece = selected ? pieceAt(s, selected) : null
   turn.innerHTML = `<div class="turn" style="--faction:${COLORS[p]}"><div class="turn-icon">${pieceIcon('K', p, 33)}</div>
-    <div><h3>${name(p)} to plan</h3><p>${seats[p]} faction <span>·</span> ${session.locked.length} of ${alive.length} locked</p></div></div>`
+    <div><h3>${name(p)} to plan</h3><p>${session.locked.length} of ${alive.length} players ready</p></div></div>`
   controls.innerHTML = `<div class="budget">
       <div><span>MAIN ORDERS</span><b>${budget.main - main}<small> / ${budget.main}</small></b></div>
       <div><span>OPTIONAL ORDER</span><b>${1 - extra}<small> / 1</small></b></div>
@@ -209,7 +209,7 @@ function paintPanel() {
       <button class="order-focus" data-focus-order="${i}" title="Focus source">${orderText(o)}<small>${o.rift ? 'Temporal Rift' : o.branch ? 'Historical branch' : o.castle ? 'Castling' : o.capture ? 'Capture' : 'Move'}</small></button>
       <button data-remove="${i}" class="order-remove" aria-label="Remove order ${i + 1}">×</button></li>`).join('')}</ol>` :
       `<div class="empty"><span>◇</span><p>${selectedPiece ? `Choose a highlighted destination.<small>${NAMES[selectedPiece.kind]} · ${choices.length} ${choices.length === 1 ? 'route' : 'routes'}</small>` :
-        'No orders queued.<small>Select one of your pieces on the board.</small>'}</p></div>`}
+        'Select a piece to plan a move.'}</p></div>`}
     ${routeChoices.length ? `<div class="route-choice"><span>ROUTE ${routeIndex + 1} / ${routeChoices.length}</span><button class="text-button" data-action="route">Cycle route</button>
       <button class="text-button" data-action="queue">Queue this route</button></div>` : ''}
     <button class="button primary block" data-action="lock">${session.draft.length ? 'Lock orders' : 'Lock in a pass'} <span>→</span></button>

@@ -1,3 +1,12 @@
+import {COLORS} from './art.ts'
+import {type Player} from './model.ts'
+
+export function setMatchHeader(player: Player | undefined, summary: string) {
+  document.getElementById('sidebar')!.style.setProperty('--faction', player ? COLORS[player] : '#bdbdbd')
+  document.getElementById('faction-label')!.textContent = player ? player[0].toUpperCase() + player.slice(1) : 'Match'
+  document.getElementById('mobile-summary')!.textContent = summary
+}
+
 /** Shared client-only behavior for the local and online match shells. */
 export function initMatchUI() {
   const panel = document.getElementById('sidebar')!

@@ -1,4 +1,4 @@
-import {initMatchUI} from './ui.ts'
+import {initMatchUI, setMatchHeader} from './ui.ts'
 import {Scene} from './scene.ts'
 import {COLORS, NAMES, pieceIcon} from './art.ts'
 import {type Candidate, type Coord, type Order, type Player, type Resolution, type State,
@@ -82,7 +82,7 @@ function render() {
   const s = shown()
   element('phase').textContent = room.finished ? 'FINISHED' : room.waiting ? 'WAITING' : frame !== null ? 'REPLAY' :
     seat && room.locked[seat] ? 'LOCKED' : 'PLANNING'
-  element('mobile-summary').textContent = `${seat ? names[seat] : 'Game'} · ${room.code} · ${element('phase').textContent?.toLowerCase()}`
+  setMatchHeader(seat, `${room.code} · ${element('phase').textContent?.toLowerCase()}`)
   element('metrics').textContent = `Present T${present(s)} · ${s.universes.length} universes · ${s.rifts.length} rifts`
   const seats = element('seats')
   seats.replaceChildren(...players(room.state).map(player => {
@@ -121,7 +121,7 @@ function render() {
   if (room.waiting) {
     const p = document.createElement('p')
     p.className = 'online-message'
-    p.textContent = `Share code ${room.code} with friends. ${Object.keys(room.seats).length}/${playerCount(room.state)} players joined. The game starts when every seat is filled.`
+    p.textContent = `${Object.keys(room.seats).length}/${playerCount(room.state)} players joined. Share code ${room.code} to fill the remaining seats.`
     panel.append(p)
   } else if (room.finished) {
     const alive = survivors(room.state)
@@ -132,7 +132,7 @@ function render() {
   } else if (frame !== null) {
     const p = document.createElement('p'); p.className = 'online-message'; p.textContent = 'Viewing an earlier round.'; panel.append(p)
   } else if (seat && room.locked[seat]) {
-    const p = document.createElement('p'); p.className = 'online-message'; p.textContent = 'Orders locked. Waiting for the other players. There is no turn timer.'; panel.append(p)
+    const p = document.createElement('p'); p.className = 'online-message'; p.textContent = 'Orders locked. Waiting for the other players.'; panel.append(p)
   } else if (canPlan()) {
     const budget = moveBudget(room.state)
     const main = draft.filter(o => isMain(getUniverse(room!.state, o.from.u)!, present(room!.state))).length
@@ -159,7 +159,6 @@ function render() {
     lock.onclick = () => void submit()
     panel.append(lock)
   }
-  if (!element('activity').textContent) message('The game updates automatically when others join or finish planning.')
   sync()
 }
 async function load() {

@@ -64,6 +64,7 @@ test('four players create a branch and Rift in one scene, then reload, replay, e
     assert.equal(await page.locator('.order-list').count(),0)
     await screen.getByRole('button', {name:new RegExp(color + ' · Ready')}).click()
     await waitText('#turn', color + ' to plan')
+    assert.equal(await page.locator('#faction-label').textContent(),color)
   }
   async function finishRound(n, redAction = 'lock') {
     await clickAction(redAction)
@@ -187,6 +188,8 @@ test('match controls stay aligned and recover after dragging and resizing', asyn
   await page.mouse.move(100, 250)
   await page.mouse.up()
   assert.notEqual(await page.locator('#sidebar').evaluate(el => el.style.left), '')
+  assert.equal(await page.locator('.round-panel').evaluate(el => el.scrollHeight <= el.clientHeight),true)
+  assert.equal(await page.locator('#faction-label').textContent(),'Red')
   for (const width of [768,393,320]) {
     await page.setViewportSize({width,height:852})
     await page.waitForFunction(() => document.querySelector('#sidebar').style.left === '')
@@ -197,6 +200,7 @@ test('match controls stay aligned and recover after dragging and resizing', asyn
     assert.ok(camera.y + camera.height < (await handle.boundingBox()).y)
     await handle.click()
     assert.equal(await handle.getAttribute('aria-expanded'),'true')
+    assert.equal(await page.locator('.round-panel').evaluate(el => el.scrollHeight <= el.clientHeight),true)
     assert.equal(await page.getByRole('button',{name:'Lock in a pass'}).isVisible(),true)
     await handle.click()
     const menu = page.locator('.match-menu')

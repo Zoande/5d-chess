@@ -12,7 +12,18 @@
     <p id="lobby-error" class="form-error" role="alert" hidden></p>
     <section id="local" class="portal-card lobby-view"><h3>Local play</h3><p class="portal-intro">How many players will share this device?</p><div class="mode-choice"><a class="button" href="/chess/?local=1&players=2">2 players</a><a class="button" href="/chess/?local=1&players=3">3 players</a><a class="button" href="/chess/?local=1&players=4">4 players</a></div></section>
     <section id="make" class="portal-card lobby-view" hidden><h3>Make game</h3><form method="post" id="make-form"><label>Players<select id="game-players"><option value="2">2 players · classic board</option><option value="3">3 players · one wing removed</option><option value="4" selected>4 players · full cross</option></select></label><label>Game name<input id="game-title" maxlength="60" placeholder="My game"></label><label>Game password <small>Optional · password games are hidden from the public list</small><input id="game-password" type="password" maxlength="256" autocomplete="new-password"></label><button class="button primary" type="submit">Create game</button></form><p id="make-error" class="form-error" role="alert" hidden></p></section>
-    <section id="join" class="portal-card lobby-view" hidden><h3>Join game</h3><form method="post" id="join-form"><label>Four-letter code<input id="join-code" maxlength="4" pattern="[A-Za-z]{4}" autocomplete="off" required></label><label>Password <small>Only for a private game</small><input id="join-password" type="password" autocomplete="off"></label><button class="button primary" type="submit">Join</button></form><p id="join-error" class="form-error" role="alert" hidden></p><h4>Open games</h4><div id="available-games" class="game-list"></div></section>
+    <section id="join" class="lobby-view join-layout" hidden aria-label="Join a game">
+      <div class="portal-card join-entry">
+        <h3>Join by code</h3><p class="portal-intro">Have an invite? Enter the game code.</p>
+        <form method="post" id="join-form">
+          <label>Four-letter code<input id="join-code" maxlength="4" pattern="[A-Za-z]{4}" autocomplete="off" required placeholder="ABCD"></label>
+          <label>Password <small>Only for a private game</small><input id="join-password" type="password" autocomplete="off"></label>
+          <button class="button primary" type="submit">Join</button>
+        </form>
+        <p id="join-error" class="form-error" role="alert" hidden></p>
+      </div>
+      <div class="portal-card open-games"><h3>Open games</h3><p class="portal-intro">Find a game with an open seat.</p><div id="available-games" class="game-list"></div></div>
+    </section>
     <section id="continue" class="portal-card lobby-view" hidden><h3>Your games</h3><div id="my-games" class="game-list"></div></section>
   </main>
 </body></html>
