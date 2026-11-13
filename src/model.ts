@@ -2,6 +2,7 @@ export const PLAYERS = ['red', 'blue', 'yellow', 'green'] as const
 export const KINDS = ['K', 'Q', 'R', 'B', 'N', 'P'] as const
 export type Player = typeof PLAYERS[number]
 export type PlayerCount = 2 | 3 | 4
+export type Movement = 'classic' | 'live'
 export const modePlayers = (count: PlayerCount): readonly Player[] => count === 2 ? ['red', 'yellow'] :
   count === 3 ? ['red', 'blue', 'yellow'] : PLAYERS
 export type Kind = typeof KINDS[number]
@@ -12,6 +13,7 @@ export interface Piece { readonly player: Player; readonly kind: Kind; readonly 
 export interface EnPassant { readonly square: Square; readonly crossed: Square; readonly round: number }
 export interface Board {
   readonly t: number
+  readonly turn?: Player
   readonly cells: readonly (Piece | null)[]
   readonly enPassant: readonly EnPassant[]
 }
@@ -20,12 +22,16 @@ export interface Universe {
   readonly parent: number | null
   readonly divergence: number
   readonly creator: Player | null
+  readonly owners?: readonly Player[]
   readonly created: number
   readonly active: boolean
   readonly boards: readonly Board[]
 }
 export interface Rift { readonly a: number; readonly b: number; readonly usableFrom: number }
 export interface State {
+  readonly movement?: Movement
+  readonly turnOrder?: readonly Player[]
+  readonly turn?: Player
   readonly playerCount?: PlayerCount
   readonly round: number
   readonly universes: readonly Universe[]
@@ -46,11 +52,15 @@ export interface Candidate extends Order {
 export interface Capture { at: Coord; piece: Piece }
 export interface Outcome {
   move: Candidate
-  status: 'applied' | 'contested' | 'blocked'
+  status: 'applied' | 'contested' | 'blocked' | 'collided'
   branch?: number
   captures: Capture[]
 }
+export interface TravelPoint {x: number; y: number; tick: number}
+export interface Travel {piece: Piece; from: Coord; to: Coord; points: TravelPoint[]; endTick: number; collision?: boolean}
 export interface Resolution {
+  travel?: Travel[]
+  ticks?: number
   state: State
   outcomes: Outcome[]
   rejected: { order: Order; reason: string }[]
@@ -112,7 +122,7 @@ export const squareName = ({x, y}: Square, s?: State) => s?.playerCount === 2
   ? `${String.fromCharCode(97 + x - 3)}${11 - y}` : `${String.fromCharCode(97 + x)}${14 - y}`
 export const coordName = (c: Coord, s?: State) => `U${c.u}·T${c.t} ${squareName(c, s)}`
 
-export function initialState(count: PlayerCount = 4): State {
+export function initialState(count: PlayerCount = 4, movement?: Movement, order: readonly Player[] = modePlayers(count)): State {
   const cells: (Piece | null)[] = Array(SIZE ** 2).fill(null)
   const back: Kind[] = ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']
   const basis = {playerCount: count} as State
@@ -123,8 +133,8 @@ export function initialState(count: PlayerCount = 4): State {
       cells[index(offset(base, FORWARD[player]))] = {player, kind: 'P', moved: false}
     }
   }
-  return {playerCount: count, round: 1, universes: [{id: 0, parent: null, divergence: 0, creator: null,
-    created: 0, active: true, boards: [{t: 0, cells, enPassant: []}]}], rifts: [], eliminated: []}
+  return {...(movement ? {movement, turnOrder: [...order], ...(movement === 'classic' ? {turn: order[0]} : {})} : {}), playerCount: count, round: 1, universes: [{id: 0, parent: null, divergence: 0, creator: null,
+    created: 0, active: true, boards: [{t: 0, cells, enPassant: [], ...(movement === 'classic' ? {turn: order[0]} : {})}]}], rifts: [], eliminated: []}
 }
 
 export function present(s: State): number {
@@ -133,7 +143,7 @@ export function present(s: State): number {
 export const isMain = (u: Universe, t: number) => u.active && frontier(u).t === t
 export function moveBudget(s: State) {
   const t = present(s)
-  return {main: Math.min(playerCount(s), s.universes.filter(u => isMain(u, t)).length), optional: 1}
+  return {main: s.movement ? s.universes.filter(u => isMain(u, t)).length : Math.min(playerCount(s), s.universes.filter(u => isMain(u, t)).length), optional: 1}
 }
 export const survivors = (s: State) => players(s).filter(p => !s.eliminated.includes(p))
 export function activation(universes: readonly Universe[], eliminated: readonly Player[], count: PlayerCount = 4): Universe[] {
@@ -141,9 +151,27 @@ export function activation(universes: readonly Universe[], eliminated: readonly 
   const active = new Set<number>([0])
   for (const player of modePlayers(count)) {
     if (eliminated.includes(player)) continue
-    const own = ordered.filter(u => u.creator === player)
+    const own = ordered.filter(u => (u.owners ?? (u.creator ? [u.creator] : [])).includes(player))
     const capacity = 1 + Math.floor((ordered.length - 1 - own.length) / (count - 1))
     for (const u of own.slice(0, capacity)) active.add(u.id)
   }
   return universes.map(u => u.active === active.has(u.id) ? u : {...u, active: active.has(u.id)})
+}
+
+/** A game stores its permutation once; replays never roll another order. */
+export function shuffledPlayers(count: PlayerCount): Player[] {
+  const order = [...modePlayers(count)]
+  for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]] }
+  return order
+}
+export const turnOrder = (s: State): readonly Player[] => s.turnOrder ?? players(s)
+export function nextPlayer(s: State, player: Player): Player {
+  const order = turnOrder(s), start = order.indexOf(player)
+  for (let step = 1; step <= order.length; step++) { const p = order[(start + step) % order.length]; if (!s.eliminated.includes(p)) return p }
+  return player
+}
+export function boardTurn(s: State, u: Universe): Player | undefined {
+  if (s.movement !== 'classic') return
+  const p = frontier(u).turn ?? turnOrder(s)[0]
+  return s.eliminated.includes(p) ? nextPlayer(s, p) : p
 }

@@ -36,7 +36,7 @@ export function playableBoards(s: State, player: Player, orders: readonly Order[
 const plans = new WeakMap<State, Map<string, ReturnType<typeof analyze>>>()
 function analyze(s: State, player: Player, orders: readonly Order[]) {
   const threats = checks(s, player)
-  const projected = orders.length ? resolveRound(s, orders).state : s
+  const projected = orders.length ? resolveRound(s, orders, {partial: true}).state : s
   return {threats, remaining: checks(projected, player), playable: playableBoards(s, player, orders)}
 }
 export function awareness(s: State, player: Player, orders: readonly Order[]) {
