@@ -1,6 +1,6 @@
 # Four-Player Multiverse Chess
 
-The `main` branch contains the deployed game and board UI improvements. The `development` branch adds Classic and Live movement, physical travel and collisions, shared timelines, and compulsory Present-board moves. See [Development movement rules](docs/movement-modes.md) for the implemented rules and choices. The development frontend and Node server must be deployed together for online play; existing production games keep their original behavior.
+The `main` branch contains the deployed game and board UI improvements. The `development` branch adds Classic and Live movement, physical travel and collisions, shared timelines, and compulsory Present-board moves. The development home also includes account preferences, in-app notifications and separate Elo pools; see [Accounts and ratings](docs/accounts-and-ratings.md). See [Development movement rules](docs/movement-modes.md) for the implemented rules and choices. The development frontend and Node server must be deployed together for online play; existing production games keep their original behavior.
 
 [Play at chess.316123.nl](https://chess.316123.nl/)
 
@@ -66,6 +66,8 @@ npm run deploy
 | `src/continuous.ts` | Live tick speeds, swept collisions and recorded playback traces |
 | `src/rules.ts` | Required Present-board orders |
 | `src/awareness.ts` | Check detection and client plan preview |
+| `src/shell.ts` / `src/portal.ts` | Shared topbar, dashboard and account flows |
+| `server/accounts.ts` | Elo settlement, preferences and notifications |
 | `src/main.ts` | Pass-and-play flow, planning controls, round history |
 | `src/session.ts` | Deterministic save journal and replay reconstruction |
 
