@@ -1,6 +1,6 @@
 import {requiredBoards} from './rules.ts'
 import {awareness, nextPlayable, threatSquares} from './awareness.ts'
-import {initMatchUI, setMatchHeader} from './ui.ts'
+import {initMatchUI, setMatchHeader, collapseControls} from './ui.ts'
 import {Scene} from './scene.ts'
 import {COLORS, NAMES, pieceIcon} from './art.ts'
 import {type Candidate, type Coord, type Order, type Player, type Resolution, type State,
@@ -189,8 +189,9 @@ function applyRoom(next: Room) {
     animation = {outcomes: result.outcomes, started: performance.now(), duration, result: next.state, travel: result.travel, ticks: result.ticks}
     requestAnimationFrame(() => scene.fit())
     frame = null
+    message('Movement resolving…')
     window.setTimeout(() => {
-      animation = undefined; render()
+      animation = undefined; message(''); render()
       if (room?.seat) nextPlayable(scene, awareness(room.state, room.seat, draft).playable)
     }, duration + 30)
   }
@@ -206,7 +207,7 @@ async function load() {
     const oldRound = room?.state.round
     applyRoom(data as Room)
     opening = initialState(playerCount((data as Room).state))
-    if (oldRound && oldRound !== (data as Room).state.round) { draft = []; clear(); frame = null; message(`Round ${oldRound} resolved. Plan the next round.`) }
+    if (oldRound && oldRound !== (data as Room).state.round) { draft = []; clear(); frame = null; message(animation ? 'Movement resolving…' : `Round ${oldRound} resolved. Plan the next round.`) }
     render()
     if (first) { first = false; scene.focusPlayer((data as Room).seat) }
   } catch (cause) { message(cause instanceof Error ? cause.message : 'Could not load game', true) }
@@ -221,8 +222,9 @@ async function submit() {
       body:JSON.stringify({orders:draft.map(({player, from, to, route}) => ({player, from, to, route}))})})
     const data = await response.json()
     if (!response.ok) throw new Error(data.error || 'Could not lock orders')
+    collapseControls()
     applyRoom(data as Room)
-    draft = []; clear(); message('Orders locked. Waiting for the others.'); render()
+    draft = []; clear(); if (!animation) message('Orders locked. Waiting for the others.'); render()
   } catch (cause) { message(cause instanceof Error ? cause.message : 'Could not lock orders', true) }
   finally { submitting = false; render() }
 }

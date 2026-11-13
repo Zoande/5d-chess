@@ -1,6 +1,6 @@
 import {requiredBoards} from './rules.ts'
 import {awareness, nextPlayable, threatSquares} from './awareness.ts'
-import {initMatchUI, setMatchHeader} from './ui.ts'
+import {initMatchUI, setMatchHeader, collapseControls} from './ui.ts'
 import {Scene} from './scene.ts'
 import {COLORS, NAMES, pieceIcon} from './art.ts'
 import {
@@ -310,6 +310,7 @@ function lock(confirmed = false) {
     return
   }
   clearSelection()
+  collapseControls()
   const result = commit(session)
   save()
   if (!result) {handoff(); return}
