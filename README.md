@@ -1,6 +1,6 @@
 # Four-Player Multiverse Chess
 
-The `main` branch contains the deployed game and board UI improvements. The `development` branch adds Classic and Live movement, physical travel and collisions, shared timelines, and compulsory Present-board moves. The development home also includes account preferences, in-app notifications, merged Elo, coins, 40 piece skin sets and 20 collectible player icons; see [Accounts and ratings](docs/accounts-and-ratings.md) and [Collections and economy](docs/collections.md). See [Development movement rules](docs/movement-modes.md) for the implemented rules and choices. The development frontend and Node server must be deployed together for online play; existing production games keep their original behavior.
+The `main` branch contains the deployed Classic and Live movement modes, physical travel and collisions, shared timelines, compulsory Present-board moves, and the account/collection experience. See [Accounts and ratings](docs/accounts-and-ratings.md), [Collections and economy](docs/collections.md), and [Movement rules](docs/movement-modes.md). The Node backend uses transactional SQLite storage with a verified one-time import of legacy saves; see [Server architecture and operations](docs/server-storage.md). The client API, cookies, public paths and existing games remain compatible.
 
 [Play at chess.316123.nl](https://chess.316123.nl/)
 

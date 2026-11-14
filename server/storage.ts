@@ -8,6 +8,7 @@ import type {Listing} from '../src/collection.ts'
 import type {LegacyDatabase, Login, Room} from './model.ts'
 import {roomSummary, type RoomSummary} from './room-summary.ts'
 import {players, playerCount, survivors} from '../src/model.ts'
+import {syncDirectory} from './files.ts'
 
 export const STORAGE_SCHEMA = 1
 const knownKeys = new Set(['users', 'logins', 'rooms', 'listings'])
@@ -33,6 +34,9 @@ class Entities<T> {
     if (this.get(key)) throw new Error('Duplicate record')
     this.loaded.set(key, {before: null, value})
   }
+  cached(predicate: (value: T) => boolean): T | undefined {
+    for (const entry of this.loaded.values()) if (predicate(entry.value)) return entry.value
+  }
   flush(): void {
     for (const [key, entry] of this.loaded) {
       const json = JSON.stringify(entry.value)
@@ -52,6 +56,8 @@ export class UnitOfWork {
     this.rooms = new Entities(code => store.roomJson(code), (_code, json, room) => store.writeRoom(room, json))
   }
   findAccount(name: string): Account | undefined {
+    const pending = this.users.cached(account => account.name.toLowerCase() === name.toLowerCase())
+    if (pending) return pending
     const exact = this.store.accountName(name)
     return exact ? this.users.get(exact) : undefined
   }
@@ -130,7 +136,7 @@ export class ChessStore {
       if (!existsSync(backupPath)) {
         const fd = openSync(backupPath, 'wx', 0o600)
         try {writeFileSync(fd, raw); fsyncSync(fd)} finally {closeSync(fd)}
-        const dir = openSync(backupDirectory, 'r'); try {fsyncSync(dir)} finally {closeSync(dir)}
+        syncDirectory(backupDirectory)
       }
       if (createHash('sha256').update(readFileSync(backupPath)).digest('hex') !== digest) throw new Error('Legacy migration backup checksum mismatch.')
       migration = {kind: 'legacy-json', sourceSha256: digest, backupPath, createdAt: new Date().toISOString()}
@@ -170,13 +176,17 @@ export class ChessStore {
     } finally {this.inTransaction = false}
   }
   transaction<T>(work: (unit: UnitOfWork) => T): T {
+    if (work.constructor.name === 'AsyncFunction') throw new Error('Chess transactions must be synchronous')
     if (this.inTransaction) throw new Error('Nested chess transaction')
     this.db.exec('BEGIN IMMEDIATE')
     this.inTransaction = true
     try {
       const unit = new UnitOfWork(this)
       const result = work(unit)
-      if (result && typeof result === 'object' && 'then' in result) throw new Error('Chess transactions must be synchronous')
+      if (result && typeof result === 'object' && 'then' in result) {
+        void Promise.resolve(result).catch(()=>undefined)
+        throw new Error('Chess transactions must be synchronous')
+      }
       unit.flush()
       this.db.exec('COMMIT')
       return result
@@ -258,7 +268,7 @@ export class ChessStore {
       } finally {copy.close()}
       chmodSync(destination, 0o600)
       const fd = openSync(destination, 'r'); try {fsyncSync(fd)} finally {closeSync(fd)}
-      const directory = openSync(dirname(resolve(destination)), 'r'); try {fsyncSync(directory)} finally {closeSync(directory)}
+      syncDirectory(dirname(resolve(destination)))
     } catch (error) {unlinkSync(destination); throw error}
   }
   close(): void {this.db.close()}

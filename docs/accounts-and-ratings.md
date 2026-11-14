@@ -1,6 +1,6 @@
-# Development accounts and ratings
+# Accounts and ratings
 
-The development frontend and Node API must be deployed together. Main is unchanged. Build with `npm run build`, then restart the Node process with the same `DATA_DIR`; back up `multiplayer.json` before upgrading. See [Collections and economy](collections.md) for coins, spins, crates, inventory and the market.
+Build with `npm run build`, then restart the Node process with the same `DATA_DIR`. Accounts, sessions and games use transactional SQLite; legacy `multiplayer.json` is imported once with a verified backup. See [Server architecture and operations](server-storage.md) for migration, backups and recovery, and [Collections and economy](collections.md) for coins, spins, crates, inventory and the market.
 
 ## Flow
 

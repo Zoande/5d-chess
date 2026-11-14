@@ -70,6 +70,19 @@ test('wallet activity does not rewrite games, and lobby summaries change only wi
  }finally{reader.close();store.close()}
 })
 
+test('transaction boundaries reject async work and expose newly created identities consistently',async t=>{
+ const dir=await directory(t),store=new ChessStore(dir)
+ try{
+  let ran=false
+  assert.throws(()=>store.transaction(async()=>{ran=true}),/must be synchronous/)
+  assert.equal(ran,false)
+  assert.throws(()=>store.transaction(unit=>{unit.users.add('Lost',account('Lost'));return Promise.resolve()}),/must be synchronous/)
+  assert.equal(store.accountName('Lost'),undefined)
+  store.transaction(unit=>{unit.users.add('Alice',account('Alice'));assert.equal(unit.findAccount('ALICE'),unit.users.get('Alice'))})
+  assert.equal(store.check().accounts,1)
+ }finally{store.close()}
+})
+
 test('separate processes serialize competing wallet changes instead of overwriting stale snapshots',async t=>{
  const {dir}=await seeded(t);new ChessStore(dir).close()
  const code=`import {ChessStore} from ${JSON.stringify(moduleUrl)};const store=new ChessStore(process.argv[1]);try{for(let i=0;i<12;i++)store.transaction(unit=>{unit.users.get('Alice').wallet.coins++})}finally{store.close()}`
@@ -112,4 +125,24 @@ test('corrupt legacy files, invalid references and future schemas fail closed in
  const sql=new DatabaseSync(join(dir,'chess.sqlite'));sql.exec('PRAGMA user_version=99');sql.close()
  assert.throws(()=>new ChessStore(dir),/Unsupported chess storage schema 99/)
  const untouched=new DatabaseSync(join(dir,'chess.sqlite'),{readOnly:true});assert.equal(untouched.prepare('SELECT COUNT(*) AS n FROM accounts').get().n,2);untouched.close()
+})
+
+test('operator commands migrate once, verify backups and export privately without overwriting files',async t=>{
+ const {dir,data}=await seeded(t)
+ const run=(args)=>new Promise((resolveRun,reject)=>{
+  const p=spawn(process.execPath,['dist/storage-admin.mjs',...args],{env:{...process.env,DATA_DIR:dir},stdio:['ignore','pipe','pipe']})
+  let output='',errors='';p.stdout.on('data',c=>output+=c);p.stderr.on('data',c=>errors+=c)
+  p.once('error',reject);p.once('exit',code=>resolveRun({code,output,errors}))
+ })
+ let r=await run(['migrate']);assert.equal(r.code,0,r.errors);assert.equal(JSON.parse(r.output).accounts,2)
+ r=await run(['migrate']);assert.equal(r.code,0,r.errors)
+ const exported=join(dir,'private','compatibility.json'),backup=join(dir,'private','backup.sqlite')
+ r=await run(['export',exported]);assert.equal(r.code,0,r.errors)
+ assert.deepEqual(JSON.parse(await readFile(exported,'utf8')),data)
+ assert.equal((await stat(exported)).mode&0o077,0)
+ assert.notEqual((await run(['export',exported])).code,0)
+ r=await run(['backup',backup]);assert.equal(r.code,0,r.errors)
+ const copy=new DatabaseSync(backup,{readOnly:true});assert.equal(copy.prepare('PRAGMA integrity_check').get().integrity_check,'ok');copy.close()
+ assert.notEqual((await run(['backup',backup])).code,0)
+ r=await run(['check']);assert.equal(r.code,0,r.errors);assert.equal(JSON.parse(r.output).rooms,2)
 })

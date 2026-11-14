@@ -16,6 +16,7 @@
     "server": "node dist/server.mjs",
     "dev:server": "npm run build && node dist/server.mjs",
     "data:check": "node dist/storage-admin.mjs check",
+    "data:migrate": "node dist/storage-admin.mjs migrate",
     "data:backup": "node dist/storage-admin.mjs backup",
     "data:export": "node dist/storage-admin.mjs export",
     "demo": "npm run build && node scripts/demo.mjs"
