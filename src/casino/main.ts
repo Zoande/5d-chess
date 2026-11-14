@@ -140,7 +140,7 @@ function bindDice(){
   if(!scene)return
   for(const c of scene.controls()){
    const button=document.querySelector<HTMLButtonElement>(`[data-control="${c.id}"]`)!
-   button.hidden=!c.visible;button.disabled=c.disabled;button.style.cssText=`left:${c.x.toFixed(1)}px;top:${c.y.toFixed(1)}px;width:${c.width.toFixed(1)}px;height:${c.height.toFixed(1)}px`
+   button.hidden=!c.visible;button.disabled=c.disabled;button.style.cssText=`left:${c.x.toFixed(1)}px;top:${c.y.toFixed(1)}px;width:${c.width.toFixed(1)}px;height:${c.height.toFixed(1)}px;pointer-events:${phase==='ready'&&c.id!=='offer'?'none':'auto'}`
    if(c.id==='offer')button.setAttribute('aria-label',phase==='ready'?'Throw die':pending?'Retry the same offer':'Offer coins')
   }
   projectionFrame=requestAnimationFrame(project)
