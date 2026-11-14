@@ -15,9 +15,18 @@ export function rouletteWins(choice:RouletteChoice,result:number){
 }
 export const grossMultiplier=(game:CasinoGame,choice:RouletteChoice)=>game==='dice'?5.88:typeof choice==='number'?choice===0?49:36:2
 export const winProbability=(game:CasinoGame,choice:RouletteChoice)=>game==='dice'?1/6:typeof choice==='number'?choice===0?.02:.98/36:.49
-export interface CasinoBet {requestId:string;sequence:number;game:CasinoGame;stake:number;choice:RouletteChoice}
-export interface CasinoRound extends CasinoBet {id:string;result:number;won:boolean;gross:number;profit:number;tax:number;credited:number;net:number;created:number}
+export interface CasinoBet {currency?:'elo';quoteDay?:string;eloRating?:number;requestId:string;sequence:number;game:CasinoGame;stake:number;choice:RouletteChoice}
+export interface CasinoRound extends CasinoBet {id:string;result:number;won:boolean;gross:number;profit:number;tax:number;credited:number;net:number;created:number;eloLost?:number;eloAfter?:number;coinReward?:number}
 export interface CasinoState {sequence:number;recent:CasinoRound[]}
 export interface CasinoView {coins:number;nextSequence:number;recent:CasinoRound[];houseEdge:number;profitTax:number;taxAccount:string;maxStake:number}
 export interface CasinoReply extends CasinoView {round:CasinoRound}
 export const casinoCoins=(value:number)=>new Intl.NumberFormat('en',{maximumFractionDigits:4}).format(value)
+
+export const MIN_DICE_STAKE=1
+export const MAX_ELO_STAKE=100
+export const MAX_ELO_ROUNDS=10
+export type EncounterReason='broke'|'marathon'|'chance'
+export interface EloGamblingState {day:string;allowed:boolean;stage:'normal'|'offered'|'active';used:number;lifetimeLost:number;reason?:EncounterReason;offerId?:string}
+export interface EloGamblingView extends EloGamblingState {elo:number;quotes:number[];resetAt:number;totalLost:number}
+export interface EloValuation {day:string;version:1;samples:number[]}
+export const cycleEloStake=(current:number,increment:number,max=100)=>max<1?0:((current+increment-1)%max)+1

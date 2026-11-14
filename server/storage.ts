@@ -61,6 +61,8 @@ export class UnitOfWork {
     const exact = this.store.accountName(name)
     return exact ? this.users.get(exact) : undefined
   }
+  metadata<T>(key:string):T|undefined {return this.store.metadataValue(key) as T|undefined}
+  putMetadata(key:string,value:unknown):void {this.store.putMetadata(key,value)}
   session(hash: string): Login | undefined {return this.store.session(hash)}
   putSession(hash: string, login: Login): void {this.store.putSession(hash, login)}
   deleteSession(hash: string): void {this.store.deleteSession(hash)}
@@ -224,6 +226,8 @@ export class ChessStore {
     return (this.statement('SELECT r.summary AS payload,m.my_turn FROM rooms r JOIN room_members m ON m.room_code=r.code WHERE m.account_name=? ORDER BY r.id').all(name) as Array<Row & {my_turn: number}>).map(row => ({...JSON.parse(row.payload), myTurn: !!row.my_turn}))
   }
   activeRooms(): number {return Number((this.statement('SELECT COUNT(*) AS count FROM rooms WHERE finished=0').get() as {count: number}).count)}
+  metadataValue(key:string):unknown {const row=this.statement('SELECT value FROM metadata WHERE key=?').get(key) as {value:string}|undefined;return row?JSON.parse(row.value):undefined}
+  putMetadata(key:string,value:unknown):void {this.requireWriter();this.statement('INSERT INTO metadata(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key,JSON.stringify(value))}
   leaderboard() {
     const rows = this.statement(`SELECT name, COALESCE(json_extract(payload,'$.wallet.loadout.icon'),'default') AS avatar,
       json_extract(payload,'$.wallet.loadout.frame') AS frame, COALESCE(json_extract(payload,'$.rating.value'),1200) AS rating,

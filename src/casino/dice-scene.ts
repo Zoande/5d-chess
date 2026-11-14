@@ -34,7 +34,7 @@ export class DiceScene {
  private startPosition=v();private landing=v();private startRotation=new T.Quaternion()
  private reduced=matchMedia('(prefers-reduced-motion: reduce)').matches
  private fence:WebGLSync|null=null
- private cameraLocked=false;private speech:T.Sprite;private speechMap:T.CanvasTexture;private speechCanvas:HTMLCanvasElement;private speechUntil=0;private haze:T.ShaderMaterial[]=[]
+ private mode:'normal'|'offer'|'elo'='normal';private cameraLocked=false;private speech:T.Sprite;private speechMap:T.CanvasTexture;private speechCanvas:HTMLCanvasElement;private speechUntil=0;private haze:T.ShaderMaterial[]=[]
  constructor(private canvas:HTMLCanvasElement){
   this.renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'})
   const glContext=this.renderer.getContext(),debug=glContext.getExtension('WEBGL_debug_renderer_info')
@@ -90,7 +90,7 @@ export class DiceScene {
    if(this.fence){const status=gl.clientWaitSync(this.fence,0,0);if(status===gl.TIMEOUT_EXPIRED)return;gl.deleteSync(this.fence);this.fence=null}
    const dt=Math.min(.25,(now-this.previous)/1000||.016);this.previous=now;this.drawn=now
    this.yaw=T.MathUtils.damp(this.yaw,this.lookYaw,12,dt);this.pitch=T.MathUtils.damp(this.pitch,this.lookPitch,12,dt)
-   this.updateCamera();this.pose(now);this.haze.forEach(m=>m.uniforms.time.value=now/1000);if(this.speech.visible){const remaining=this.speechUntil-now;this.speech.material.opacity=T.MathUtils.clamp(remaining/900,0,1);this.speech.visible=remaining>0}
+   this.updateCamera();this.pose(now);this.table.animate(dt);if(this.mode==='elo')this.wager.visible=false;this.haze.forEach(m=>m.uniforms.time.value=now/1000);if(this.speech.visible){const remaining=this.speechUntil-now;this.speech.material.opacity=T.MathUtils.clamp(remaining/900,0,1);this.speech.visible=remaining>0}
    this.candles.forEach((c,i)=>c.intensity=1.28+Math.sin(now*.002+i)*.035+Math.sin(now*.007+i)*.012)
    this.renderer.render(this.world,this.camera);this.canvas.dataset.frame=String(++this.frame);this.canvas.dataset.pitch=this.pitch.toFixed(3)
    this.fence=gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE,0);gl.flush()
@@ -161,6 +161,7 @@ export class DiceScene {
   }
  }
  private refresh(){this.table.setState(this.coins,this.stake,this.face,this.phase,this.disabled)}
+ setMode(mode:'normal'|'offer'|'elo',stake=0,reward=0,reason?:string){this.mode=mode;this.table.setMode(mode,stake,reward,reason);this.people.setSoul(mode==='elo');this.canvas.dataset.tableMode=mode;this.refresh()}
  setState(coins:number,stake:number,face:number,disabled:boolean){this.coins=coins;this.stake=stake;this.face=face;this.disabled=disabled;this.refresh()}
  setCoins(coins:number){this.coins=coins;this.refresh()}
  lockCamera(locked:boolean){this.cameraLocked=locked;this.canvas.dataset.cameraLocked=String(locked);if(locked){this.recenter();this.yaw=0;this.pitch=0;this.updateCamera()}}
@@ -184,7 +185,7 @@ export class DiceScene {
  }
  pick(clientX:number,clientY:number):TableAction|{kind:'throw'}|undefined{
   const rect=this.canvas.getBoundingClientRect();this.raycaster.setFromCamera(new T.Vector2((clientX-rect.left)/rect.width*2-1,-(clientY-rect.top)/rect.height*2+1),this.camera)
-  const candidates:T.Object3D[]=this.table.controls.filter(c=>!c.disabled).map(c=>c.object)
+  const candidates:T.Object3D[]=this.table.controls.filter(c=>c.object.visible&&!c.disabled).map(c=>c.object)
   if(this.phase==='ready')candidates.push(this.die)
   for(const hit of this.raycaster.intersectObjects(candidates,true)){
    let object:T.Object3D|null=hit.object
@@ -196,7 +197,7 @@ export class DiceScene {
   return this.table.controls.map(c=>{
    const corners=[v(-c.size[0]/2,.04,-c.size[1]/2),v(c.size[0]/2,.04,-c.size[1]/2),v(c.size[0]/2,.04,c.size[1]/2),v(-c.size[0]/2,.04,c.size[1]/2)].map(p=>c.object.localToWorld(p).project(this.camera))
    const xs=corners.map(p=>(p.x*.5+.5)*width),ys=corners.map(p=>(-.5*p.y+.5)*height)
-   return {id:c.id,action:c.action,disabled:c.disabled,x:Math.min(...xs),y:Math.min(...ys),width:Math.max(...xs)-Math.min(...xs),height:Math.max(...ys)-Math.min(...ys),visible:corners.every(p=>p.z<1)&&Math.max(...ys)>0&&Math.min(...ys)<height}
+   return {id:c.id,action:c.action,disabled:c.disabled,x:Math.min(...xs),y:Math.min(...ys),width:Math.max(...xs)-Math.min(...xs),height:Math.max(...ys)-Math.min(...ys),visible:c.object.visible&&corners.every(p=>p.z<1)&&Math.max(...ys)>0&&Math.min(...ys)<height}
   })
  }
  highlight(id:string|undefined){for(const c of this.table.controls)(c.edge.material as T.MeshStandardMaterial).emissive.set(c.id===id?0x5b3a12:0x000000)}
