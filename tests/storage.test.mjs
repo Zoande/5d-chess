@@ -9,6 +9,8 @@ import {DatabaseSync} from 'node:sqlite'
 import {ChessStore} from '../server/storage.ts'
 import {initialState} from '../src/model.ts'
 import {profile} from '../server/accounts.ts'
+import {grantSet,listSet,buyListing} from '../server/economy.ts'
+import {setById,planSet} from '../src/collection.ts'
 
 const account=(name,coins=3480)=>({name,salt:'fixture-salt',hash:'fixture-password-hash',rating:{value:1200,games:0},wallet:{starterGranted:true,coins,inventory:[],loadout:{icon:'default',pieces:{}}}})
 const room=(code)=>({code,title:code,owner:'Alice',seats:{red:'Alice',yellow:'Bob'},state:initialState(2,'classic',['red','yellow']),journal:[],results:[],locked:{},created:100,rated:true})
@@ -145,4 +147,24 @@ test('operator commands migrate once, verify backups and export privately withou
  const copy=new DatabaseSync(backup,{readOnly:true});assert.equal(copy.prepare('PRAGMA integrity_check').get().integrity_check,'ok');copy.close()
  assert.notEqual((await run(['backup',backup])).code,0)
  r=await run(['check']);assert.equal(r.code,0,r.errors);assert.equal(JSON.parse(r.output).rooms,2)
+})
+
+
+test('whole-Set sales roll back all members on failure and persist once across restart',async t=>{
+ const {dir}=await seeded(t),set=setById('set-skin-etc');let store=new ChessStore(dir)
+ let id
+ try{
+  store.transaction(unit=>{const seller=unit.users.get('Alice');grantSet(seller,set);id=listSet(seller,unit.listings(),set.id,1000,'Complete court','durable-set-fixture').id})
+  const before=store.snapshot()
+  assert.throws(()=>store.transaction(unit=>{buyListing(unit.users.get('Bob'),[unit.users.get('Alice'),unit.users.get('Bob')],unit.listings(),id);throw Error('Interrupted sale')}),/Interrupted sale/)
+  assert.deepEqual(store.snapshot(),before)
+  store.transaction(unit=>buyListing(unit.users.get('Bob'),[unit.users.get('Alice'),unit.users.get('Bob')],unit.listings(),id))
+ }finally{store.close()}
+ store=new ChessStore(dir)
+ try{
+  const snapshot=store.snapshot(),seller=snapshot.users.find(u=>u.name==='Alice'),buyer=snapshot.users.find(u=>u.name==='Bob')
+  assert.equal(seller.wallet.coins,4480);assert.equal(buyer.wallet.coins,3120);assert.equal(seller.wallet.inventory.length,0);assert.equal(buyer.wallet.inventory.length,12);assert.equal(planSet(buyer.wallet.inventory,set).complete,true);assert.equal(snapshot.listings.length,0)
+  assert.throws(()=>store.transaction(unit=>buyListing(unit.users.get('Bob'),[unit.users.get('Alice'),unit.users.get('Bob')],unit.listings(),id)),/sold|available/)
+  assert.deepEqual(store.snapshot(),snapshot)
+ }finally{store.close()}
 })

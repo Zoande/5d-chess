@@ -1,63 +1,69 @@
-# Development collections and economy
+# Collections, cases and economy
 
-All currency is earned in the game. There is no real-money purchase, withdrawal or cash-out integration. Accounts receive 480 welcome coins, a default player icon and the original pieces. The welcome balance buys three Bronze skin crates. Existing accounts receive the same grant once; a persisted wallet marker prevents repeats, including across server restarts. The development frontend and Node server must be deployed together. Main is unchanged.
+Currency is earned in the game; there is no real-money purchase or cash-out. New accounts receive 480 welcome coins once. Completed online games award 60 coins per seat, another 40 for the surviving winner, and 20 per credited elimination (split when shared). Settlement is once-only. Local and unfinished games do not pay out.
 
-## Coins and completed games
+## Ownership and Sets
 
-Every newly created online game awards Elo and coins, including password-protected games. Local play awards neither. Once a full online game ends, each seat receives 60 coins, the surviving winner receives another 40, and each credited elimination earns 20. Shared elimination credit splits that bonus. The game’s once-only settlement marker prevents repeated payouts. Leaving an unfinished game does not pay out.
+The catalog contains player icons, frames, piece skins and piece outlines. Cosmetics never change chess rules or strength. New skin and outline rewards normally cover **one piece kind**: pawn, knight, bishop, rook, queen or king. Direct offers let the buyer choose the kind.
 
-## The catalog
+Every pre-existing universal skin or outline copy retains rights to all six kinds. No inventory conversion is performed. Stored item IDs, receipts and existing listings remain valid. The server accepts the old `/economy/crate` endpoint for compatibility; current UI uses Cases and `/economy/case`.
 
-There are 20 player icons and 40 complete piece skin sets (60 collectible designs total). Icons contain 4 common, 4 uncommon, 4 rare, 3 epic, 4 legendary and 1 mythic. Skin sets contain 7 common, 9 uncommon, 10 rare, 9 epic, 4 legendary and 1 mythic. Skin sets cover all six piece kinds in red, blue, yellow and green. Each piece slot can equip a different owned set, or one available skin copy can equip the full set at once. New cut, court and relic silhouettes retain the king’s cross, queen’s crown, rook’s battlements, bishop’s split, knight’s head and pawn’s small profile. Layered filled artwork uses ceramic shells, stone and wood, armor panels, gold inlays, stained glass, cut gems, gears, florals and woven heraldry. The same cached vector recipes drive SVG previews and the board canvas, including turn replay and physical travel animations. Cosmetics never change movement or strength.
+A **Set** contains all six skins of a design, all six outlines, or six skins plus six matching outlines when required. Inventory → Collections / Sets shows completion, missing pieces, and actions to equip or sell a complete Set. Listed or pending copies do not count as available. A legacy universal copy can satisfy six kinds without being expanded into six tradable copies.
 
-Player icons are equipped through inventory; settings cannot grant or equip unowned icons. There is no custom icon upload. Inventory stores each copy separately, including acquisition time, pending duplicate choices and active listings. Its UI groups copies by design, with search, rarity and duplicate/attention filters. Manage copies exposes each tradable copy and pending refund choice. The gallery scrolls independently on desktop; the preview shows all six pieces and all four faction variants.
+The exclusive **ETC / Eternal Court Set** costs 85,000 coins and contains 12 copies: six mythic skins and six Eternal Crown outlines. These designs are excluded from ordinary cases and wheel pools.
 
-## Daily spin
+## Shop slots
 
-One free spin is available per calendar day in `Europe/Amsterdam`. Reset is at local midnight, including the 23-hour spring day and 25-hour autumn day. The button counts down using a server-derived clock offset. During cooldown, Spin again offers an extra spin for 200 earned coins, with an explicit spending confirmation. Paid spins use the same odds, require today’s free claim first and do not alter the next free reset. Repeated requests with the same receipt ID charge only once. Reward wedges are visual segments, not proportional probability areas; the wheel exposes the actual odds.
+All resets use `Europe/Amsterdam`, including daylight saving. Selection is deterministic on the server; reloading does not reroll stock.
 
-| Reward | Probability |
-| --- | ---: |
-| 40 coins | 41% |
-| 80 coins | 30% |
-| 150 coins | 16% |
-| 300 coins | 8% |
-| 1,000 coins | 3.5% |
-| Rare icon or skin | 1.2% |
-| Legendary icon or skin | 0.29% |
-| Mythic icon or skin | 0.01% |
+| Department | Stock | Reset |
+| --- | --- | --- |
+| Permanent cases | Scout, Artisan, Workshop | Always available |
+| Weekly cases | Six unique slots: icon, skin, outline, mixed, frame, full Sets | Monday midnight |
+| Weekly direct items | Four rare-or-better items, one per category | Monday midnight |
+| Daily offers | Four direct deals, 25% off; one case, 15% off | Local midnight |
+| Seasonal offers | Three seasonal cases and three seasonal direct items | First of the month |
+| ETC Set | Exclusive complete Set | Always available |
 
-For an item reward, all items of that rarity across icons and skins are equally likely.
+Case selection uses catalog weights: premium cases appear less often. The daily case excludes that week's cases. Checkout verifies the current offer, window and price; stale offers are rejected before spending.
 
-## Six crates
+## Case rewards
 
-Bronze, Silver and Gold crates are available separately for icons and skins. Icon crates cost 120 / 450 / 1,200 coins; skin crates cost 160 / 600 / 1,600 coins.
+Case previews show the format and exact odds:
 
-| Rarity | Bronze | Silver | Gold |
-| --- | ---: | ---: | ---: |
-| Common | 69.9% | 25% | 5% |
-| Uncommon | 24% | 40% | 18% |
-| Rare | 5.5% | 27% | 42% |
-| Epic | 0.59% | 7.4% | 30% |
-| Legendary | 0.0099% | 0.59% | 4.9% |
-| Mythic | 0.0001% | 0.01% | 0.1% |
+- **Single cosmetics:** skins/outlines cover one randomly selected piece kind, equally likely among six kinds.
+- **Singles + Sets:** mostly single cosmetics, with an explicit rare chance of a complete Set.
+- **Complete Sets:** expensive cases award only complete Sets, including required outlines.
 
-Within each rarity, every item of the selected category is equally likely. There is no duplicate protection or pity system. A duplicate roll is saved as a pending inventory copy. Keep it for equipment/trading, or exchange it once for 12% of the catalog value, with a minimum of 10 coins. Pending copies cannot be equipped or listed. Closing or reloading a reveal preserves that choice in inventory.
+Authoritative distributions have exactly 1,000,000 integer tickets. Format probability is allocated separately from rarity, so displayed full-Set chances are exact. Designs within a rarity/category are equally likely. There is no pity system. Duplicate singles can be kept or exchanged once for 12% of catalog value, minimum 10 coins; pending copies cannot be equipped or sold. Full Sets are retained as tradable pieces.
 
-The CSS 3D chess chest has tier-specific materials, inset heraldry, rivets, handles, rails, hinged latches and a separate lid. It drops, rebounds, releases its latches, charges, opens and sends the horizontal reel into motion before a lit prize reveal. The wheel uses a fixed jeweled bezel and central hub, a rotating inner disc, mechanical pointer ticks, wind-up, acceleration and a long deceleration with a short final settle. The reel is anchored to the viewport center, so resizing during opening preserves its landing alignment. Both support reduced motion, Escape and Skip animation. Decoy reel items use the crate’s rarity distribution. No animation decides or changes the reward.
+Wheel-earned cases appear in Inventory → Cases. Opening costs no coins, consumes the case once, and remains possible after rotation. The server decides rewards before animation. Skip, reduced motion and receipt recovery never change the result.
 
-Reference reviewed: [DH4410/Overrun, `claude/ui-v2-plus-anim`](https://github.com/DH4410/Overrun/tree/claude/ui-v2-plus-anim), specifically its crate model and drop sequencing. This implementation uses original chess artwork and chest geometry; it does not redistribute that repository’s assets or code.
+## Daily wheel
 
-## Weekly shop and market
+One free spin is available per Dutch calendar day. After claiming it, extra spins cost **300 coins** and require confirmation. Paid spins do not delay the next free reset. There are **25 slots**:
 
-The shop changes each Monday at midnight Netherlands time. Its deterministic server selection includes two premium and two accessible items of each category. Catalog values range from 160 common to 12,000 mythic; the weekly shop excludes mythic items, which remain spin/crate rewards or market finds. Direct purchases buy the pictured item, and extra copies are tradable.
+| Rotation | Slots | Total draw probability |
+| --- | ---: | ---: |
+| Fixed | 10 | 80% |
+| Daily | 5 | 10% |
+| Weekly | 5 | 6% |
+| Monthly / seasonal | 5 | 4% |
 
-The market supports skins and player icons at seller-selected whole-coin prices from 1 to 100,000,000. There is no fee. Sellers can attach an optional plain-text note of up to 240 characters; it appears on the listing and purchase confirmation and is included in market search alongside item and seller names. Old listings remain compatible. A listing locks its exact copy; if no usable copy remains, that cosmetic is unequipped. The seller can cancel an unsold listing. A sale atomically deducts buyer coins, credits the seller, transfers the copy and removes the listing. A user cannot buy their own listing. Simultaneous buyers cannot both obtain the same copy. Limits: 100 listings per seller and 5,000 copies per inventory.
+Rewards include coins, individual cosmetics, unopened cases and a rare complete seasonal Set. The odds window shows the current pool and exact probabilities. A rotating case slot's probability is capped according to its price; remaining probability stays within its rotation group. Tests check expected catalog value remains below the paid spin price across 370 days.
 
-## Storage and verification
+Wedges have intentionally unequal **visual** sizes independent of draw odds. The rarest reward remains visible. Cryptographic server draws, never screen geometry, select prizes. Receipts store the full wheel pool so recovered reveals use the original day's wheel. Historical eight-slot receipts retain their original presentation.
 
-Coins, inventory, equipment, daily claims, listings and purchase receipts persist in `DATA_DIR/chess.sqlite`. Each request uses an isolated SQL transaction; a market sale updates both accounts and its listing together, and a finished game updates its state, ratings, notifications and rewards together. Failed operations roll back their in-memory objects as well as their database writes. Server-side cryptographic integer draws determine rewards. Clients never supply balances, odds or reward selections. The most recent 100 purchase/spin request receipts make ordinary request retries idempotent. The most recent 10 receipts are available for recovery inspection.
+## Market
 
-Use the SQLite backup command before upgrading and restart the updated Node server after building. See [Server architecture and operations](server-storage.md). The one-time legacy import preserves existing wallets, receipts and operational bonus markers without replaying grants. New accounts receive the one-time 480-coin welcome grant. Existing explicitly casual rooms keep their eligibility flag; newly created online rooms are always eligible.
+Individual copies and complete Sets can be listed for 1–100,000,000 whole coins, with an optional plain-text description up to 240 characters. There is no fee. A Set listing locks its exact component copies; cancellation unlocks all. A sale transfers every member and both coin balances in one SQL transaction. Incomplete Sets cannot be sold as complete. Equipment is reconciled per piece kind when rights leave inventory.
 
-Tests cover every probability boundary, Dutch daylight-saving resets, zero-sum Elo, once-only welcome credits, three starter crate purchases, retry-safe paid spins, one-time rewards, ownership checks, duplicate choices, purchase retries, concurrent market buyers, restart persistence, real browser spins/reels, interrupted reveals, per-piece and full-set equipment, set inspection, grouped copies, search, sales, and collection layouts at 768 / 393 / 320 pixels.
+Set listing retries do not create another listing, including after sale or cancellation. Buyers cannot buy their own listings; competing buyers cannot receive the same copies. Capacity is checked before spending. Limits: 100 listings per seller, 5,000 cosmetic copies per inventory, 500 unopened cases.
+
+## Persistence and deployment
+
+Wallets, per-piece rights, Set escrow, cases, equipment, claims and receipts persist in `DATA_DIR/chess.sqlite`. These use compatible optional JSON fields; no schema migration or grant replay is required. SQL transactions also roll back mutated objects on failure. Receipts make purchase/spin retries idempotent and allow interrupted-reveal recovery.
+
+Deploy the client and Node server together. Make a private SQLite backup first and restart only the chess PM2 process. See [Server architecture and operations](server-storage.md).
+
+Tests cover exact weights, rotation clocks, legacy ownership, per-piece equipment, Set escrow/transfer/retries/rollback/restart, capacity failures, saved cases, yearly wheel value, browser purchases/sales/reveals and small-screen layouts.

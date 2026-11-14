@@ -3,6 +3,7 @@ import {type Kind} from './model.ts'
 // Bodies are drawn independently of surface patterns, so any skin fits any shape.
 // Cross, pointed crown, battlements, mitre, horse head and round pawn stay invariant.
 const bodies:Record<string,string>={
+ eternal:'M7 8h3l2 3 2-3h3l3 4-5 1v3l3 2H6l3-2v-3l-5-1Zm4 6h2v3h-2ZM4 19h16v1H4Zm2 2h12v1H6Z',
  spire:'M10 8h4l-.5 7 2 2H8.5l2-2ZM7 18h10l2 3H5Z',
  citadel:'M8 8h8v4l2 2-2 2 2 2H6l2-2-2-2 2-2ZM5 19h14v2H5Z',
  regency:'M10 8h4c-3 5-1 7 3 9H7c4-2 6-4 3-9ZM7 18q5-2 10 0l2 3H5Z',

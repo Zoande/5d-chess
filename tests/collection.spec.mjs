@@ -45,7 +45,7 @@ test('earned collection flow: Dutch daily spin, crate landing, duplicates, equip
  await page.locator('[data-crate-pool=icon-bronze]').click()
  assert.match(await page.locator('.crate-catalog-dialog .odds-grid').textContent(),/0.0001%/)
  await page.locator('.crate-catalog-dialog [data-close]').click()
- for(const tier of [1,2,0]){const crate=CRATES.find(c=>c.type==='icon'&&c.tier===tier);assert.match(await page.locator(`[data-crate-buy="${crate.id}"]`).textContent(),new RegExp(crate.price.toLocaleString()))}
+ for(const offer of (await (await context.request.get(base+'/api/economy')).json()).caseOffers.filter(o=>CRATES.find(c=>c.id===o.id).type==='icon'))assert.match(await page.locator(`[data-crate-buy="${offer.id}"]`).textContent(),new RegExp(offer.price.toLocaleString()))
  const beforeBox=(await (await context.request.get(base+'/api/economy')).json()).wallet
  await page.locator('[data-crate-buy=icon-bronze]').click();await page.getByRole('button',{name:'Buy & open'}).click()
  await page.locator('.reel-window.visible').waitFor()
@@ -97,7 +97,7 @@ test('earned collection flow: Dutch daily spin, crate landing, duplicates, equip
  await bob.locator('.spin-again').click();await bob.locator('[data-spin-confirm]').click()
  await bob.locator('.reward-result').waitFor({state:'visible',timeout:2000})
  const afterEncore=await (await bobContext.request.get(base+'/api/economy')).json()
- assert.equal(afterEncore.wallet.coins,beforeEncore.wallet.coins-200+(afterEncore.recent[0].coins??0));assert.equal(afterEncore.reset,beforeEncore.reset)
+ assert.equal(afterEncore.wallet.coins,beforeEncore.wallet.coins-300+(afterEncore.recent[0].coins??0));assert.equal(afterEncore.reset,beforeEncore.reset)
  await bob.keyboard.press('Escape')
  // Mobile collection pages and menus do not create horizontal scrolling.
  for(const width of [768,393,320]){await page.setViewportSize({width,height:850});for(const view of ['shop','inventory','market']){await page.goto(base+'/chess/collection.html#'+view);await page.locator('.economy-nav').waitFor();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),width)}}
