@@ -56,7 +56,7 @@ export const designFor=(item:Collectible|undefined)=>item?.type==='skin'?themes[
 export const allDesigns=themes
 export function mix(a:string,b:string,t:number){return '#'+[1,3,5].map(i=>Math.round(parseInt(a.slice(i,i+2),16)*(1-t)+parseInt(b.slice(i,i+2),16)*t).toString(16).padStart(2,'0')).join('')}
 export function pigments(faction:string,design:SkinDesign):Record<Pigment,string>{
- const material={enamel:faction,stone:mix(faction,'#657476',.35),wood:mix(faction,'#a77b4f',.35),ceramic:mix(faction,'#fff1d7',.25),dark:'#202833',metal:mix(faction,'#829093',.4)}[design.material]
+ const material={enamel:faction,stone:mix(faction,'#657476',.35),wood:mix(faction,'#a77b4f',.35),ceramic:mix(faction,'#fff1d7',.25),dark:mix(faction,'#152129',.72),metal:mix(faction,'#829093',.4)}[design.material]
  return {body:material,faction,shade:mix(faction,'#17252c',.63),light:mix(faction,'#fff7de',.65),ink:'#212a30',gold:'#e5bf71',ivory:'#f4ebd7',gem:mix(faction,'#ffffff',.15),silver:'#c9d6d7'}
 }
 export const alternateShapes:Record<'cut'|'court'|'relic',Record<Kind,string>>={

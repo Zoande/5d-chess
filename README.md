@@ -1,6 +1,6 @@
 # Four-Player Multiverse Chess
 
-The `main` branch contains the deployed game and board UI improvements. The `development` branch adds Classic and Live movement, physical travel and collisions, shared timelines, and compulsory Present-board moves. The development home also includes account preferences, in-app notifications, merged Elo, coins and collectible cosmetics; see [Accounts and ratings](docs/accounts-and-ratings.md) and [Collections and economy](docs/collections.md). See [Development movement rules](docs/movement-modes.md) for the implemented rules and choices. The development frontend and Node server must be deployed together for online play; existing production games keep their original behavior.
+The `main` branch contains the deployed game and board UI improvements. The `development` branch adds Classic and Live movement, physical travel and collisions, shared timelines, and compulsory Present-board moves. The development home also includes account preferences, in-app notifications, merged Elo, coins, 40 piece skin sets and 20 collectible player icons; see [Accounts and ratings](docs/accounts-and-ratings.md) and [Collections and economy](docs/collections.md). See [Development movement rules](docs/movement-modes.md) for the implemented rules and choices. The development frontend and Node server must be deployed together for online play; existing production games keep their original behavior.
 
 [Play at chess.316123.nl](https://chess.316123.nl/)
 
@@ -70,7 +70,7 @@ npm run deploy
 | `server/accounts.ts` | Merged Elo, hidden pool statistics and game rewards |
 | `server/economy.ts` / `src/collection.ts` | Reward odds, Dutch resets, wallets, copies and escrow trading |
 | `src/store.ts` / `src/rewards.ts` | Shop, inventory, market and saved reward animations |
-| `src/art.ts` / `src/cosmetic-art.ts` | Four-color skin patterns and collectible icons |
+| `src/art.ts` / `src/skin-designs.ts` / `src/cosmetic-art.ts` | Shared filled vector art, skin silhouettes and collectible icons |
 | `src/main.ts` | Pass-and-play flow, planning controls, round history |
 | `src/session.ts` | Deterministic save journal and replay reconstruction |
 

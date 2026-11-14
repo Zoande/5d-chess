@@ -1,6 +1,6 @@
 # Development collections and economy
 
-All currency is earned in the game. There is no real-money purchase, withdrawal or cash-out integration. Accounts start with zero coins, a default player icon and the original pieces. The development frontend and Node server must be deployed together. Main is unchanged.
+All currency is earned in the game. There is no real-money purchase, withdrawal or cash-out integration. Accounts receive 480 welcome coins, a default player icon and the original pieces. The welcome balance buys three Bronze skin crates. Existing accounts receive the same grant once; a persisted wallet marker prevents repeats, including across server restarts. The development frontend and Node server must be deployed together. Main is unchanged.
 
 ## Coins and completed games
 
@@ -8,13 +8,13 @@ Every newly created online game awards Elo and coins, including password-protect
 
 ## The catalog
 
-There are 20 player icons and 20 complete piece skin sets. Each category contains 4 common, 4 uncommon, 4 rare, 3 epic, 4 legendary and 1 mythic collectible. Skin sets cover all six piece kinds in red, blue, yellow and green. Each piece slot can equip a different owned set. Patterns are clipped to familiar chess silhouettes, and faction colors remain visible in the board, turn replay and physical travel animation. Cosmetics never change movement or strength.
+There are 20 player icons and 40 complete piece skin sets (60 collectible designs total). Icons contain 4 common, 4 uncommon, 4 rare, 3 epic, 4 legendary and 1 mythic. Skin sets contain 7 common, 9 uncommon, 10 rare, 9 epic, 4 legendary and 1 mythic. Skin sets cover all six piece kinds in red, blue, yellow and green. Each piece slot can equip a different owned set, or one available skin copy can equip the full set at once. New cut, court and relic silhouettes retain the king’s cross, queen’s crown, rook’s battlements, bishop’s split, knight’s head and pawn’s small profile. Layered filled artwork uses ceramic shells, stone and wood, armor panels, gold inlays, stained glass, cut gems, gears, florals and woven heraldry. The same cached vector recipes drive SVG previews and the board canvas, including turn replay and physical travel animations. Cosmetics never change movement or strength.
 
-Player icons are equipped through inventory; settings cannot grant or equip unowned icons. There is no custom icon upload. Inventory tracks each copy separately, including acquisition time, pending duplicate choices and active listings.
+Player icons are equipped through inventory; settings cannot grant or equip unowned icons. There is no custom icon upload. Inventory stores each copy separately, including acquisition time, pending duplicate choices and active listings. Its UI groups copies by design, with search, rarity and duplicate/attention filters. Manage copies exposes each tradable copy and pending refund choice. The gallery scrolls independently on desktop; the preview shows all six pieces and all four faction variants.
 
 ## Daily spin
 
-One free spin is available per calendar day in `Europe/Amsterdam`. Reset is at local midnight, including the 23-hour spring day and 25-hour autumn day. The button counts down using a server-derived clock offset. Reward wedges are visual segments, not proportional probability areas; the wheel exposes the actual odds.
+One free spin is available per calendar day in `Europe/Amsterdam`. Reset is at local midnight, including the 23-hour spring day and 25-hour autumn day. The button counts down using a server-derived clock offset. During cooldown, Spin again offers an extra spin for 200 earned coins, with an explicit spending confirmation. Paid spins use the same odds, require today’s free claim first and do not alter the next free reset. Repeated requests with the same receipt ID charge only once. Reward wedges are visual segments, not proportional probability areas; the wheel exposes the actual odds.
 
 | Reward | Probability |
 | --- | ---: |
@@ -44,7 +44,7 @@ Bronze, Silver and Gold crates are available separately for icons and skins. Ico
 
 Within each rarity, every item of the selected category is equally likely. There is no duplicate protection or pity system. A duplicate roll is saved as a pending inventory copy. Keep it for equipment/trading, or exchange it once for 12% of the catalog value, with a minimum of 10 coins. Pending copies cannot be equipped or listed. Closing or reloading a reveal preserves that choice in inventory.
 
-The original CSS 3D chess chest arrives, lands, shakes and opens before a horizontal reel decelerates onto the saved item. Daily wheels also decelerate onto the actual reward. Both support reduced motion, Escape and Skip animation. Decoy reel items use the crate’s rarity distribution. No animation decides or changes the reward.
+The CSS 3D chess chest has tier-specific materials, inset heraldry, rivets, handles, rails, hinged latches and a separate lid. It drops, rebounds, releases its latches, charges, opens and sends the horizontal reel into motion before a lit prize reveal. The wheel uses a fixed jeweled bezel and central hub, a rotating inner disc, mechanical pointer ticks, wind-up, acceleration and a long deceleration with a short final settle. The reel is anchored to the viewport center, so resizing during opening preserves its landing alignment. Both support reduced motion, Escape and Skip animation. Decoy reel items use the crate’s rarity distribution. No animation decides or changes the reward.
 
 Reference reviewed: [DH4410/Overrun, `claude/ui-v2-plus-anim`](https://github.com/DH4410/Overrun/tree/claude/ui-v2-plus-anim), specifically its crate model and drop sequencing. This implementation uses original chess artwork and chest geometry; it does not redistribute that repository’s assets or code.
 
@@ -58,6 +58,6 @@ The market supports skins and player icons at seller-selected whole-coin prices 
 
 Coins, inventory, equipment, daily claims, listings and purchase receipts persist in `multiplayer.json`. Server-side cryptographic integer draws determine rewards. Mutations use the existing serialized queue and atomic file replacement. Clients never supply balances, odds or reward selections. The most recent 100 purchase/spin request receipts make ordinary request retries idempotent. The most recent 10 receipts are available for recovery inspection.
 
-Back up the data file before upgrading and restart the updated Node server after building. Existing production/main is not deployed by this development push. Existing development accounts receive a new merged 1200 Elo and a zero-coin wallet lazily; there is no old Elo conversion. Existing explicitly casual rooms keep their eligibility flag; newly created online rooms are always eligible.
+Back up the data file before upgrading and restart the updated Node server after building. Existing production/main is not deployed by this development push. Existing development accounts receive a new merged 1200 Elo lazily and the one-time 480-coin welcome grant; there is no old Elo conversion. Existing explicitly casual rooms keep their eligibility flag; newly created online rooms are always eligible.
 
-Tests cover every probability boundary, Dutch daylight-saving resets, zero-sum Elo, one-time rewards, ownership checks, duplicate choices, purchase retries, concurrent market buyers, restart persistence, real browser spins/reels, interrupted reveals, equipment, sales, and collection layouts at 768 / 393 / 320 pixels.
+Tests cover every probability boundary, Dutch daylight-saving resets, zero-sum Elo, once-only welcome credits, three starter crate purchases, retry-safe paid spins, one-time rewards, ownership checks, duplicate choices, purchase retries, concurrent market buyers, restart persistence, real browser spins/reels, interrupted reveals, per-piece and full-set equipment, set inspection, grouped copies, search, sales, and collection layouts at 768 / 393 / 320 pixels.

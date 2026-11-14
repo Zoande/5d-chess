@@ -77,6 +77,8 @@ test('ratings, notifications and settings are private, durable and settled atomi
  const owned=boxes[0].data.drop.uid
  if(boxes[0].data.drop.duplicate)await call('/economy/duplicate',{uid:owned,refund:false},alice)
  assert.equal((await call('/economy/equip',{slot:'icon',uid:owned},bob)).status,404)
+ assert.equal((await call('/economy/equip-set',{uid:owned},bob)).status,404)
+ assert.equal((await call('/economy/equip-set',{uid:owned},alice)).status,400)
  assert.equal((await call('/economy/equip',{slot:'icon',uid:owned},alice)).status,200)
  assert.equal((await call(`/games/${room.code}`,undefined,bob)).data.cosmetics.red.icon,boxes[0].data.drop.itemId)
  assert.equal((await call('/economy/list',{uid:owned,price:-1},alice)).status,400)

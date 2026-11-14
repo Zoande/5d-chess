@@ -21,13 +21,17 @@ const pathCache=new Map<string,Path2D>()
 const path=(d:string)=>{let p=pathCache.get(d);if(!p){p=new Path2D(d);pathCache.set(d,p)}return p}
 let loadouts:Partial<Record<Player,Loadout>>={}
 export function setCosmetics(next:Partial<Record<Player,Loadout>>){loadouts=next}
+interface PieceVector {shape:string;base:string;rim:string;detail:string;layers:{d:string;fill?:string;stroke?:string;width:number;opacity:number}[]}
+const vectorCache=new Map<string,PieceVector>()
 /** One vector recipe drives both the board canvas and every collection preview. */
-export function pieceVectors(kind:Kind,player:Player,skinId?:string){
- const skin=itemById(skinId??loadouts[player]?.pieces[kind]??''),design=designFor(skin)
+export function pieceVectors(kind:Kind,player:Player,skinId?:string):PieceVector{
+ const skin=itemById(skinId??loadouts[player]?.pieces[kind]??''),design=designFor(skin),key=`${kind}:${player}:${skin?.id??'default'}`
+ const cached=vectorCache.get(key);if(cached)return cached
  if(!design)return {shape:silhouette[kind],base:COLORS[player],rim:'#33271e',detail:'#33271e',layers:[] as {d:string;fill?:string;stroke?:string;width:number;opacity:number}[]}
  const colors=pigments(COLORS[player],design)
  const facets:Inlay[]=[{d:'M0 0h7L9 24H0Z',fill:'light',opacity:.18},{d:'M19 0h5v24h-7Z',fill:'ink',opacity:.18}]
- return {shape:design.family==='classic'?silhouette[kind]:alternateShapes[design.family][kind],base:colors.body,rim:design.material==='dark'?colors.faction:['legendary','mythic'].includes(skin!.rarity)?colors.gold:colors.shade,detail:design.material==='dark'?colors.ivory:colors.ink,layers:[...facets,...design.inlays].map(l=>({d:l.d,fill:l.fill?colors[l.fill]:undefined,stroke:l.stroke?colors[l.stroke]:undefined,width:l.width??.4,opacity:l.opacity??1}))}
+ const vector:PieceVector={shape:design.family==='classic'?silhouette[kind]:alternateShapes[design.family][kind],base:colors.body,rim:design.material==='dark'?colors.faction:['legendary','mythic'].includes(skin!.rarity)?colors.gold:colors.shade,detail:design.material==='dark'?colors.ivory:colors.ink,layers:[...facets,...design.inlays].map(l=>({d:l.d,fill:l.fill?colors[l.fill]:undefined,stroke:l.stroke?colors[l.stroke]:undefined,width:l.width??.4,opacity:l.opacity??1}))}
+ vectorCache.set(key,vector);return vector
 }
 export function drawPiece(ctx: CanvasRenderingContext2D, kind: Kind, player: Player, x: number, y: number, size: number) {
  const vector=pieceVectors(kind,player),shape=path(vector.shape)

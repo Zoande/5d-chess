@@ -31,7 +31,8 @@ const extraSkins:[string,string,string,string,Rarity][]=[
  ['tapestry','Tapestry','tapestry','A royal coat of arms woven into faction cloth.','epic']
 ]
 export const ITEMS:Collectible[]=[...icons.map((x,i)=>({id:'icon-'+x[0],type:'icon' as const,name:x[1],motif:x[2],description:x[3],rarity:levels[i],price:prices[RARITIES.indexOf(levels[i])]})),...skins.map((x,i)=>({id:'skin-'+x[0],type:'skin' as const,name:x[1],motif:x[2],description:x[3],rarity:levels[i],price:prices[RARITIES.indexOf(levels[i])]})),...extraSkins.map(([id,name,motif,description,rarity])=>({id:'skin-'+id,type:'skin' as const,name,motif,description,rarity,price:prices[RARITIES.indexOf(rarity)]}))]
-export const itemById=(id:string)=>ITEMS.find(i=>i.id===id)
+const itemIndex=new Map(ITEMS.map(item=>[item.id,item]))
+export const itemById=(id:string)=>itemIndex.get(id)
 export const DEFAULT_ICON='default'
 export interface OwnedItem {uid:string;itemId:string;acquired:number;pending:boolean;listed?:string}
 export interface Loadout {icon:string;pieces:Partial<Record<Kind,string>>}
