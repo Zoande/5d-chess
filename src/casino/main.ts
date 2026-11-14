@@ -2,8 +2,8 @@ import {api,ApiError,getSession,initShell,renderAccount} from '../shell.ts'
 import {icon} from '../icons.ts'
 import type {Profile} from '../account-model.ts'
 import {casinoCoins,grossMultiplier,pocketColor,type CasinoGame,type RouletteChoice,type CasinoBet,type CasinoView,type CasinoRound,type CasinoReply} from '../casino-model.ts'
-import {rouletteArena,animateRoulette} from './roulette.ts'
-import {rules,controls} from './casino-panels.ts'
+import {rouletteArena,rouletteHeading,rouletteWager,animateRoulette,setRouletteSelection,setRouletteBusy,renderRouletteHistory,bindRouletteTable,landRouletteResult} from './roulette.ts'
+import {rules} from './casino-panels.ts'
 import type {DiceScene,TableAction} from './dice-scene.ts'
 
 const el=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T
@@ -19,7 +19,7 @@ function diceRoom(){
  const buttons=[...[1,2,3,4,5,6].map(n=>({id:'face-'+n,label:'Choose face '+n})),...[25,100,500,1000].map(n=>({id:'stake-'+n,label:`Stake ${n} coins`})),{id:'minus',label:'Decrease stake by 25'},{id:'plus',label:'Increase stake by 25'},{id:'amount',label:'Edit stake amount'},{id:'offer',label:'Offer coins'}]
  return `<section class="silent-room" data-phase="idle"><canvas id="dice-canvas" tabindex="0" aria-label="Seated at a felt table opposite the Keeper. Drag empty space to look; use the brass keys to wager." aria-describedby="table-instructions"></canvas><div class="silent-vignette"></div><div class="table-title"><span>VI / THE SILENT ROOM</span><h1>A game of chance.</h1></div><div class="table-tools"><button id="center-view" type="button">${icon('target')}<span>Center view</span></button><button id="open-rules" type="button">${icon('info')}<span>Rules</span></button><button id="open-history" type="button">${icon('clock')}<span>History</span></button></div><div class="physical-controls" aria-label="Controls on the table">${buttons.map(b=>`<button type="button" class="physical-control" data-control="${b.id}" aria-label="${b.label}"><span>${b.label}</span></button>`).join('')}</div><div class="table-dialogue"><p id="keeper-dialogue" aria-live="polite">Choose a face on the brass keys. The Keeper waits.</p><span id="table-instructions">Drag empty space to look · Home to center · Pick up the die to throw</span></div><div class="table-caption"><span id="chosen-label">Face 1</span><span id="return-estimate"></span><span class="table-purse">Purse <strong id="table-balance"></strong></span></div><form id="wager-form" class="table-fallback"><label for="stake">Stake in coins</label><input id="stake" type="number" min="1" max="100000" step="1" value="100" required><div class="fallback-faces">${[1,2,3,4,5,6].map(n=>`<button type="button" data-face="${n}" aria-label="Choose face ${n}">${pips(n)}</button>`).join('')}</div><button id="place-bet" type="submit">Offer coins</button><button id="roll-die" type="button" hidden>Throw die</button></form><p id="casino-error" class="table-error" role="alert" hidden></p><section id="round-result" class="table-result" aria-live="polite" hidden></section><dialog id="amount-dialog" class="table-modal"><form id="amount-form"><span class="eyebrow">YOUR OFFER</span><h2>How many coins?</h2><label for="custom-stake">Whole coins, from 1 to 100,000</label><input id="custom-stake" type="number" min="1" max="100000" step="1" required><div class="modal-actions"><button id="cancel-amount" type="button">Cancel</button><button type="submit">Set stake</button></div></form></dialog><dialog id="table-information" class="table-modal"><button id="close-information" type="button" class="modal-close" aria-label="Close table information">×</button><section id="table-rules">${rules(game)}</section><section id="table-history"><span class="eyebrow">ROUND RECEIPTS</span><h2>Your time at the table</h2><div id="round-history"></div></section></dialog></section>`
 }
-function renderLayout(){el('casino-root').innerHTML=game==='dice'?diceRoom():`<div class="casino-layout">${rouletteArena()}${controls(game)}</div><section class="casino-history"><h2>Round receipts</h2><div id="round-history"></div></section>`}
+function renderLayout(){el('casino-root').innerHTML=game==='dice'?diceRoom():`${rouletteHeading()}<div class="casino-layout royal-layout">${rouletteArena()}${rouletteWager()}</div><section class="casino-history royal-history"><div class="ledger-heading"><div><span class="royal-kicker">YOUR RECORD AT THE TABLE</span><h2>Every turn, accounted for.</h2><p>Your recent roulette receipts. Past results do not predict the next draw.</p></div><div id="roulette-ledger"></div></div><div id="round-history"></div></section>`}
 function setPhase(value:string){phase=value;if(game==='dice')document.querySelector('.silent-room')!.setAttribute('data-phase',value);updateScene()}
 function updateScene(){scene?.setState(presentationCoins,stake(),Number(choice),busy)}
 function updateChoice(){
@@ -29,19 +29,22 @@ function updateChoice(){
   b.setAttribute('aria-pressed',String(value===choice))
  })
  const gross=stake()*grossMultiplier(game,choice),tax=Math.max(0,gross-stake())*.01
- el('return-estimate').textContent=Number.isFinite(gross)&&stake()>0?`Win return ${casinoCoins(gross-tax)}`:'Choose your offer'
+ el('return-estimate').textContent=Number.isFinite(gross)&&stake()>0?game==='roulette'?`${casinoCoins(gross-tax)} coins`:`Win return ${casinoCoins(gross-tax)}`:'Choose your offer'
  if(el('tax-estimate'))el('tax-estimate').textContent=stake()>0?`${casinoCoins(gross)} gross − ${casinoCoins(tax)} profit tax`:''
+ if(game==='roulette')setRouletteSelection(choice,stake())
  updateScene()
 }
 function renderBalance(){presentationCoins=state.coins;el('table-balance').textContent=casinoCoins(state.coins);renderAccount({...profile,coins:state.coins});updateScene()}
 function renderHistory(){
- const rounds=state.recent.filter(r=>r.game===game&&r.id!==awaitingThrow?.id).slice(0,12)
+ const allRounds=state.recent.filter(r=>r.game===game&&r.id!==awaitingThrow?.id),rounds=allRounds.slice(0,12)
+ if(game==='roulette')renderRouletteHistory(allRounds)
  el('round-history').innerHTML=rounds.length?rounds.map(r=>`<details class="history-round ${r.won?'won':'lost'}"><summary><span class="history-face ${game==='roulette'?'pocket-'+pocketColor(r.result):''}">${game==='dice'?pips(r.result):r.result===0?'◆':r.result}</span><span><strong>${title(r.choice)}</strong><small>${casinoCoins(r.stake)} coins</small></span><b>${r.net>=0?'+':''}${casinoCoins(r.net)}</b></summary><div><span>Gross return <b>${casinoCoins(r.gross)}</b></span><span>Profit tax <b>${casinoCoins(r.tax)}</b></span><span>Credited <b>${casinoCoins(r.credited)}</b></span></div></details>`).join(''):'<p class="history-empty">Your settled wagers will appear here.</p>'
 }
 function lock(value:boolean){
  busy=value
  document.querySelectorAll<HTMLButtonElement|HTMLInputElement>('#wager-form input,#wager-form button,[data-pocket],[data-outside]').forEach(b=>b.disabled=value)
  el<HTMLButtonElement>('place-bet').textContent=value?'Wager in progress…':pending?'Retry the same offer':game==='dice'?'Offer coins':'Place bet & spin'
+ if(game==='roulette'){setRouletteBusy(value);renderRouletteHistory(state.recent.filter(r=>r.game==='roulette'))}
  updateScene()
 }
 function reveal(round:CasinoRound){
@@ -52,7 +55,7 @@ function reveal(round:CasinoRound){
   el('dismiss-result').onclick=()=>result.hidden=true;say(round.won?'“A fair throw. Your winnings.”':'“Another offer, perhaps?”');setPhase('result');el('roll-die').hidden=true
  }else{
   result.innerHTML=`<span class="result-eyebrow">${round.won?'A FORTUNATE MOVE':'THE TABLE TAKES THIS ONE'}</span><h2>${round.result===0?'The rift · 0':`${round.result} · ${pocketColor(round.result)==='white'?'White':'Black'} court`}</h2><strong class="result-net">${round.net>=0?'+':''}${casinoCoins(round.net)} <small>coins</small></strong><div><span>Stake <b>${casinoCoins(round.stake)}</b></span><span>Gross return <b>${casinoCoins(round.gross)}</b></span><span>Profit tax <b>${casinoCoins(round.tax)}</b></span><span>Credited <b>${casinoCoins(round.credited)}</b></span></div>`
-  el('pocket-readout').textContent=round.result===0?'The rift':String(round.result);el('spin-caption').textContent=round.won?'Your wager found its square.':'The next move is yours.'
+  landRouletteResult(round.result);el('pocket-readout').textContent=round.result===0?'The rift':String(round.result);el('spin-caption').textContent=`${round.net>=0?'+':''}${casinoCoins(round.net)} coins · ${round.won?'Your wager found its square.':'The next move is yours.'}`
  }
  lock(false)
 }
@@ -71,6 +74,7 @@ async function present(round:CasinoRound,recovered=false){
 }
 async function settle(event?:Event){
  event?.preventDefault();if(busy){if(phase==='ready')void throwDie();return}
+ if(pending){choice=pending.choice;el<HTMLInputElement>('stake').value=String(pending.stake);updateChoice()}
  if(!Number.isSafeInteger(stake())||stake()<1||stake()>state.maxStake){el('casino-error').textContent='Choose a whole number from 1 to 100,000 coins.';el('casino-error').hidden=false;return}
  el('casino-error').hidden=true
  pending??={game,choice,stake:stake(),sequence:state.nextSequence,requestId:crypto.randomUUID()}
@@ -156,6 +160,11 @@ async function init(){
  renderLayout();renderBalance();updateChoice();renderHistory();el<HTMLFormElement>('wager-form').onsubmit=e=>void settle(e);el('stake').oninput=updateChoice
  document.querySelectorAll<HTMLButtonElement>('[data-stake]').forEach(b=>b.onclick=()=>{if(!busy){el<HTMLInputElement>('stake').value=b.dataset.stake!;updateChoice()}})
  document.querySelectorAll<HTMLButtonElement>('[data-pocket],[data-outside],[data-face]').forEach(b=>b.onclick=()=>{if(busy)return;choice=b.dataset.pocket!==undefined?Number(b.dataset.pocket):b.dataset.face!==undefined?Number(b.dataset.face):b.dataset.outside as RouletteChoice;updateChoice()})
+ if(game==='roulette'){
+  bindRouletteTable()
+  document.querySelectorAll<HTMLButtonElement>('[data-adjust]').forEach(b=>b.onclick=()=>{if(busy)return;const limit=Math.max(1,Math.min(state.maxStake,Math.floor(state.coins)));el<HTMLInputElement>('stake').value=String(Math.max(1,Math.min(limit,b.dataset.adjust==='max'?limit:b.dataset.adjust==='half'?Math.floor(stake()/2):stake()*2)));updateChoice()})
+  el('repeat-wager').onclick=()=>{if(busy)return;const last=state.recent.find(r=>r.game==='roulette');if(last){choice=last.choice;el<HTMLInputElement>('stake').value=String(last.stake);updateChoice();el('place-bet').focus()}}
+ }
  if(game==='dice'){
   lock(true);try{const {DiceScene}=await import('./dice-scene.ts');scene=new DiceScene(el<HTMLCanvasElement>('dice-canvas'));updateScene();document.querySelector('.silent-room')!.classList.add('scene-ready');el('wager-form').inert=true;el('wager-form').setAttribute('aria-hidden','true')}
   catch{document.querySelector('.silent-room')!.classList.add('webgl-unavailable');say('The 3D table is unavailable. The same wagers work below.')}

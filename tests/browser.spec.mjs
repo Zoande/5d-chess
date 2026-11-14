@@ -27,7 +27,7 @@ test('production paths serve on refresh, with chess-only routing', async t => {
   const root = await fetch(base + '/chess/')
   assert.equal(root.status, 200)
   assert.match(await root.text(), /src="\/chess\/game\.js"/)
-  for (const asset of ['game.js', 'styles.css', 'emblem.svg', 'shell.css', 'collection.html', 'collection.css', 'collection.js']) {
+  for (const asset of ['game.js', 'styles.css', 'emblem.svg', 'shell.css', 'collection.html', 'collection.css', 'collection.js','roulette.html','dice.html','casino.js','casino.css','roulette.css','third-party-notices.txt']) {
     assert.equal((await fetch(base + '/chess/' + asset)).status, 200)
   }
   const logo = await fetch(base + '/chess/logo.png')
