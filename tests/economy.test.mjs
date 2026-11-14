@@ -1,10 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {ITEMS,RARITIES,CRATE_ODDS,SPIN_REWARDS,dayKey,nextReset,weekKey,nextWeek,weeklyItems} from '../src/collection.ts'
+import {ITEMS,STARTER_COINS,PAID_SPIN_PRICE,RARITIES,CRATE_ODDS,SPIN_REWARDS,dayKey,nextReset,weekKey,nextWeek,weeklyItems} from '../src/collection.ts'
 import {wallet,weightedIndex,grant,spin,buyCrate,buyFeatured,resolveDuplicate,equip,listItem,buyListing,cancelListing,purchase} from '../server/economy.ts'
-const user=name=>({name})
-test('catalog contains 20 items of each kind, four legendary and one mythic; odds are exact',()=>{
- for(const type of ['icon','skin']){const items=ITEMS.filter(i=>i.type===type);assert.equal(items.length,20);assert.equal(items.filter(i=>i.rarity==='legendary').length,4);assert.equal(items.filter(i=>i.rarity==='mythic').length,1);for(const r of RARITIES)assert.ok(items.some(i=>i.rarity===r))}
+const user=name=>({name,wallet:{coins:0,starterGranted:true,inventory:[],loadout:{icon:'default',pieces:{}}}})
+test('catalog contains 40 skins and 20 icons, four legendary and one mythic; odds are exact',()=>{
+ for(const type of ['icon','skin']){const items=ITEMS.filter(i=>i.type===type);assert.equal(items.length,type==='skin'?40:20);assert.equal(items.filter(i=>i.rarity==='legendary').length,4);assert.equal(items.filter(i=>i.rarity==='mythic').length,1);for(const r of RARITIES)assert.ok(items.some(i=>i.rarity===r))}
  for(const odds of [...CRATE_ODDS,SPIN_REWARDS.map(r=>r.weight)]){assert.equal(odds.reduce((a,b)=>a+b),1000000);let boundary=0;for(let i=0;i<odds.length;i++){assert.equal(weightedIndex(odds,boundary),i);boundary+=odds[i];assert.equal(weightedIndex(odds,boundary-1),i)}}
 })
 test('Dutch daily and weekly resets handle spring and autumn daylight saving',()=>{
@@ -44,4 +44,20 @@ test('market escrows exact copies, unequips the last usable copy, and transfers 
  assert.throws(()=>buyListing(other,[seller,other],listings,id),/no longer available/)
  const next=listItem(buyer,listings,drop.uid,100);assert.throws(()=>cancelListing(seller,listings,next.id),/not found/);cancelListing(buyer,listings,next.id)
  assert.equal(wallet(buyer).inventory[0].listed,undefined);assert.throws(()=>listItem(buyer,listings,drop.uid,-1),/whole number/)
+})
+
+test('welcome coins fund three skin crates and never regrant, including an old wallet',()=>{
+ const fresh={name:'New'};assert.equal(wallet(fresh).coins,STARTER_COINS);assert.equal(STARTER_COINS,3*160)
+ for(let i=0;i<3;i++)buyCrate(fresh,'skin-bronze');assert.equal(wallet(fresh).coins,0)
+ const persisted=JSON.parse(JSON.stringify(fresh));assert.equal(wallet(persisted).coins,0)
+ const existing={name:'Old',wallet:{coins:27,inventory:[],loadout:{icon:'default',pieces:{}}}};assert.equal(wallet(existing).coins,27+STARTER_COINS);assert.equal(wallet(existing).coins,27+STARTER_COINS)
+})
+test('paid spins require the free claim, deduct exactly the price once and preserve Dutch reset',()=>{
+ const u=user('Encore'),now=Date.parse('2026-11-14T12:00:00Z');wallet(u).coins=1000
+ assert.throws(()=>spin(u,now,true),/free daily spin first/);assert.equal(wallet(u).coins,1000)
+ spin(u,now);const before=wallet(u).coins,last=wallet(u).lastSpin
+ const drop=purchase(u,'paid-spin-unique-0001',()=>spin(u,now,true));assert.equal(wallet(u).coins,before-PAID_SPIN_PRICE+(drop.coins??0));assert.equal(wallet(u).lastSpin,last);assert.equal(drop.paid,true)
+ const after=structuredClone(u);assert.deepEqual(purchase(u,'paid-spin-unique-0001',()=>spin(u,now,true)),drop);assert.deepEqual(u,after)
+ wallet(u).coins=PAID_SPIN_PRICE-1;const inventory=structuredClone(wallet(u).inventory);assert.throws(()=>spin(u,now,true),/Not enough coins/);assert.equal(wallet(u).coins,PAID_SPIN_PRICE-1);assert.deepEqual(wallet(u).inventory,inventory)
+ assert.throws(()=>spin(u,nextReset(now),true),/free daily spin first/)
 })

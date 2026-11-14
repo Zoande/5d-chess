@@ -1,10 +1,14 @@
 import {randomBytes,randomInt} from 'node:crypto'
-import {type Wallet,type Drop,type Listing,type Collectible,type ItemType,ITEMS,CRATES,CRATE_ODDS,RARITIES,SPIN_REWARDS,dayKey,nextReset,nextWeek,weeklyItems,itemById,duplicateRefund} from '../src/collection.ts'
+import {type Wallet,type Drop,type Listing,type Collectible,type ItemType,STARTER_COINS,PAID_SPIN_PRICE,ITEMS,CRATES,CRATE_ODDS,RARITIES,SPIN_REWARDS,dayKey,nextReset,nextWeek,weeklyItems,itemById,duplicateRefund} from '../src/collection.ts'
 import {KINDS,type Kind} from '../src/model.ts'
 export interface EconomicAccount {name:string;wallet?:Wallet;receipts?:{key:string;drop:Drop}[]}
 export const uid=()=>randomBytes(12).toString('hex')
 const reject=(status:number,message:string):never=>{throw Object.assign(new Error(message),{status})}
-export function wallet(account:EconomicAccount):Wallet{return account.wallet??={coins:0,inventory:[],loadout:{icon:'default',pieces:{}}}}
+export function wallet(account:EconomicAccount):Wallet{
+ const w=account.wallet??={coins:0,inventory:[],loadout:{icon:'default',pieces:{}}}
+ if(!w.starterGranted){w.coins+=STARTER_COINS;w.starterGranted=true}
+ return w
+}
 export function weightedIndex(weights:readonly number[],ticket=randomInt(weights.reduce((a,b)=>a+b,0))){if(!Number.isInteger(ticket)||ticket<0||ticket>=weights.reduce((a,b)=>a+b,0))throw new Error('Invalid draw');for(let i=0;i<weights.length;i++){ticket-=weights[i];if(ticket<0)return i}throw new Error('Invalid weights')}
 export function grant(account:EconomicAccount,item:Collectible,source:Drop['source'],now=Date.now()):Drop{
  const w=wallet(account),duplicate=w.inventory.some(x=>x.itemId===item.id),id=uid()
@@ -12,13 +16,13 @@ export function grant(account:EconomicAccount,item:Collectible,source:Drop['sour
  return {id:uid(),source,uid:id,itemId:item.id,duplicate,refund:duplicate?duplicateRefund(item):undefined,created:now}
 }
 function spend(account:EconomicAccount,price:number){const w=wallet(account);if(w.coins<price)reject(409,'Not enough coins');w.coins-=price}
-export function spin(account:EconomicAccount,now=Date.now()):Drop{
- const w=wallet(account);if(w.inventory.length>=5000)reject(409,'Inventory is full');if(w.lastSpin===dayKey(now))reject(409,'You have already spun today')
+export function spin(account:EconomicAccount,now=Date.now(),paid=false):Drop{
+ const w=wallet(account);if(w.inventory.length>=5000)reject(409,'Inventory is full');if(paid){if(w.lastSpin!==dayKey(now))reject(409,'Claim your free daily spin first');spend(account,PAID_SPIN_PRICE)}else if(w.lastSpin===dayKey(now))reject(409,'You have already spun today')
  const index=weightedIndex(SPIN_REWARDS.map(r=>r.weight)),reward=SPIN_REWARDS[index]
  let drop:Drop
  if('coins'in reward&&reward.coins){drop={id:uid(),source:'spin',coins:reward.coins,created:now};w.coins+=reward.coins}
  else{const pool=ITEMS.filter(i=>i.rarity===reward.rarity);drop=grant(account,pool[randomInt(pool.length)],'spin',now)}
- w.lastSpin=dayKey(now);drop.segment=index;return drop
+ if(!paid)w.lastSpin=dayKey(now);drop.paid=paid;drop.segment=index;return drop
 }
 export function buyCrate(account:EconomicAccount,crateId:unknown,now=Date.now()):Drop{
  const crate=CRATES.find(c=>c.id===crateId)??reject(400,'Unknown crate')
@@ -73,4 +77,4 @@ export function purchase(account:EconomicAccount,key:unknown,action:()=>Drop){
  const old=account.receipts.find(r=>r.key===key);if(old)return old.drop
  const drop=action();account.receipts.unshift({key:key as string,drop});account.receipts.length=Math.min(100,account.receipts.length);return drop
 }
-export function economyView(account:EconomicAccount,now=Date.now()){const w=wallet(account);return {wallet:structuredClone(w),spinReady:w.lastSpin!==dayKey(now),reset:nextReset(now),rotation:nextWeek(now),featured:weeklyItems(now).map(i=>i.id),now,recent:(account.receipts??[]).slice(0,10).map(r=>r.drop)}}
+export function economyView(account:EconomicAccount,now=Date.now()){const w=wallet(account);return {paidSpinPrice:PAID_SPIN_PRICE,wallet:structuredClone(w),spinReady:w.lastSpin!==dayKey(now),reset:nextReset(now),rotation:nextWeek(now),featured:weeklyItems(now).map(i=>i.id),now,recent:(account.receipts??[]).slice(0,10).map(r=>r.drop)}}

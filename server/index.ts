@@ -7,7 +7,7 @@ import {createServer, type IncomingMessage, type ServerResponse} from 'node:http
 import {randomBytes, scryptSync, timingSafeEqual, createHash} from 'node:crypto'
 import {readFile, writeFile, mkdir, rename} from 'node:fs/promises'
 import {resolve, extname} from 'node:path'
-import {initialState, playerCount, players, survivors, type Order, type Player, type PlayerCount, type State, type Resolution, type Movement, shuffledPlayers, PLAYERS} from '../src/model.ts'
+import {initialState, playerCount, players, survivors, type Order, type Player, type PlayerCount, type State, type Resolution, type Movement, shuffledPlayers, PLAYERS, KINDS} from '../src/model.ts'
 import {legalMoves, routeKey} from '../src/moves.ts'
 import {resolveRound, sourceBudget} from '../src/resolve.ts'
 
@@ -32,12 +32,15 @@ try { db = JSON.parse(await readFile(file, 'utf8')) as Database } catch (error) 
   if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
 }
 db.listings??=[]
+// Persist the one-time welcome grant before accepting requests, including existing accounts.
+const needsWelcome=db.users.some(u=>!u.wallet?.starterGranted)
 await mkdir(resolve(file, '..'), {recursive: true})
 
 function save() {
   const temporary = `${file}.${process.pid}.tmp`
   return writeFile(temporary, JSON.stringify(db), {mode: 0o600}).then(() => rename(temporary, file))
 }
+if(needsWelcome){for(const account of db.users)wallet(account);await save()}
 function mutate<T>(work: () => Promise<T> | T): Promise<T> {
   const run = queue.then(async () => { const result = await work(); await save(); return result })
   queue = run.catch(() => {})
@@ -176,10 +179,12 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string, sear
     return mutation(res,()=>{
       let drop
       switch(path){
+        case '/api/economy/spin-again':drop=purchase(account,data.requestId,()=>spin(account,Date.now(),true));break
         case '/api/economy/spin':drop=purchase(account,data.requestId,()=>spin(account));break
         case '/api/economy/crate':drop=purchase(account,data.requestId,()=>buyCrate(account,data.crate));break
         case '/api/economy/buy':drop=purchase(account,data.requestId,()=>buyFeatured(account,data.itemId));break
         case '/api/economy/duplicate':resolveDuplicate(account,data.uid,data.refund);break
+        case '/api/economy/equip-set':for(const kind of KINDS)equip(account,kind,data.uid);break
         case '/api/economy/equip':equip(account,data.slot,data.uid);break
         case '/api/economy/list':listItem(account,db.listings!,data.uid,data.price);break
         case '/api/economy/cancel':cancelListing(account,db.listings!,data.id);break

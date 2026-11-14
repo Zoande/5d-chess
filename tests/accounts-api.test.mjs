@@ -46,7 +46,7 @@ test('ratings, notifications and settings are private, durable and settled atomi
  assert.deepEqual(responses.map(r=>r.status).sort(),[200,409])
  const winner=(await call('/me',undefined,alice)).data.profile,loser=(await call('/me',undefined,bob)).data.profile
  assert.equal(winner.rating.value,1216);assert.equal(loser.rating.value,1184)
- assert.equal(winner.rating.games,1);assert.equal('ratings' in winner,false);assert.equal(winner.coins,120);assert.equal(loser.coins,60)
+ assert.equal(winner.rating.games,1);assert.equal('ratings' in winner,false);assert.equal(winner.coins,600);assert.equal(loser.coins,540)
  const board=(await call('/leaderboard?pool=classic-duel',undefined,alice)).data
  assert.equal(board.players[0].name,'Alice');assert.equal(board.players[1].name,'Bob')
  const feed=(await call('/notifications',undefined,alice)).data.items
@@ -58,9 +58,18 @@ test('ratings, notifications and settings are private, durable and settled atomi
  assert.equal((await call('/notifications',undefined,alice)).data.items.filter(n=>n.kind==='rating').length,1)
  // Rewards and the market share the durable serialized mutation queue.
  assert.equal((await call('/economy')).status,401)
+ const newcomer=(await call('/signup',{username:'Newcomer',password:'p',confirm:'p'})).cookie
+ assert.equal((await call('/me',undefined,newcomer)).data.profile.coins,480)
+ for(let i=0;i<3;i++)assert.equal((await call('/economy/crate',{crate:'skin-bronze',requestId:'starter-crate-000'+i},newcomer)).status,200)
+ assert.equal((await call('/me',undefined,newcomer)).data.profile.coins,0)
+ await stop();await start();assert.equal((await call('/me',undefined,newcomer)).data.profile.coins,0)
  const spins=await Promise.all([call('/economy/spin',{requestId:'same-spin-request-0001'},alice),call('/economy/spin',{requestId:'same-spin-request-0001'},alice)])
  assert.ok(spins.every(r=>r.status===200));assert.deepEqual(spins[0].data.drop,spins[1].data.drop)
  assert.equal((await call('/economy/spin',{requestId:'different-spin-0001'},alice)).status,409)
+ const beforePaid=(await call('/economy',undefined,alice)).data
+ const encores=await Promise.all([call('/economy/spin-again',{requestId:'encore-request-0001'},alice),call('/economy/spin-again',{requestId:'encore-request-0001'},alice)])
+ assert.ok(encores.every(r=>r.status===200));assert.deepEqual(encores[0].data.drop,encores[1].data.drop)
+ assert.equal(encores[0].data.wallet.coins,beforePaid.wallet.coins-200+(encores[0].data.drop.coins??0));assert.equal(encores[0].data.reset,beforePaid.reset)
  const beforeBuy=(await call('/economy',undefined,alice)).data.wallet.coins
  const boxes=await Promise.all([call('/economy/crate',{crate:'icon-bronze',requestId:'same-crate-request-0001'},alice),call('/economy/crate',{crate:'icon-bronze',requestId:'same-crate-request-0001'},alice)])
  assert.ok(boxes.every(r=>r.status===200));assert.deepEqual(boxes[0].data.drop,boxes[1].data.drop)
