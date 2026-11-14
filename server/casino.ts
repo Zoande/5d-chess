@@ -60,7 +60,15 @@ export function casinoBet(account:Account,accounts:Account[],input:unknown,now=D
  if(owner===account&&!Number.isSafeInteger(next+tax))reject(409,'This bet exceeds the supported balance precision')
  const round:CasinoRound={...bet,id:randomBytes(12).toString('hex'),result,won,gross:gross/10000,profit:profit/10000,tax:tax/10000,credited:credited/10000,net:(credited-stake)/10000,created:now}
  w.coins=next/10000
- if(tax){owner??=ensureCasinoOwner(accounts);wallet(owner).coins=owner===account?(next+tax)/10000:(treasury+tax)/10000;notify(owner,{kind:'casino',code:'',game:bet.game,title:`${account.name} won ${casinoCoins(round.profit)} coins`,detail:`${account.name} won ${casinoCoins(round.profit)} coins of profit at ${bet.game==='dice'?'Dice':'Roulette'}. You received ${casinoCoins(round.tax)} coins (1% of profit).`})}
+ if(tax){
+  owner??=ensureCasinoOwner(accounts)
+  wallet(owner).coins=owner===account?(next+tax)/10000:(treasury+tax)/10000
+  notify(owner,{
+   kind:'casino',code:'',game:bet.game,
+   title:`${account.name} won ${casinoCoins(round.profit)} coins`,
+   detail:`${account.name} won ${casinoCoins(round.profit)} coins of profit at ${bet.game==='dice'?'Dice':'Roulette'}. You received ${casinoCoins(round.tax)} coins (1% of profit).`,
+  })
+ }
  s.sequence=bet.sequence;s.recent.unshift(round);s.recent.length=Math.min(100,s.recent.length)
  return {...casinoView(account),round}
 }
