@@ -34,6 +34,7 @@ export class DiceScene {
  private startPosition=v();private landing=v();private startRotation=new T.Quaternion()
  private reduced=matchMedia('(prefers-reduced-motion: reduce)').matches
  private fence:WebGLSync|null=null
+ private cameraLocked=false;private speech:T.Sprite;private speechMap:T.CanvasTexture;private speechCanvas:HTMLCanvasElement;private speechUntil=0;private haze:T.ShaderMaterial[]=[]
  constructor(private canvas:HTMLCanvasElement){
   this.renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'})
   const glContext=this.renderer.getContext(),debug=glContext.getExtension('WEBGL_debug_renderer_info')
@@ -46,6 +47,12 @@ export class DiceScene {
   this.environment=generator.fromScene(room,.06);this.world.environment=this.environment.texture;this.world.environmentIntensity=.16;room.dispose();generator.dispose()
   const m=materials();this.table=new Table(this.world,m);this.people=new People(this.world,m);this.die=dice(m);this.world.add(this.die);this.die.scale.setScalar(.65)
   for(let i=0;i<5;i++){const coin=mesh(this.table.coin,m.gold,this.wager,[0,i*.01,0]);coin.rotation.y=i*.38}this.wager.visible=false;this.world.add(this.wager)
+  this.speechCanvas=document.createElement('canvas');this.speechCanvas.width=1024;this.speechCanvas.height=256;this.speechMap=new T.CanvasTexture(this.speechCanvas);this.speechMap.colorSpace=T.SRGBColorSpace
+  this.speech=new T.Sprite(new T.SpriteMaterial({map:this.speechMap,transparent:true,depthWrite:false,fog:false}));this.speech.position.set(0,1.98,-.82);this.speech.scale.set(1.22,.305,1);this.speech.visible=false;this.world.add(this.speech)
+  for(const [z,density] of [[-.83,.19],[-1.74,.13]]){
+   const material=new T.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{time:{value:0},density:{value:density}},vertexShader:'varying vec2 uvFog;void main(){uvFog=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'varying vec2 uvFog;uniform float time;uniform float density;void main(){vec2 p=uvFog;float edge=smoothstep(0.,.17,p.x)*smoothstep(0.,.17,1.-p.x)*smoothstep(0.,.16,p.y)*smoothstep(0.,.18,1.-p.y);float wisps=.73+.12*sin(p.x*17.+p.y*9.+time*.11)+.10*sin(p.y*21.-p.x*11.-time*.08);gl_FragColor=vec4(.018,.030,.030,edge*wisps*density);}'})
+   const veil=mesh(new T.PlaneGeometry(4.5,2.8),material,this.world,[0,1.4,z],false);veil.renderOrder=2;this.haze.push(material)
+  }
   const floor=mesh(new T.PlaneGeometry(12,12),m.wood,this.world,[0,0,0]);floor.rotation.x=-Math.PI/2
   for(const side of [-1,1]){
    box(this.world,[.13,3.1,6],[side*2.65,1.5,-.2],m.ebony)
@@ -83,7 +90,7 @@ export class DiceScene {
    if(this.fence){const status=gl.clientWaitSync(this.fence,0,0);if(status===gl.TIMEOUT_EXPIRED)return;gl.deleteSync(this.fence);this.fence=null}
    const dt=Math.min(.25,(now-this.previous)/1000||.016);this.previous=now;this.drawn=now
    this.yaw=T.MathUtils.damp(this.yaw,this.lookYaw,12,dt);this.pitch=T.MathUtils.damp(this.pitch,this.lookPitch,12,dt)
-   this.updateCamera();this.pose(now)
+   this.updateCamera();this.pose(now);this.haze.forEach(m=>m.uniforms.time.value=now/1000);if(this.speech.visible){const remaining=this.speechUntil-now;this.speech.material.opacity=T.MathUtils.clamp(remaining/900,0,1);this.speech.visible=remaining>0}
    this.candles.forEach((c,i)=>c.intensity=1.28+Math.sin(now*.002+i)*.035+Math.sin(now*.007+i)*.012)
    this.renderer.render(this.world,this.camera);this.canvas.dataset.frame=String(++this.frame);this.canvas.dataset.pitch=this.pitch.toFixed(3)
    this.fence=gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE,0);gl.flush()
@@ -156,8 +163,14 @@ export class DiceScene {
  private refresh(){this.table.setState(this.coins,this.stake,this.face,this.phase,this.disabled)}
  setState(coins:number,stake:number,face:number,disabled:boolean){this.coins=coins;this.stake=stake;this.face=face;this.disabled=disabled;this.refresh()}
  setCoins(coins:number){this.coins=coins;this.refresh()}
+ lockCamera(locked:boolean){this.cameraLocked=locked;this.canvas.dataset.cameraLocked=String(locked);if(locked){this.recenter();this.yaw=0;this.pitch=0;this.updateCamera()}}
+ speak(text:string,duration=5000){
+  const c=this.speechCanvas,ctx=c.getContext('2d')!;ctx.clearRect(0,0,c.width,c.height);ctx.font='italic 43px Georgia,serif';ctx.textAlign='center';ctx.textBaseline='middle'
+  const words=text.split(/\s+/),lines:string[]=[];let line='';for(const word of words){const next=(line+' '+word).trim();if(ctx.measureText(next).width>940&&line){lines.push(line);line=word}else line=next}if(line)lines.push(line)
+  ctx.shadowColor='#000';ctx.shadowBlur=15;ctx.fillStyle='#d6c9a8';lines.slice(0,3).forEach((l,i)=>ctx.fillText(l,c.width/2,128+(i-(lines.length-1)/2)*56));this.speechMap.needsUpdate=true;this.speechUntil=performance.now()+duration;this.speech.material.opacity=1;this.speech.visible=true
+ }
  getLook(){return {yaw:this.lookYaw,pitch:this.lookPitch}}
- setLook(yaw:number,pitch:number){this.lookYaw=T.MathUtils.clamp(yaw,-.72,.72);this.lookPitch=T.MathUtils.clamp(pitch,-.22,1.03)}
+ setLook(yaw:number,pitch:number){if(this.cameraLocked)return;this.lookYaw=T.MathUtils.clamp(yaw,-.72,.72);this.lookPitch=T.MathUtils.clamp(pitch,-.22,1.03)}
  recenter(){this.lookYaw=0;this.lookPitch=0}
  setDrag(x:number,y:number){this.drag.set(T.MathUtils.clamp(x/220,-1,1),T.MathUtils.clamp(-y/220,-.4,1))}
  ready(){this.phase='ready';this.drag.set(0,0);this.dieOwner='player';this.people.right.hand.grip.attach(this.die);this.die.position.set(0,.055,-.014);this.refresh()}
@@ -193,6 +206,6 @@ export class DiceScene {
   const geometries=new Set<T.BufferGeometry>(),materials=new Set<T.Material>(),textures=new Set<T.Texture>()
   this.world.traverse(object=>{if(object instanceof T.Mesh||object instanceof T.Points){geometries.add(object.geometry);for(const m of Array.isArray(object.material)?object.material:[object.material]){materials.add(m);for(const value of Object.values(m))if(value instanceof T.Texture)textures.add(value)}}})
   if(this.fence)(this.renderer.getContext() as WebGL2RenderingContext).deleteSync(this.fence)
-  for(const g of geometries)g.dispose();for(const m of materials)m.dispose();for(const t of textures)t.dispose();this.environment.dispose();this.renderer.dispose()
+  for(const g of geometries)g.dispose();for(const m of materials)m.dispose();for(const t of textures)t.dispose();this.speechMap.dispose();this.speech.material.dispose();this.environment.dispose();this.renderer.dispose()
  }
 }
