@@ -26,7 +26,7 @@ test('paired looks validate both layers atomically and shape overrides apply to 
 })
 
 test('monthly exclusives stay out of all general crates and weekly offers; exact tickets sum to a million',()=>{
- assert.equal(ITEMS.length,110)
+ assert.equal(ITEMS.length,112)
  for(const [type,general,monthly] of [['skin',40,10],['icon',20,10],['frame',10,5],['shape',10,5]]){
   assert.equal(GENERAL_ITEMS.filter(i=>i.type===type).length,general)
   assert.equal(ITEMS.filter(i=>i.type===type&&i.monthly).length,monthly)
@@ -42,7 +42,7 @@ test('monthly exclusives stay out of all general crates and weekly offers; exact
  const edit=weeklyItems();assert.ok(edit.every(i=>!i.monthly));assert.deepEqual(edit.slice(0,4).map(i=>i.type),['skin','icon','frame','shape'])
  const now=Date.parse('2026-11-30T22:59:00Z'),next=nextMonth(now)
  assert.equal(monthKey(now),'2026-11');assert.equal(monthKey(next),'2026-12')
- const u=user('Monthly');assert.throws(()=>buyCrate(u,'monthly-eclipse',next,monthKey(now)),/monthly collection has changed/)
+ const u=user('Monthly');assert.throws(()=>buyCrate(u,'monthly-eclipse',next,monthKey(now)),/seasonal collection has changed/)
  assert.equal(wallet(u).coins,100000)
  for(let i=0;i<20;i++){const drop=buyCrate(u,'monthly-eclipse',now,monthKey(now));assert.ok(ITEMS.find(item=>item.id===drop.itemId).monthly)}
 })
@@ -55,7 +55,7 @@ test('every shape set has six distinct silhouettes, composes with skins, and kee
    assert.notEqual(vector.shape,base.shape,shape.id);assert.deepEqual(vector.layers,base.layers)
    paths.add(vector.shape)
    assert.equal(new Set(PLAYERS.map(p=>pieceVectors(kind,p,'skin-neon',shape.id).base)).size,4)
-  }assert.equal(paths.size,15,kind)
+  }assert.equal(paths.size,16,kind)
  }
  for(const shape of shapes)assert.equal(new Set(KINDS.map(k=>pieceVectors(k,'red','default',shape.id).shape)).size,6)
  for(const item of ITEMS.filter(i=>i.type==='icon'))assert.ok(!avatarArt(item.id).includes('undefined'),item.id)

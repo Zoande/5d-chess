@@ -73,7 +73,7 @@ test('ratings, notifications and settings are private, durable and settled atomi
  const beforePaid=(await call('/economy',undefined,alice)).data
  const encores=await Promise.all([call('/economy/spin-again',{requestId:'encore-request-0001'},alice),call('/economy/spin-again',{requestId:'encore-request-0001'},alice)])
  assert.ok(encores.every(r=>r.status===200));assert.deepEqual(encores[0].data.drop,encores[1].data.drop)
- assert.equal(encores[0].data.wallet.coins,beforePaid.wallet.coins-200+(encores[0].data.drop.coins??0));assert.equal(encores[0].data.reset,beforePaid.reset)
+ assert.equal(encores[0].data.wallet.coins,beforePaid.wallet.coins-300+(encores[0].data.drop.coins??0));assert.equal(encores[0].data.reset,beforePaid.reset)
  const beforeBuy=(await call('/economy',undefined,alice)).data.wallet.coins
  const boxes=await Promise.all([call('/economy/crate',{crate:'icon-bronze',requestId:'same-crate-request-0001'},alice),call('/economy/crate',{crate:'icon-bronze',requestId:'same-crate-request-0001'},alice)])
  assert.ok(boxes.every(r=>r.status===200));assert.deepEqual(boxes[0].data.drop,boxes[1].data.drop)
