@@ -10,6 +10,8 @@ import {resolve, extname, sep} from 'node:path'
 import {initialState, playerCount, players, survivors, type Order, type Player, type PlayerCount, type State, type Resolution, type Movement, shuffledPlayers, PLAYERS, KINDS} from '../src/model.ts'
 import {legalMoves, routeKey} from '../src/moves.ts'
 import {resolveRound, sourceBudget} from '../src/resolve.ts'
+import {casinoBet,casinoView} from './casino.ts'
+import {CASINO_OWNER} from '../src/casino-model.ts'
 
 type User = Account
 type Login = {user: string; expires: number}
@@ -141,6 +143,7 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string, sear
   if (path === '/api/signup' && method === 'POST') {
     const data = await body(req)
     const name = string(data.username, 'username', 32)
+    if(name.toLowerCase()===CASINO_OWNER.toLowerCase())fail(409,'This username is reserved')
     const password = passwordValue(data.password)!
     if (password !== data.confirm) fail(400, 'Passwords do not match')
     return mutation(res, () => {
@@ -172,6 +175,11 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string, sear
   })
   const me = requireUser(req)
   const account = ensureAccount(db.users.find(a=>a.name===me)!)
+  if(path==='/api/casino'&&method==='GET')return json(res,200,casinoView(account))
+  if(path==='/api/casino/bet'&&method==='POST'){
+    const data=await body(req)
+    return mutation(res,()=>({status:200,value:{...casinoBet(account,db.users,data),profile:profile(account)}}))
+  }
   if(path==='/api/economy'&&method==='GET')return json(res,200,economyView(account))
   if(path==='/api/market'&&method==='GET')return json(res,200,{listings:db.listings})
   if(path.startsWith('/api/economy/')&&method==='POST'){
