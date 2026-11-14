@@ -1,3 +1,4 @@
+import {dayKey} from '../src/collection.ts'
 import {randomBytes,randomInt} from 'node:crypto'
 import {wallet,type EconomicAccount} from './economy.ts'
 import {notify,type Account} from './accounts.ts'
@@ -31,6 +32,7 @@ export function validateBet(value:unknown):CasinoBet{
  const b=value as CasinoBet
  if(typeof b.requestId!=='string'||! /^[a-zA-Z0-9-]{12,80}$/.test(b.requestId))reject(400,'A valid request ID is required')
  if(!Number.isSafeInteger(b.sequence)||b.sequence<1)reject(400,'A valid round sequence is required')
+ if(b.currency!==undefined)reject(400,'Use the Elo wager endpoint for Elo stakes')
  if(b.game!=='roulette'&&b.game!=='dice')reject(400,'Unknown game')
  if(!Number.isSafeInteger(b.stake)||b.stake<1||b.stake>MAX_CASINO_STAKE)reject(400,`Bet a whole number from 1 to ${MAX_CASINO_STAKE} coins`)
  if(b.game==='dice'){
@@ -42,9 +44,10 @@ export function validateBet(value:unknown):CasinoBet{
 export function casinoBet(account:Account,accounts:Account[],input:unknown,now=Date.now(),draw?:number){
  const bet=validateBet(input),s=state(account),old=s.recent.find(r=>r.requestId===bet.requestId)
  if(old){
-  if(old.sequence!==bet.sequence||old.game!==bet.game||old.stake!==bet.stake||old.choice!==bet.choice)reject(409,'This request ID already belongs to a different bet')
+  if(old.currency||old.sequence!==bet.sequence||old.game!==bet.game||old.stake!==bet.stake||old.choice!==bet.choice)reject(409,'This request ID already belongs to a different bet')
   return {...casinoView(account),round:old}
  }
+ if(bet.game==='dice'&&account.eloGambling?.day===dayKey(now)&&account.eloGambling.stage!=='normal')reject(409,'A different offer is open. Refresh the dice table.')
  if(bet.sequence!==s.sequence+1)reject(409,'This round has already settled or the sequence changed. Refresh the table.')
  const w=wallet(account),balance=safeUnits(w.coins),stake=bet.stake*10000
  if(balance<stake)reject(409,'Not enough coins')

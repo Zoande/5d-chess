@@ -66,7 +66,7 @@ function eye(material:T.Material){
 export class People {
  readonly player=new T.Group();readonly dealer=new T.Group()
  readonly left:Arm;readonly right:Arm;readonly keeperLeft:Arm;readonly keeperRight:Arm
- private torso:T.Mesh;private head:T.Group
+ private torso:T.Mesh;private head:T.Group;private smile=new T.Group();private soul=false
  constructor(scene:T.Scene,privateMaterials:Materials){
   const m=privateMaterials;scene.add(this.player,this.dealer)
   this.torso=box(this.player,[.5,.48,.28],[0,.92,1.46],m.sleeve,.08)
@@ -84,10 +84,16 @@ export class People {
   this.head=hood(m.robe);this.head.position.set(0,1.59,-1.105);this.dealer.add(this.head)
   const face=mesh(new T.CircleGeometry(.99,48),m.void,this.head,[0,-.008,.003],false);face.scale.set(.213,.285,1)
   for(const side of [-1,1]){const e=eye(m.eyes);e.position.set(side*.082,.028,.025);e.rotation.z=side*.035;this.head.add(e)}
+  this.head.add(this.smile);this.smile.visible=false
+  const grin=new T.Shape();grin.moveTo(-.115,-.065);grin.quadraticCurveTo(0,-.14,.115,-.058);grin.quadraticCurveTo(.02,-.225,-.115,-.065)
+  mesh(new T.ShapeGeometry(grin,32),m.eyes,this.smile,[0,0,.030],false)
+  for(let i=-4;i<=4;i++){const x=i*.020;const tooth=new T.Shape();tooth.moveTo(x-.004,-.105+Math.abs(i)*.005);tooth.lineTo(x+.004,-.107+Math.abs(i)*.005);tooth.lineTo(x+.001,-.158+Math.abs(i)*.009);tooth.closePath();mesh(new T.ShapeGeometry(tooth),m.void,this.smile,[0,0,.032],false)}
   this.keeperLeft=new Arm(this.dealer,m,true,true);this.keeperRight=new Arm(this.dealer,m,false,true)
  }
+ setSoul(active:boolean){this.soul=active;this.smile.visible=active}
  pose(playerLean:number,dealerLean:number,left:T.Vector3,right:T.Vector3,keeperLeft:T.Vector3,keeperRight:T.Vector3,curlLeft=.2,curlRight=.2,keeperCurl=.2){
   this.torso.rotation.x=-playerLean*.35;this.torso.position.z=1.46-playerLean*.3
+  this.head.rotation.z=this.soul?Math.sin(performance.now()*.0007)*.018:0
   this.head.position.set(0,1.59-dealerLean*.08,-1.105+dealerLean*.48)
   this.left.pose(v(-.25,1.15,1.36-playerLean*.43),left,v(-.85,.84,1.6),curlLeft)
   this.right.pose(v(.25,1.15,1.36-playerLean*.43),right,v(.85,.84,1.6),curlRight)
