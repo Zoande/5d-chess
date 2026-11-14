@@ -2,6 +2,7 @@ import {mkdir,readFile,writeFile} from 'node:fs/promises'
 import {resolve} from 'node:path'
 import {randomBytes,scryptSync} from 'node:crypto'
 import {ITEMS} from '../src/collection.ts'
+import {ChessStore} from '../server/storage.ts'
 
 // Separate local fixtures survive restarts without touching the normal game database.
 const directory=resolve('data/visual-demo'),file=resolve(directory,'multiplayer.json')
@@ -18,14 +19,13 @@ try{await readFile(file)}catch(error){
  console.log('Created 12 demo accounts, rated leaderboard, and a complete Demo collection.')
 }
 // Refresh only the dedicated demo collection when new cosmetic designs are added.
-const db=JSON.parse(await readFile(file,'utf8')),demo=db.users.find(u=>u.name==='Demo')
-if(demo){
- let changed=false
- for(const item of ITEMS)if(!demo.wallet.inventory.some(o=>o.itemId===item.id)){
-  demo.wallet.inventory.push({uid:randomBytes(12).toString('hex'),itemId:item.id,acquired:Date.now(),pending:false});changed=true
+const store=new ChessStore(directory)
+try{store.transaction(unit=>{
+ const demo=unit.users.get('Demo')
+ if(demo)for(const item of ITEMS)if(!demo.wallet.inventory.some(o=>o.itemId===item.id)){
+  demo.wallet.inventory.push({uid:randomBytes(12).toString('hex'),itemId:item.id,acquired:Date.now(),pending:false})
  }
- if(changed)await writeFile(file,JSON.stringify(db))
-}
+})}finally{store.close()}
 process.env.DATA_DIR=directory
 process.env.PORT??='4174'
 console.log(`Demo login: Demo / local-demo-5d! | http://127.0.0.1:${process.env.PORT}/chess/login.html`)
