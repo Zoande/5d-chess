@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {spawn} from 'node:child_process'
-import {mkdtemp,rm} from 'node:fs/promises'
+import {mkdtemp,rm,mkdir} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {createServer} from 'node:net'
@@ -53,9 +53,27 @@ test('physical dice controls, bounded camera and saved throw work with WebGL on 
 test('roulette selections, stake, spin and receipt use the persisted casino API',async t=>{
  const {page,base,view,errors}=await fixture(t)
  await page.goto(base+'/chess/roulette.html');await page.locator('#stake').waitFor()
- await page.getByRole('button',{name:'Bet on 17',exact:true}).click();assert.equal(await page.locator('[data-pocket="17"]').getAttribute('aria-pressed'),'true')
- await page.locator('#stake').fill('25');await page.locator('#place-bet').click();await page.locator('#round-result:not([hidden])').waitFor()
+ await page.getByRole('button',{name:'Halve stake',exact:true}).click();assert.equal(await page.locator('#stake').inputValue(),'50')
+ await page.getByRole('button',{name:'Double stake',exact:true}).click();assert.equal(await page.locator('#stake').inputValue(),'100')
+ await page.getByRole('button',{name:'Maximum affordable stake',exact:true}).click();assert.equal(await page.locator('#stake').inputValue(),'480')
+ await page.locator('[data-outside=black]').hover();assert.equal(await page.locator('[data-wheel-pocket].pocket-preview').count(),18)
+ await page.getByRole('button',{name:'Bet on 17',exact:true}).click();assert.equal(await page.locator('[data-wheel-pocket].pocket-preview').count(),1);assert.equal(await page.locator('[data-pocket="17"]').getAttribute('aria-pressed'),'true')
+ await page.locator('#stake').fill('25')
+ if(process.env.CASINO_SCREENSHOT_DIR){await mkdir(process.env.CASINO_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:process.env.CASINO_SCREENSHOT_DIR+'/roulette-desktop.png',fullPage:true})}
+ await page.emulateMedia({reducedMotion:'no-preference'});await page.locator('#place-bet').click();await page.locator('.spinning').waitFor()
+ assert.equal(await page.locator('#stake').isDisabled(),true);assert.equal(await page.locator('#repeat-wager').isDisabled(),true);assert.equal(await page.locator('[data-pocket="17"]').isDisabled(),true)
+ await page.locator('#round-result:not([hidden])').waitFor()
  const state=await view();assert.equal(state.nextSequence,2);assert.equal(state.recent[0].choice,17);assert.equal(state.recent[0].stake,25)
  assert.equal(await page.locator('#pocket-readout').textContent(),state.recent[0].result===0?'The rift':String(state.recent[0].result))
- await page.reload();await page.locator('.history-round').waitFor();assert.deepEqual(await view(),state);assert.deepEqual(errors,[])
+ assert.equal(await page.locator(`[data-wheel-pocket="${state.recent[0].result}"].pocket-landed`).count(),1)
+ assert.equal(await page.locator('.roulette-ball').evaluate(b=>b.style.top),'16.2%')
+ await page.locator('[data-outside=black]').click();await page.locator('#stake').fill('100');await page.getByRole('button',{name:'Repeat last',exact:true}).click();assert.equal(await page.locator('#stake').inputValue(),'25');assert.equal(await page.locator('[data-pocket="17"]').getAttribute('aria-pressed'),'true');assert.deepEqual(await view(),state)
+ if(process.env.CASINO_SCREENSHOT_DIR)await page.screenshot({path:process.env.CASINO_SCREENSHOT_DIR+'/roulette-result.png',fullPage:true})
+ await page.setViewportSize({width:390,height:844});await page.locator('.roulette-betting').scrollIntoViewIfNeeded()
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'phone has no horizontal overflow')
+ for(const b of await page.locator('.number-grid button').all()){const r=await b.boundingBox();assert.ok(r.width>=38&&r.height>=43,'phone number keys remain tappable')}
+ if(process.env.CASINO_SCREENSHOT_DIR){await page.screenshot({path:process.env.CASINO_SCREENSHOT_DIR+'/roulette-mobile.png',fullPage:true});await page.locator('.roulette-betting').screenshot({path:process.env.CASINO_SCREENSHOT_DIR+'/roulette-mobile-board.png'})}
+ await page.reload();await page.locator('.history-round').waitFor();assert.deepEqual(await view(),state)
+ await page.getByRole('button',{name:'Repeat last',exact:true}).click();await page.locator('#place-bet').click();await page.locator('.spinning').waitFor();await page.waitForFunction(()=>document.querySelector('.roulette-display').getBoundingClientRect().y<60)
+ await page.locator('#round-result:not([hidden])').waitFor();assert.equal((await view()).nextSequence,3);assert.match(await page.locator('#spin-caption').textContent(),/coins/);assert.equal(await page.locator('#roulette-next').isVisible(),true);assert.deepEqual(errors,[])
 })

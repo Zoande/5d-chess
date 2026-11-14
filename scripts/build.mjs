@@ -24,7 +24,7 @@ await build({entryPoints: ['server/storage-admin.ts'], bundle: true, platform: '
   target: ['node24'], outfile: 'dist/storage-admin.mjs', legalComments: 'none'})
 
 // Bundle the same public files as a module for path-scoped Cloudflare Worker deployment.
-const types = {'roulette.html':'text/html; charset=utf-8','dice.html':'text/html; charset=utf-8','casino.js':'text/javascript; charset=utf-8','casino.css':'text/css; charset=utf-8','index.html': 'text/html; charset=utf-8', 'login.html': 'text/html; charset=utf-8',
+const types = {'roulette.css':'text/css; charset=utf-8','roulette.html':'text/html; charset=utf-8','dice.html':'text/html; charset=utf-8','casino.js':'text/javascript; charset=utf-8','casino.css':'text/css; charset=utf-8','index.html': 'text/html; charset=utf-8', 'login.html': 'text/html; charset=utf-8',
   'lobby.html': 'text/html; charset=utf-8', 'online.html': 'text/html; charset=utf-8',
   'collection.html':'text/html; charset=utf-8','collection.js':'text/javascript; charset=utf-8','collection.css':'text/css; charset=utf-8',
   'game.js': 'text/javascript; charset=utf-8', 'portal.js': 'text/javascript; charset=utf-8',
