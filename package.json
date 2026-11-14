@@ -14,7 +14,8 @@
     "test:browser": "npm run build && node --test tests/*.spec.mjs",
     "deploy": "npm run build && wrangler deploy",
     "server": "node dist/server.mjs",
-    "dev:server": "npm run build && node dist/server.mjs"
+    "dev:server": "npm run build && node dist/server.mjs",
+    "demo": "npm run build && node scripts/demo.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

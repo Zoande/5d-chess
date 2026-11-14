@@ -19,6 +19,9 @@ test('ratings, notifications and settings are private, durable and settled atomi
  assert.equal((await call('/notifications')).status,401)
  const alice=(await call('/signup',{username:'Alice',password:'p',confirm:'p'})).cookie
  const bob=(await call('/signup',{username:'Bob',password:'p',confirm:'p'})).cookie
+ const startingBoard=(await call('/leaderboard',undefined,alice)).data
+ assert.deepEqual(startingBoard.players.map(p=>[p.name,p.rating,p.games,p.rank]),[['Alice',1200,0,1],['Bob',1200,0,1]])
+ assert.equal(startingBoard.me.rank,1)
  const me=await call('/me',undefined,alice);assert.equal(me.data.profile.rating.value,1200);assert.equal('hash' in me.data.profile,false)
  const prefs={movement:'classic',players:3,moveNotifications:true}
  assert.equal((await call('/settings',prefs,alice)).status,200)

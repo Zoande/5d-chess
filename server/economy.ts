@@ -1,5 +1,5 @@
 import {randomBytes,randomInt} from 'node:crypto'
-import {type Wallet,type Drop,type Listing,type Collectible,type ItemType,STARTER_COINS,PAID_SPIN_PRICE,ITEMS,CRATES,CRATE_ODDS,RARITIES,SPIN_REWARDS,dayKey,nextReset,nextWeek,weeklyItems,itemById,duplicateRefund} from '../src/collection.ts'
+import {type Wallet,type Drop,type Listing,type Collectible,type ItemType,STARTER_COINS,PAID_SPIN_PRICE,ITEMS,GENERAL_ITEMS,CRATES,crateTickets,monthKey,nextMonth,CRATE_ODDS,RARITIES,SPIN_REWARDS,dailyDeals,dayKey,nextReset,nextWeek,weeklyItems,itemById,duplicateRefund} from '../src/collection.ts'
 import {KINDS,type Kind} from '../src/model.ts'
 export interface EconomicAccount {name:string;wallet?:Wallet;receipts?:{key:string;drop:Drop}[]}
 export const uid=()=>randomBytes(12).toString('hex')
@@ -21,19 +21,22 @@ export function spin(account:EconomicAccount,now=Date.now(),paid=false):Drop{
  const index=weightedIndex(SPIN_REWARDS.map(r=>r.weight)),reward=SPIN_REWARDS[index]
  let drop:Drop
  if('coins'in reward&&reward.coins){drop={id:uid(),source:'spin',coins:reward.coins,created:now};w.coins+=reward.coins}
- else{const pool=ITEMS.filter(i=>i.rarity===reward.rarity);drop=grant(account,pool[randomInt(pool.length)],'spin',now)}
+ else{const pool=GENERAL_ITEMS.filter(i=>i.rarity===reward.rarity);drop=grant(account,pool[randomInt(pool.length)],'spin',now)}
  if(!paid)w.lastSpin=dayKey(now);drop.paid=paid;drop.segment=index;return drop
 }
-export function buyCrate(account:EconomicAccount,crateId:unknown,now=Date.now()):Drop{
+export function buyCrate(account:EconomicAccount,crateId:unknown,now=Date.now(),month?:unknown):Drop{
  const crate=CRATES.find(c=>c.id===crateId)??reject(400,'Unknown crate')
  if(wallet(account).inventory.length>=5000)reject(409,'Inventory is full')
- const rarity=RARITIES[weightedIndex(CRATE_ODDS[crate.tier])],pool=ITEMS.filter(i=>i.type===crate.type&&i.rarity===rarity)
- spend(account,crate.price);return grant(account,pool[randomInt(pool.length)],'crate',now)
+ if(crate.monthly&&month!==monthKey(now))reject(409,'The monthly collection has changed. Refresh the shop.')
+ const tickets=crateTickets(crate),item=tickets[weightedIndex(tickets.map(t=>t.weight))].item
+ spend(account,crate.price);return grant(account,item,'crate',now)
 }
-export function buyFeatured(account:EconomicAccount,itemId:unknown,now=Date.now()){
- const item=weeklyItems(now).find(i=>i.id===itemId)??reject(409,'This item is not in this week’s shop')
+export function buyFeatured(account:EconomicAccount,itemId:unknown,now=Date.now(),expectedPrice?:unknown){
+ const deal=dailyDeals(now).find(d=>d.itemId===itemId)
+ const item=(deal?itemById(deal.itemId):weeklyItems(now).find(i=>i.id===itemId))??reject(409,'This item is not in this week’s shop or today’s deals')
  if(wallet(account).inventory.length>=5000)reject(409,'Inventory is full')
- spend(account,item.price);const drop=grant(account,item,'crate',now);const owned=wallet(account).inventory.find(i=>i.uid===drop.uid)!;owned.pending=false;return drop
+ if(expectedPrice!==undefined&&expectedPrice!==(deal?.price??item.price))reject(409,'This offer has changed. Refresh the shop before buying.')
+ spend(account,deal?.price??item.price);const drop=grant(account,item,'crate',now);const owned=wallet(account).inventory.find(i=>i.uid===drop.uid)!;owned.pending=false;return drop
 }
 export function resolveDuplicate(account:EconomicAccount,id:unknown,refund:unknown){
  if(typeof refund!=='boolean')reject(400,'Choose keep or refund')
@@ -43,15 +46,30 @@ export function resolveDuplicate(account:EconomicAccount,id:unknown,refund:unkno
 }
 export function equip(account:EconomicAccount,slot:unknown,id:unknown){
  const w=wallet(account)
- if(slot!=='icon'&&!KINDS.includes(slot as Kind))reject(400,'Unknown equipment slot')
- if(id==='default'){if(slot==='icon')w.loadout.icon='default';else delete w.loadout.pieces[slot as Kind];return}
+ const shapeKind=typeof slot==='string'&&slot.startsWith('shape-')&&KINDS.includes(slot.slice(6) as Kind)?slot.slice(6) as Kind:undefined
+ if(slot!=='icon'&&slot!=='frame'&&slot!=='shape'&&!shapeKind&&!KINDS.includes(slot as Kind))reject(400,'Unknown equipment slot')
+ if(shapeKind){
+  if(id==='default'){(w.loadout.shapes??={})[shapeKind]='default';return}
+  const owned=w.inventory.find(i=>i.uid===id)??reject(404,'Item not found')
+  if(owned.listed||owned.pending)reject(409,'Keep this item or cancel its listing before equipping it')
+  if(itemById(owned.itemId)?.type!=='shape')reject(400,'This item cannot be equipped in that slot')
+  ;(w.loadout.shapes??={})[shapeKind]=owned.itemId;return
+ }
+ if(id==='default'){if(slot==='icon')w.loadout.icon='default';else if(slot==='frame'||slot==='shape')delete w.loadout[slot];else delete w.loadout.pieces[slot as Kind];return}
  const owned=w.inventory.find(i=>i.uid===id)??reject(404,'Item not found')
  if(owned.listed||owned.pending)reject(409,'Keep this item or cancel its listing before equipping it')
  const item=itemById(owned.itemId)!
- if(item.type!==(slot==='icon'?'icon':'skin'))reject(400,'This item cannot be equipped in that slot')
- if(slot==='icon')w.loadout.icon=owned.itemId;else w.loadout.pieces[slot as Kind]=owned.itemId
+ if(item.type!==(slot==='icon'||slot==='frame'||slot==='shape'?slot:'skin'))reject(400,'This item cannot be equipped in that slot')
+ if(slot==='icon'||slot==='frame'||slot==='shape')w.loadout[slot]=owned.itemId;else w.loadout.pieces[slot as Kind]=owned.itemId
 }
-function unequipIfMissing(w:Wallet,itemId:string){if(w.inventory.some(i=>i.itemId===itemId&&!i.listed&&!i.pending))return;if(w.loadout.icon===itemId)w.loadout.icon='default';for(const k of KINDS)if(w.loadout.pieces[k]===itemId)delete w.loadout.pieces[k]}
+export function equipLook(account:EconomicAccount,target:unknown,primary:unknown,secondary:unknown){
+ if(target!=='icon'&&!KINDS.includes(target as Kind))reject(400,'Unknown equipment target')
+ // Validate both layers on a copy before applying either one to the real account.
+ const candidate=structuredClone(account)
+ equip(candidate,target,primary);equip(candidate,target==='icon'?'frame':`shape-${target}`,secondary)
+ wallet(account).loadout=wallet(candidate).loadout
+}
+function unequipIfMissing(w:Wallet,itemId:string){if(w.inventory.some(i=>i.itemId===itemId&&!i.listed&&!i.pending))return;if(w.loadout.icon===itemId)w.loadout.icon='default';for(const slot of ['frame','shape'] as const)if(w.loadout[slot]===itemId)delete w.loadout[slot];for(const k of KINDS){if(w.loadout.pieces[k]===itemId)delete w.loadout.pieces[k];if(w.loadout.shapes?.[k]===itemId)delete w.loadout.shapes[k]}}
 export function listItem(account:EconomicAccount,listings:Listing[],id:unknown,price:unknown,now=Date.now()){
  if(typeof price!=='number'||!Number.isSafeInteger(price)||price<1||price>100000000)reject(400,'Price must be a whole number from 1 to 100,000,000')
  if(listings.filter(l=>l.seller===account.name).length>=100)reject(409,'You can have up to 100 active listings')
@@ -77,4 +95,4 @@ export function purchase(account:EconomicAccount,key:unknown,action:()=>Drop){
  const old=account.receipts.find(r=>r.key===key);if(old)return old.drop
  const drop=action();account.receipts.unshift({key:key as string,drop});account.receipts.length=Math.min(100,account.receipts.length);return drop
 }
-export function economyView(account:EconomicAccount,now=Date.now()){const w=wallet(account);return {paidSpinPrice:PAID_SPIN_PRICE,wallet:structuredClone(w),spinReady:w.lastSpin!==dayKey(now),reset:nextReset(now),rotation:nextWeek(now),featured:weeklyItems(now).map(i=>i.id),now,recent:(account.receipts??[]).slice(0,10).map(r=>r.drop)}}
+export function economyView(account:EconomicAccount,now=Date.now()){const w=wallet(account);return {month:monthKey(now),monthlyReset:nextMonth(now),paidSpinPrice:PAID_SPIN_PRICE,wallet:structuredClone(w),spinReady:w.lastSpin!==dayKey(now),reset:nextReset(now),rotation:nextWeek(now),featured:weeklyItems(now).map(i=>i.id),dailyDeals:dailyDeals(now),now,recent:(account.receipts??[]).slice(0,10).map(r=>r.drop)}}

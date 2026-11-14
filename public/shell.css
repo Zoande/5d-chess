@@ -83,3 +83,26 @@
  .economy-nav a { padding:8px 7px;gap:5px;font-size:11px; }.economy-nav a .icon { width:15px;height:15px; }
  .masthead.app-topbar:has(.economy-nav) .top-history { grid-row:3; }
 }
+/* Shared in-place notification center. */
+.header-bell { border:1px solid #54736955;background:#263d3933;border-radius:10px;cursor:pointer; }.header-bell:hover,.header-bell[aria-expanded=true] { color:#c7e7af;background:#345549; }
+.notification-popover { position:fixed;z-index:100;top:86px;right:24px;width:min(520px,calc(100vw - 24px));max-height:calc(100dvh - 110px);overflow:auto;color:#edf3ec;border:1px solid #6d958166;border-radius:18px;background:linear-gradient(140deg,#263c40fa,#17232bfc);box-shadow:0 30px 100px #000a;backdrop-filter:blur(22px);animation:notice-arrive .22s ease-out; }
+.notification-popover > header { display:flex;align-items:center;gap:16px;padding:22px;border-bottom:1px solid #73958933;position:sticky;top:0;background:#203238;z-index:1; }.notification-popover h2 { font-size:22px;margin:6px 0 0; }.notification-popover .eyebrow { font-size:8px; }.notification-popover [data-read-notices] { margin-left:auto;font-size:11px; }.notice-close { background:#39504d;border:0;color:#e0eadb;border-radius:50%;width:30px;height:30px;font-size:22px; }
+.popover-notices { padding:10px;min-height:180px; }.popover-notice { display:flex;gap:15px;width:100%;padding:17px 13px;text-align:left;border:0;border-bottom:1px solid #587e7430;background:none;color:#edf2ea;border-radius:9px; }.popover-notice:hover { background:#41625555; }.popover-notice.unread { background:#597d4820; }.popover-notice-icon { color:#b9dca0;width:35px;height:35px;border-radius:11px;background:#426b5033;display:grid;place-items:center;flex-shrink:0; }.popover-notice > span:last-child { display:grid;gap:6px;min-width:0; }.popover-notice strong { font-size:13px;overflow-wrap:anywhere; }.popover-notice small { font-size:12px;color:#b3c3bc;line-height:1.6;overflow-wrap:anywhere; }.popover-notice time { font-size:10px;color:#86a396; }.notice-empty { padding:35px 25px;text-align:center;display:grid;justify-items:center;gap:15px; }.notice-empty .icon { width:38px;height:38px;color:#b9dca0; }.notice-empty p { max-width:290px;font-size:13px;color:#a4b8ad;line-height:1.7; }
+@keyframes notice-arrive { from { opacity:0;transform:translateY(-8px) scale(.98); } to { opacity:1;transform:none; } }
+@media(max-width:700px) { .notification-popover { top:125px;right:12px;max-height:calc(100dvh - 140px); }.notification-popover > header { padding:16px;gap:10px; } }
+@media(prefers-reduced-motion:reduce) { .notification-popover { animation:none; } }
+/* Procedural boards and rifts remain atmospheric behind opaque reading surfaces. */
+.multiverse-backdrop { position:fixed;inset:0;width:100%;height:100dvh;z-index:0;pointer-events:none;opacity:.5; }
+body[data-page=lobby] .dashboard-page,body[data-page=collection] .collection-page { position:relative;z-index:1; }
+body[data-page=lobby] .app-topbar,body[data-page=collection] .app-topbar { position:relative;z-index:20; }
+body[data-page=lobby] .dashboard .portal-card,body[data-page=collection] .collection-panel { background:linear-gradient(145deg,#24363af5,#18252df7); }
+body[data-page=collection] .equipment-slots button,body[data-page=collection] .owned-card { background-color:#1c2a30f5; }
+/* Wearable vector frames: each motif has its own structure and orbit rhythm. */
+.framed-avatar { display:inline-block;position:relative;width:80px;height:80px;vertical-align:middle;flex-shrink:0;overflow:visible; }
+.framed-avatar > .collectible-avatar,.framed-avatar > .icon { position:absolute;inset:13%;width:74%!important;height:74%!important; }.framed-avatar > .icon { color:#b5ca9f; }
+.framed-avatar > .avatar-frame { position:absolute;inset:0;width:100%!important;height:100%!important;overflow:visible;filter:drop-shadow(0 0 3px color-mix(in srgb,var(--frame-color) 38%,transparent)); }
+.profile-avatar .framed-avatar,.small-avatar .framed-avatar { width:120%;height:120%; }.profile-avatar:has(.framed-avatar),.small-avatar:has(.framed-avatar) { border-color:transparent;background:transparent; }
+.frame-orbit { transform-origin:32px 32px;animation:frame-orbit var(--frame-speed,18s) linear infinite; }.frame-glimmer { transform-origin:32px 32px;animation:frame-orbit 9s linear infinite reverse; }.frame-structure { animation:frame-breathe 4s ease-in-out infinite; }
+.frame-plasma .frame-structure,.frame-clock-ring .frame-structure,.frame-solar-corona .frame-structure { transform-origin:32px 32px;animation:frame-orbit 40s linear infinite; }.frame-tideline .frame-glimmer,.frame-lunar-tide .frame-glimmer { stroke-dasharray:12 8 3 28;animation-duration:14s; }.frame-arcade .frame-structure { animation:frame-breathe 1.8s steps(3) infinite; }.frame-ember-wings .frame-structure,.frame-seraph .frame-structure { animation:frame-breathe 3s ease-in-out infinite; }.frame-rift-halo .frame-glimmer { stroke-width:4;stroke-dasharray:15 65 10 25; }
+@keyframes frame-orbit { to { transform:rotate(360deg); } }@keyframes frame-breathe { 50% { opacity:.45; } }
+@media(prefers-reduced-motion:reduce) { .frame-orbit,.frame-glimmer,.frame-structure { animation:none!important; } }

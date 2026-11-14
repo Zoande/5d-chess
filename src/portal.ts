@@ -1,6 +1,8 @@
-import {initDailySpin} from './rewards.ts'
-import {avatarArt} from './cosmetic-art.ts'
-import {api,ApiError,getSession,initShell,refreshRating,renderAccount,fetchNotices,updateNoticeCount} from './shell.ts'
+import {itemById} from './collection.ts'
+import {itemArt} from './rewards.ts'
+import {initDailySpin,type Economy} from './rewards.ts'
+import {avatarArt,framedAvatar} from './cosmetic-art.ts'
+import {api,ApiError,getSession,initShell,refreshRating,renderAccount,fetchNotices,updateNoticeCount,openNotifications} from './shell.ts'
 import {type Notice,type Profile} from './account-model.ts'
 import {type Movement} from './model.ts'
 import {icon} from './icons.ts'
@@ -108,20 +110,21 @@ async function lobby(){
     el<HTMLButtonElement>('read-all').disabled=!unread;el<HTMLButtonElement>('read-all-page').disabled=!unread
     document.querySelector<HTMLElement>('.view-all')!.hidden=notices.length<=5
   }
+  document.addEventListener('notifications-changed',()=>void loadNotices())
   const loadNotices=async()=>{const data=await fetchNotices();notices=data.items;renderNotices()}
   const loadLeaderboard=async()=>{
     const request=++leaderboardRequest;el('rating-pool-label').textContent='All modes · All player counts'
-    const data=await api<{players:{name:string;avatar:string;rating:number;games:number;rank:number}[];me:{rating:number;games:number;rank:number|null}}>('/leaderboard')
+    const data=await api<{players:{name:string;avatar:string;frame?:string;rating:number;games:number;rank:number}[];me:{rating:number;games:number;rank:number|null}}>('/leaderboard')
     if(request!==leaderboardRequest)return
     const table=document.createElement('table');table.innerHTML='<thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">Elo</th></tr></thead><tbody></tbody>'
     for(const p of data.players){
       const row=document.createElement('tr');row.classList.toggle('self',p.name===profile.name)
-      row.innerHTML=`<td></td><td><span class="rank-player"><span class="small-avatar">${avatarArt(p.avatar)}</span><strong></strong></span></td><td></td>`
+      row.innerHTML=`<td></td><td><span class="rank-player"><span class="small-avatar">${framedAvatar(p.avatar,p.frame)}</span><strong></strong></span></td><td></td>`
       row.cells[0].textContent=String(p.rank);row.querySelector('strong')!.textContent=p.name;row.cells[2].textContent=String(p.rating);table.querySelector('tbody')!.append(row)
     }
     el('leaderboard').replaceChildren(table)
     if(!data.players.length){const empty=document.createElement('p');empty.className='card-empty';empty.textContent='The board is open. Finish a rated game to earn a place here.';el('leaderboard').append(empty)}
-    el('my-rating-summary').textContent=`Your rating: ${data.me.rating}${data.me.games<10?' · Provisional':''} · ${data.me.games} rated ${data.me.games===1?'game':'games'}${data.me.rank?` · #${data.me.rank}`:''}`
+    el('my-rating-summary').textContent=`Your rating: ${data.me.rating}${data.me.rank?` \u00b7 #${data.me.rank}`:''}`
   }
   const updateChoices=()=>{
     document.querySelectorAll<HTMLElement>('[data-place]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.place===place)))
@@ -130,7 +133,6 @@ async function lobby(){
     el('movement-hint').textContent=movement==='classic'?'Take turns in a fixed player order.':'Everyone plans, then the pieces travel.'
     el('find-label').textContent=place==='online'?'Find game':'Play locally'
     document.querySelector<HTMLElement>('.home-actions [data-view="make"]')!.hidden=place==='local'
-    el('play-hint').textContent=place==='online'?'Completed online games award Elo and coins. Choose a mode and find your next game.':'Share this device. Your local game saves automatically and is always unrated.'
     const resume=document.querySelector<HTMLButtonElement>('.home-actions [data-view="continue"]')!
     resume.disabled=place==='local'&&!localStorage.getItem(`four-player-multiverse-chess/v1/${movement}/${count}`)
     resume.title=resume.disabled?'No local game saved for these options.':''
@@ -150,6 +152,7 @@ async function lobby(){
   const showView=(view:string)=>{location.hash=view==='home'?'':view;renderView(view);window.scrollTo({top:0})}
   document.querySelectorAll<HTMLButtonElement>('[data-view]').forEach(b=>b.onclick=()=>{
     if(b.dataset.view==='continue'&&place==='local'){location.href=localURL();return}
+    if(b.dataset.view==='notifications'){openNotifications(b);return}
     showView(b.dataset.view!)
     if(['continue','join'].includes(b.dataset.view!))void loadGames().catch(cause=>error('lobby-error',cause.message))
   })
@@ -206,6 +209,11 @@ async function lobby(){
     if(failure?.status==='rejected')error('lobby-error',failure.reason instanceof Error?failure.reason.message:'Some updates could not be loaded.')
     else error('lobby-error','')
   }
+  const codeInput=el<HTMLInputElement>('quick-code')
+  codeInput.addEventListener('input',()=>{codeInput.value=codeInput.value.replace(/[^a-z]/gi,'').slice(0,4).toUpperCase();document.querySelectorAll('.slot-display b').forEach((b,i)=>{b.textContent=codeInput.value[i]||'_';b.classList.toggle('filled',!!codeInput.value[i])})})
+  const loadDeals=async()=>{const data=await api<Economy>('/economy');el('home-daily-deals').innerHTML=data.dailyDeals.map(d=>{const item=itemById(d.itemId)!;return `<a class="home-deal" href="/chess/collection.html#shop">${itemArt(item,48)}<span><strong>${item.name}</strong><small><s>${d.originalPrice}</s> ${d.price} coins</small></span></a>`}).join('')}
+  void loadDeals().catch(()=>{el('home-daily-deals').textContent='Deals unavailable. Visit the shop to retry.'})
+  window.setInterval(()=>{if(document.visibilityState==='visible')void loadDeals().catch(()=>{})},60000)
   void initDailySpin()
   await refresh()
   window.setInterval(()=>{if(document.visibilityState==='visible')void refresh()},15000)

@@ -34,17 +34,20 @@ test('earned collection flow: Dutch daily spin, crate landing, duplicates, equip
  await page.keyboard.press('Escape');await page.reload();await page.locator('.spin-now.used').waitFor()
  assert.match(await page.locator('.spin-now').textContent(),/Next free spin · \d\d:\d\d:\d\d/)
  await page.locator('.economy-nav').getByRole('link',{name:'Shop',exact:true}).click()
- await page.locator('#crate-catalog-title').click()
- await page.locator('#crate-catalog [data-inspect="skin-cathedral"]').click()
+ await page.locator('[data-crate-pool=skin-bronze]').click()
+ await page.locator('.crate-reward-catalog [data-inspect="skin-cathedral"]').click()
  assert.equal(await page.locator('.inspect-roster svg').count(),6)
  await page.getByRole('button',{name:'Inspect blue variant',exact:true}).click()
  assert.equal(await page.getByRole('button',{name:'Inspect blue variant',exact:true}).getAttribute('aria-pressed'),'true')
  await page.getByRole('button',{name:'Close preview'}).click()
- await page.locator('[data-crate-type=icon]').click()
- assert.match(await page.locator('#crate-odds').textContent(),/0.0001%/)
- for(const tier of [1,2,0]){await page.locator(`[data-tier="${tier}"]`).click();assert.match(await page.locator('#buy-crate').textContent(),new RegExp(CRATES.find(c=>c.type==='icon'&&c.tier===tier).price.toLocaleString()))}
+ await page.locator('.crate-catalog-dialog [data-close]').click()
+ await page.locator('[data-crate-filter=icon]').click()
+ await page.locator('[data-crate-pool=icon-bronze]').click()
+ assert.match(await page.locator('.crate-catalog-dialog .odds-grid').textContent(),/0.0001%/)
+ await page.locator('.crate-catalog-dialog [data-close]').click()
+ for(const tier of [1,2,0]){const crate=CRATES.find(c=>c.type==='icon'&&c.tier===tier);assert.match(await page.locator(`[data-crate-buy="${crate.id}"]`).textContent(),new RegExp(crate.price.toLocaleString()))}
  const beforeBox=(await (await context.request.get(base+'/api/economy')).json()).wallet
- await page.locator('#buy-crate').click();await page.getByRole('button',{name:'Buy & open'}).click()
+ await page.locator('[data-crate-buy=icon-bronze]').click();await page.getByRole('button',{name:'Buy & open'}).click()
  await page.locator('.reel-window.visible').waitFor()
  await page.locator('.reward-result').waitFor({state:'visible'})
  const afterBox=await (await context.request.get(base+'/api/economy')).json(),drop=afterBox.recent[0]
@@ -54,7 +57,7 @@ test('earned collection flow: Dutch daily spin, crate landing, duplicates, equip
  await page.getByRole('button',{name:'Keep copy',exact:true}).click();await page.locator('.reward-dialog').waitFor({state:'hidden'})
  const kept=await (await context.request.get(base+'/api/economy')).json();assert.equal(kept.wallet.inventory.find(o=>o.uid===drop.uid).pending,false)
  // Reload during a later reveal preserves the bought copy and exposes its pending choice.
- await page.locator('#buy-crate').click();await page.getByRole('button',{name:'Buy & open'}).click();await page.locator('.reward-dialog[open]').waitFor();await page.reload()
+ await page.locator('[data-crate-buy=icon-bronze]').click();await page.getByRole('button',{name:'Buy & open'}).click();await page.locator('.reward-dialog[open]').waitFor();await page.reload()
  const interrupted=await (await context.request.get(base+'/api/economy')).json(),pending=interrupted.recent[0]
  await page.locator('.collection-tabs').getByRole('link',{name:'Inventory',exact:true}).click();await page.locator('[data-slot=icon]').click()
  await page.locator(`[data-manage="${pending.itemId}"]`).first().click()
