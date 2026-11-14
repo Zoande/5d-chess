@@ -66,7 +66,7 @@ function eye(material:T.Material){
 export class People {
  readonly player=new T.Group();readonly dealer=new T.Group()
  readonly left:Arm;readonly right:Arm;readonly keeperLeft:Arm;readonly keeperRight:Arm
- private torso:T.Mesh;private head:T.Group;private smile=new T.Group();private soul=false
+ private torso:T.Mesh;private head:T.Group;private smile=new T.Group();private soul=false;private mood=0;private mouth?:T.Mesh;private teeth:T.Mesh[]=[];private eyes:T.Mesh[]=[];private brows:T.Mesh[]=[]
  constructor(scene:T.Scene,privateMaterials:Materials){
   const m=privateMaterials;scene.add(this.player,this.dealer)
   this.torso=box(this.player,[.5,.48,.28],[0,.92,1.46],m.sleeve,.08)
@@ -83,14 +83,23 @@ export class People {
   const robe=mesh(new T.LatheGeometry(robePoints,32),m.robe,this.dealer,[0,0,-1.3]);robe.scale.z=.72
   this.head=hood(m.robe);this.head.position.set(0,1.59,-1.105);this.dealer.add(this.head)
   const face=mesh(new T.CircleGeometry(.99,48),m.void,this.head,[0,-.008,.003],false);face.scale.set(.213,.285,1)
-  for(const side of [-1,1]){const e=eye(m.eyes);e.position.set(side*.082,.028,.025);e.rotation.z=side*.035;this.head.add(e)}
+  for(const side of [-1,1]){const e=eye(m.eyes);e.position.set(side*.082,.028,.025);e.rotation.z=side*.035;this.head.add(e);this.eyes.push(e);const brow=box(this.head,[.10,.009,.008],[side*.08,.060,.030],m.eyes,.002);this.brows.push(brow)}
   this.head.add(this.smile);this.smile.visible=false
-  const grin=new T.Shape();grin.moveTo(-.115,-.065);grin.quadraticCurveTo(0,-.14,.115,-.058);grin.quadraticCurveTo(.02,-.225,-.115,-.065)
-  mesh(new T.ShapeGeometry(grin,32),m.eyes,this.smile,[0,0,.030],false)
-  for(let i=-4;i<=4;i++){const x=i*.020;const tooth=new T.Shape();tooth.moveTo(x-.004,-.105+Math.abs(i)*.005);tooth.lineTo(x+.004,-.107+Math.abs(i)*.005);tooth.lineTo(x+.001,-.158+Math.abs(i)*.009);tooth.closePath();mesh(new T.ShapeGeometry(tooth),m.void,this.smile,[0,0,.032],false)}
+  this.mouth=mesh(new T.ShapeGeometry(new T.Shape()),m.eyes,this.smile,[0,0,.030],false)
+  for(let i=0;i<9;i++)this.teeth.push(box(this.smile,[.004,.014,.003],[0,0,.002],m.void,.001))
+  this.setMood(0)
   this.keeperLeft=new Arm(this.dealer,m,true,true);this.keeperRight=new Arm(this.dealer,m,false,true)
  }
- setSoul(active:boolean){this.soul=active;this.smile.visible=active}
+ setSoul(active:boolean){this.soul=active;this.smile.visible=active;for(const b of this.brows)b.visible=active;if(active)this.setMood(this.mood);else this.eyes.forEach((e,i)=>e.rotation.z=(i===0?-1:1)*.035)}
+ setMood(value:number){
+  this.mood=T.MathUtils.clamp(value,-1,1);const happiness=.35+this.mood*.85,shape=new T.Shape(),y=(x:number)=>-.088-happiness*.072*(1-(x/.115)**2),width=.012+Math.max(0,happiness)*.025
+  shape.moveTo(-.115,y(-.115));for(let i=1;i<=24;i++){const x=-.115+i*.23/24;shape.lineTo(x,y(x))}for(let i=24;i>=0;i--){const x=-.115+i*.23/24;shape.lineTo(x,y(x)-width)}shape.closePath()
+  if(this.mouth){this.mouth.geometry.dispose();this.mouth.geometry=new T.ShapeGeometry(shape)}
+  this.teeth.forEach((tooth,i)=>{const x=(i-4)*.023;tooth.position.set(x,y(x)-width/2,.002);tooth.scale.y=width/.014*.75;tooth.visible=happiness>0})
+  this.brows.forEach((b,i)=>b.rotation.z=(i===0?-1:1)*Math.max(0,-this.mood)*.48)
+  this.eyes.forEach((e,i)=>e.rotation.z=(i===0?-1:1)*(.035+Math.max(0,-this.mood)*.24))
+ }
+ lunge(amount:number){this.dealer.position.z=amount*1.72;this.dealer.position.y=amount*.09;this.head.scale.setScalar(1+amount*.22)}
  pose(playerLean:number,dealerLean:number,left:T.Vector3,right:T.Vector3,keeperLeft:T.Vector3,keeperRight:T.Vector3,curlLeft=.2,curlRight=.2,keeperCurl=.2){
   this.torso.rotation.x=-playerLean*.35;this.torso.position.z=1.46-playerLean*.3
   this.head.rotation.z=this.soul?Math.sin(performance.now()*.0007)*.018:0

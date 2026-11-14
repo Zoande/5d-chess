@@ -33,13 +33,13 @@ test('consent and daily refusal are server gates; wins keep Elo and pay the full
  const decline=f.call('/decision',{day:v.day,offerId:v.offerId,accept:false});assert.equal(decline.allowed,false);assert.equal(f.call('/trigger',{reason:'marathon'}).accepted,false)
 })
 
-test('losses, ten-round limit and lifetime counters commit once; midnight resets eligibility without erasing history',async t=>{
+test('losses, five-round limit and lifetime counters commit once; midnight resets eligibility without erasing history',async t=>{
  const f=await fixture(t);let v=enter(f),last
- for(let i=1;i<=10;i++){const b=bet(v,i);last=f.call('/bet',b,start,6);assert.equal(last.round.eloLost,50);assert.equal(last.round.coinReward,v.quotes[50]);assert.equal(last.round.credited,0);v=last.eloGambling}
- assert.equal(v.elo,1300);assert.equal(v.used,10);assert.equal(v.allowed,false);assert.equal(v.stage,'normal');assert.equal(v.lifetimeLost,500);assert.equal(v.totalLost,500)
- assert.throws(()=>f.call('/bet',bet(v,11)),/closed/)
- f.reopen();assert.equal(f.call().lifetimeLost,500)
- const next=nextReset(start)+1,newDay=f.call('',undefined,next);assert.equal(newDay.allowed,true);assert.equal(newDay.used,0);assert.equal(newDay.stage,'normal');assert.equal(newDay.lifetimeLost,500);assert.equal(newDay.day,dayKey(next));assert.notEqual(newDay.day,v.day)
+ for(let i=1;i<=5;i++){const b=bet(v,i);last=f.call('/bet',b,start,6);assert.equal(last.round.eloLost,50);assert.equal(last.round.coinReward,v.quotes[50]);assert.equal(last.round.credited,0);v=last.eloGambling}
+ assert.equal(v.elo,1550);assert.equal(v.used,5);assert.equal(v.allowed,false);assert.equal(v.stage,'normal');assert.equal(v.lifetimeLost,250);assert.equal(v.totalLost,250)
+ assert.throws(()=>f.call('/bet',bet(v,6)),/closed/)
+ f.reopen();assert.equal(f.call().lifetimeLost,250)
+ const next=nextReset(start)+1,newDay=f.call('',undefined,next);assert.equal(newDay.allowed,true);assert.equal(newDay.used,0);assert.equal(newDay.stage,'normal');assert.equal(newDay.lifetimeLost,250);assert.equal(newDay.day,dayKey(next));assert.notEqual(newDay.day,v.day)
  assert.throws(()=>f.call('/decision',{day:v.day,offerId:v.offerId,accept:false},next),/new day/)
  assert.equal(nextReset(Date.parse('2026-03-28T23:00:00Z'))-Date.parse('2026-03-28T23:00:00Z'),23*3600000)
  assert.equal(nextReset(Date.parse('2026-10-24T22:00:00Z'))-Date.parse('2026-10-24T22:00:00Z'),25*3600000)
@@ -59,4 +59,10 @@ test('client encounter checks the actual minimum, 100 uninterrupted throws and e
  assert.equal(encounterTrigger(loss,1,99,.9),undefined);assert.equal(encounterTrigger(loss,1,100,.9),'marathon')
  assert.equal(encounterTrigger(win,500,1,.000009999),'chance');assert.equal(encounterTrigger(win,500,1,.00001),undefined)
  assert.equal(encounterTrigger({...loss,currency:'elo'},0,100,0),undefined)
+})
+
+
+test('existing accounts above the reduced five-wager limit close on access',async t=>{
+ const f=await fixture(t);enter(f);f.store.transaction(u=>{const s=u.users.get('Alice').eloGambling;s.used=8;s.allowed=true;s.stage='active'})
+ const v=f.call();assert.equal(v.used,8);assert.equal(v.allowed,false);assert.equal(v.stage,'normal');assert.throws(()=>f.call('/bet',bet(v,9)),/closed|sequence/)
 })

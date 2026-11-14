@@ -34,7 +34,8 @@ export function eloReward(elo:number,stake:number,snapshot:EloValuation):number 
 function dailyState(account:Account,now:number){
  const day=dayKey(now),old=account.eloGambling
  if(!old||old.day!==day)account.eloGambling={day,allowed:true,stage:'normal',used:0,lifetimeLost:old?.lifetimeLost??0}
- return account.eloGambling!
+ const state=account.eloGambling!;if(state.used>=MAX_ELO_ROUNDS){state.allowed=false;state.stage='normal'}
+ return state
 }
 export function eloView(unit:UnitOfWork,account:Account,valuation:EloValuation,now=Date.now()):EloGamblingView {
  const s=dailyState(account,now),elo=ensureAccount(account).rating.value,max=Math.max(0,Math.min(MAX_ELO_STAKE,Math.floor(elo)))
