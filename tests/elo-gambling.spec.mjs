@@ -12,7 +12,7 @@ import {ensureAccount} from '../server/accounts.ts'
 import {casinoBet} from '../server/casino.ts'
 import {casinoCoins} from '../src/casino-model.ts'
 import {dayKey} from '../src/collection.ts'
-async function fixture(t,{webgl=false,broke=false,used=0}={}){
+async function fixture(t,{webgl=false,broke=false,used=0,reducedMotion='reduce'}={}){
  const dir=await mkdtemp(join(tmpdir(),'chess-elo-ui-')),store=new ChessStore(dir),token='elo-ui-session-fixture';let round
  store.transaction(u=>{
   const account=ensureAccount({name:'EloQA',salt:'fixture',hash:'fixture',rating:{value:1800,games:20},wallet:{coins:broke?1:5000,starterGranted:true,inventory:[],loadout:{icon:'default',pieces:{}}}})
@@ -25,7 +25,7 @@ async function fixture(t,{webgl=false,broke=false,used=0}={}){
  const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage',...(webgl?['--use-angle=swiftshader','--enable-webgl']:['--disable-webgl'])]})
  t.after(async()=>{await browser.close();if(child.exitCode===null){const done=new Promise(r=>child.once('exit',r));child.kill();await done}await rm(dir,{recursive:true,force:true})})
  for(let i=0;i<100;i++){try{if((await fetch(base+'/api/health')).ok)break}catch{}await new Promise(r=>setTimeout(r,40))}
- const context=await browser.newContext({viewport:{width:1440,height:1000},reducedMotion:'reduce'});await context.addCookies([{name:'multiverse_session',value:token,domain:'127.0.0.1',path:'/'}]);const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message))
+ const context=await browser.newContext({viewport:{width:1440,height:1000},reducedMotion});await context.addCookies([{name:'multiverse_session',value:token,domain:'127.0.0.1',path:'/'}]);const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message))
  if(round)await page.addInitScript(r=>sessionStorage.setItem('5d-casino-presentation:EloQA:dice',JSON.stringify(r)),round)
  await page.goto(base+'/chess/dice.html');await page.locator(webgl?'.scene-ready':'.webgl-unavailable').waitFor({timeout:45000})
  const view=async()=>(await page.request.get(base+'/api/casino/elo')).json(),casino=async()=>(await page.request.get(base+'/api/casino')).json()
@@ -69,4 +69,11 @@ test('the 3D offer has only Yes/No keys and morphs to a mobile-safe Elo table',a
  for(const id of ['elo-plus-1','elo-plus-10','elo-plus-50','offer']){const r=await page.locator(`[data-control="${id}"]`).boundingBox();assert.ok(r&&r.x>=0&&r.x+r.width<=391&&r.height>=44,id+' fits portrait and remains tappable')}
  if(process.env.CASINO_SCREENSHOT_DIR)await page.screenshot({path:process.env.CASINO_SCREENSHOT_DIR+'/elo-mobile.png'})
  assert.deepEqual(errors,[])
+})
+
+test('the fifth 3D Elo throw finishes its receipt, plays the exit and returns to coins',async t=>{
+ const {page,view,casino,errors}=await fixture(t,{used:4,webgl:true,reducedMotion:'no-preference'})
+ await page.locator('.scene-ready[data-table-mode=offer]').waitFor();await page.locator('[data-control=yes]:visible').click();await page.locator('.silent-room[data-table-mode=elo]').waitFor();await page.locator('[data-control=elo-plus-1]:visible').click();await page.locator('[data-control=offer]:visible').click()
+ await page.locator('[data-phase=ready]').waitFor({timeout:30000});const settled=await casino();assert.equal((await view()).used,5)
+ await page.locator('#dice-canvas').focus();await page.keyboard.press(' ');await page.locator('.silent-room[data-phase=banish]').waitFor({timeout:30000});await page.locator('#dice-canvas[data-cutscene=banish]').waitFor({timeout:30000});await page.locator('[data-phase=result][data-table-mode=normal]').waitFor({timeout:30000});assert.deepEqual(await casino(),settled);assert.equal((await view()).allowed,false);assert.deepEqual(errors,[])
 })
