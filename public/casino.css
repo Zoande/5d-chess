@@ -119,3 +119,7 @@ body[data-casino="roulette"]{overflow:auto}
 body[data-casino="roulette"] .casino-page{height:auto;min-height:calc(100dvh - 78px);overflow:visible;width:100%;margin:0;box-sizing:border-box}
 body[data-casino="roulette"] .casino-layout{height:auto}
 body[data-casino="roulette"] .casino-history{display:block}
+/* Only the three room tools stay on screen; table information belongs to the furniture. */
+.dice-accessible-status{position:absolute!important;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;pointer-events:none}
+body[data-casino=dice] .table-modal .casino-rules{display:block}
+body[data-casino=dice] .table-modal form{display:block}

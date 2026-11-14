@@ -1,5 +1,6 @@
 import * as T from 'three'
 import {mesh,box,cylinder,coinGeometry,v} from './geometry.ts'
+import {casinoCoins} from '../../casino-model.ts'
 import {label,type Materials} from './materials.ts'
 
 export type TableAction={kind:'face'|'stake'|'minus'|'plus'|'offer'|'amount';value?:number}
@@ -16,6 +17,7 @@ export class Table {
  private piles:T.InstancedMesh
  private amount:ReturnType<typeof label>
  private offer:ReturnType<typeof label>
+ private payout:ReturnType<typeof label>;private payoutPlate=new T.Group();private lastStake=-1
  private coins=0;private portrait=false
  constructor(scene:T.Scene,privateMaterials:Materials){
   const m=privateMaterials;scene.add(this.root)
@@ -48,6 +50,11 @@ export class Table {
   const amount=this.key('amount',{kind:'amount'},[.42,.13],m);this.amount=writing(amount.object,'100',.34,.09,[0,.033,0])
   const offer=this.key('offer',{kind:'offer'},[.33,.21],m);this.offer=writing(offer.object,'OFFER',.27,.09,[0,.033,0])
   writing(offer.object,'COINS',.18,.04,[0,.033,.055],'#9d946d')
+  this.root.add(this.payoutPlate)
+  box(this.payoutPlate,[.38,.025,.17],[0,0,0],m.darkGold,.012)
+  box(this.payoutPlate,[.365,.026,.155],[0,.009,0],m.ebony,.01)
+  writing(this.payoutPlate,'WIN RETURN',.29,.045,[0,.025,-.045])
+  this.payout=writing(this.payoutPlate,'583.12',.31,.075,[0,.026,.022])
   this.layout(false)
   // Seated player chair and the barely discernible chair opposite.
   for(const z of [1.49,-1.46]){
@@ -63,7 +70,7 @@ export class Table {
   const c={id,action,object,surface,edge,size,disabled:false};object.userData.control=c;this.controls.push(c);return c
  }
  layout(portrait:boolean){
-  this.portrait=portrait
+  this.portrait=portrait;this.payoutPlate.position.set(portrait?.55:.80,.917,.79);this.payoutPlate.scale.setScalar(portrait?.73:1)
   for(const c of this.controls){
    const n=c.action.value??0
    if(c.action.kind==='face')c.object.position.set(portrait?((n-1)%3-1)*.30:(n-3.5)*.205,.91,portrait?.37+Math.floor((n-1)/3)*.25:.57)
@@ -74,6 +81,7 @@ export class Table {
  }
  setState(coins:number,stake:number,face:number,phase:string,disabled:boolean){
   if(coins!==this.coins){this.coins=coins;this.makePiles(coins)}
+  if(stake!==this.lastStake){this.payout.update(casinoCoins(stake*(5.88-4.88*.01)));this.lastStake=stake}
   this.amount.update(stake.toLocaleString());this.offer.update(phase==='ready'?'THROW':phase==='rolling'?'…':'OFFER')
   for(const c of this.controls){
    c.disabled=disabled&&!(c.id==='offer'&&phase==='ready')

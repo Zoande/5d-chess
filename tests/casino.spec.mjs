@@ -40,6 +40,7 @@ test('dice fallback restores the same settled throw after reload; lost replies r
 test('physical dice controls, bounded camera and saved throw work with WebGL on desktop and mobile',async t=>{
  const {page,base,view,errors}=await fixture(t,['--use-angle=swiftshader','--enable-webgl'])
  await page.goto(base+'/chess/dice.html');await page.locator('.scene-ready').waitFor({timeout:45000})
+ await page.getByRole('button',{name:'Rules',exact:true}).click();assert.equal(await page.locator('#table-rules .casino-rules p').first().isVisible(),true);assert.match(await page.locator('#table-rules').textContent(),/1% of positive profit/);await page.getByRole('button',{name:'Close table information'}).click()
  await page.locator('#dice-canvas').focus();await page.keyboard.press('ArrowDown');await page.waitForFunction(()=>Number(document.querySelector('canvas').dataset.pitch)>.02,{timeout:30000})
  await page.getByRole('button',{name:'Center view',exact:true}).click()
  await page.setViewportSize({width:390,height:844});await page.waitForTimeout(500)
@@ -47,7 +48,7 @@ test('physical dice controls, bounded camera and saved throw work with WebGL on 
  await page.getByRole('button',{name:'Stake 25 coins',exact:true}).click();await page.getByRole('button',{name:'Choose face 3',exact:true}).click();await page.getByRole('button',{name:'Offer coins',exact:true}).click()
  await page.locator('[data-phase="ready"]').waitFor({timeout:30000});const settled=await view()
  await page.mouse.move(0,0);await page.waitForTimeout(200);assert.equal(await page.locator('.silent-room').getAttribute('data-phase'),'ready')
- await page.getByRole('button',{name:'Throw die',exact:true}).click();await page.locator('[data-phase="result"]').waitFor({timeout:30000});assert.deepEqual(await view(),settled);assert.deepEqual(errors,[])
+ assert.equal(await page.locator('#dice-canvas').getAttribute('data-camera-locked'),'true');await page.locator('#dice-canvas').focus();await page.keyboard.press('ArrowDown');assert.equal(await page.locator('#dice-canvas').getAttribute('data-pitch'),'0.000');await page.mouse.move(190,260);await page.mouse.down();await page.mouse.move(240,310);await page.mouse.up();await page.locator('[data-phase="result"]').waitFor({timeout:30000});assert.equal(await page.locator('#dice-canvas').getAttribute('data-camera-locked'),'false');assert.deepEqual(await view(),settled);assert.deepEqual(errors,[])
 })
 
 test('roulette selections, stake, spin and receipt use the persisted casino API',async t=>{
@@ -73,7 +74,7 @@ test('roulette selections, stake, spin and receipt use the persisted casino API'
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'phone has no horizontal overflow')
  for(const b of await page.locator('.number-grid button').all()){const r=await b.boundingBox();assert.ok(r.width>=38&&r.height>=43,'phone number keys remain tappable')}
  if(process.env.CASINO_SCREENSHOT_DIR){await page.screenshot({path:process.env.CASINO_SCREENSHOT_DIR+'/roulette-mobile.png',fullPage:true});await page.locator('.roulette-betting').screenshot({path:process.env.CASINO_SCREENSHOT_DIR+'/roulette-mobile-board.png'})}
- await page.reload();await page.locator('.history-round').waitFor();assert.deepEqual(await view(),state)
+ await page.reload();await page.getByRole('button',{name:'View history',exact:true}).click();await page.locator('.history-round').waitFor();assert.deepEqual(await view(),state);await page.getByRole('button',{name:'Close roulette history'}).click()
  await page.getByRole('button',{name:'Repeat last',exact:true}).click();await page.locator('#place-bet').click();await page.locator('.spinning').waitFor();await page.waitForFunction(()=>document.querySelector('.roulette-display').getBoundingClientRect().y<60)
  await page.locator('#round-result:not([hidden])').waitFor();assert.equal((await view()).nextSequence,3);assert.match(await page.locator('#spin-caption').textContent(),/coins/);assert.equal(await page.locator('#roulette-next').isVisible(),true);assert.deepEqual(errors,[])
 })
