@@ -70,7 +70,7 @@ export class Table {
   const c={id,action,object,surface,edge,size,disabled:false};object.userData.control=c;this.controls.push(c);return c
  }
  layout(portrait:boolean){
-  this.portrait=portrait;this.payoutPlate.position.set(portrait?.55:.80,.917,.79);this.payoutPlate.scale.setScalar(portrait?.73:1)
+  this.portrait=portrait;this.payoutPlate.position.set(portrait?.50:.59,.917,.79);this.payoutPlate.scale.setScalar(portrait?.73:1)
   for(const c of this.controls){
    const n=c.action.value??0
    if(c.action.kind==='face')c.object.position.set(portrait?((n-1)%3-1)*.30:(n-3.5)*.205,.91,portrait?.37+Math.floor((n-1)/3)*.25:.57)

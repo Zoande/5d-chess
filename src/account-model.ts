@@ -5,5 +5,7 @@ export type RatingPool = typeof POOLS[number]
 export interface Preferences {avatar: string; movement: Movement; players: 2|3|4; moveNotifications: boolean}
 export interface Rating {value: number; games: number}
 export interface Profile {name: string; settings: Preferences; rating: Rating; coins: number; loadout: Loadout}
-export interface Notice {id: string; kind: 'join'|'move'|'turn'|'result'|'rating'; title: string; detail: string; code: string; created: number; read: boolean}
+export interface Notice {id: string; kind: 'join'|'move'|'turn'|'result'|'rating'|'casino'; title: string; detail: string; code: string; game?:'dice'|'roulette'; created: number; read: boolean}
 export const poolFor = (movement: Movement = 'live', count = 2): RatingPool => `${movement}-${count === 2 ? 'duel' : 'multi'}`
+
+export const noticeUrl=(notice:Notice)=>notice.kind==='casino'?`/chess/${notice.game==='dice'?'dice':'roulette'}.html`:`/chess/online.html?code=${encodeURIComponent(notice.code)}`

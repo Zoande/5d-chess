@@ -21,7 +21,7 @@ export function economyApi(unit: UnitOfWork, account: Account, path: string, met
     case '/api/economy/equip-look': equipLook(account,data.target,data.primary,data.secondary); break
     case '/api/economy/equip-set': for (const kind of KINDS) equip(account,kind,data.uid); break
     case '/api/economy/equip': equip(account,data.slot,data.uid); break
-    case '/api/economy/list': listItem(account,unit.listings(),data.uid,data.price); break
+    case '/api/economy/list': listItem(account,unit.listings(),data.uid,data.price,Date.now(),data.description===undefined?'':data.description); break
     case '/api/economy/cancel': cancelListing(account,unit.listings(),data.id); break
     case '/api/economy/market-buy': {
       const listings = unit.listings(), listing = listings.find(item=>item.id===data.id)

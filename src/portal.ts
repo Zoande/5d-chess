@@ -3,7 +3,7 @@ import {itemArt} from './rewards.ts'
 import {initDailySpin,type Economy} from './rewards.ts'
 import {avatarArt,framedAvatar} from './cosmetic-art.ts'
 import {api,ApiError,getSession,initShell,refreshRating,renderAccount,fetchNotices,updateNoticeCount,openNotifications} from './shell.ts'
-import {type Notice,type Profile} from './account-model.ts'
+import {noticeUrl,type Notice,type Profile} from './account-model.ts'
 import {type Movement} from './model.ts'
 import {icon} from './icons.ts'
 type Game = {code:string;title:string;players:number;maxPlayers:number;protected:boolean;round:number;finished:boolean;movement?:Movement|'legacy';rated?:boolean;myTurn?:boolean}
@@ -71,7 +71,7 @@ function gameRow(game:Game,action:string,click:()=>void){
 const relative=(time:number)=>{const seconds=Math.max(0,Math.floor((Date.now()-time)/1000));return seconds<60?'Just now':seconds<3600?`${Math.floor(seconds/60)}m ago`:seconds<86400?`${Math.floor(seconds/3600)}h ago`:`${Math.floor(seconds/86400)}d ago`}
 function noticeRow(notice:Notice,open:()=>void){
   const row=document.createElement('button');row.type='button';row.className=`notice-row${notice.read?'':' unread'}`
-  row.innerHTML=`<span class="notice-symbol">${icon(notice.kind==='rating'?'chart':notice.kind==='result'?'trophy':notice.kind==='join'?'person':notice.kind==='turn'?'play':'knight')}</span><span class="notice-copy"><strong></strong><small></small></span><time></time>`
+  row.innerHTML=`<span class="notice-symbol">${icon(notice.kind==='casino'?'coin':notice.kind==='rating'?'chart':notice.kind==='result'?'trophy':notice.kind==='join'?'person':notice.kind==='turn'?'play':'knight')}</span><span class="notice-copy"><strong></strong><small></small></span><time></time>`
   row.querySelector('strong')!.textContent=notice.title;row.querySelector('small')!.textContent=notice.detail
   const time=row.querySelector('time')!;time.textContent=relative(notice.created);time.dateTime=new Date(notice.created).toISOString()
   row.onclick=open;return row
@@ -100,7 +100,7 @@ async function lobby(){
     notices=result.items;updateNoticeCount(result.unread);renderNotices()
   }
   const renderNotices=()=>{
-    const rows=(items:Notice[])=>items.map(n=>noticeRow(n,()=>{void markRead([n.id]).then(()=>online(n.code)).catch(cause=>error('lobby-error',String(cause.message??cause)))}))
+    const rows=(items:Notice[])=>items.map(n=>noticeRow(n,()=>{void markRead([n.id]).then(()=>{location.href=noticeUrl(n)}).catch(cause=>error('lobby-error',String(cause.message??cause)))}))
     el('notification-feed').replaceChildren(...rows(notices.slice(0,5)))
     el('all-notifications').replaceChildren(...rows(notices))
     if(!notices.length){
@@ -122,9 +122,9 @@ async function lobby(){
       row.innerHTML=`<td></td><td><span class="rank-player"><span class="small-avatar">${framedAvatar(p.avatar,p.frame)}</span><strong></strong></span></td><td></td>`
       row.cells[0].textContent=String(p.rank);row.querySelector('strong')!.textContent=p.name;row.cells[2].textContent=String(p.rating);table.querySelector('tbody')!.append(row)
     }
-    el('leaderboard').replaceChildren(table)
+    const full=document.createElement('a');full.href='/chess/leaderboard.html';full.className='full-leaderboard-link';full.textContent='Open full leaderboard';el('leaderboard').replaceChildren(table,full)
     if(!data.players.length){const empty=document.createElement('p');empty.className='card-empty';empty.textContent='The board is open. Finish a rated game to earn a place here.';el('leaderboard').append(empty)}
-    el('my-rating-summary').textContent=`Your rating: ${data.me.rating}${data.me.rank?` \u00b7 #${data.me.rank}`:''}`
+    el('my-rating-summary').textContent=`Your Elo: ${data.me.rating}${data.me.rank?` \u00b7 #${data.me.rank}`:''}`;const fullSummary=document.createElement('a');fullSummary.href='/chess/leaderboard.html';fullSummary.textContent='Open full leaderboard';el('my-rating-summary').append(' · ',fullSummary)
   }
   const updateChoices=()=>{
     document.querySelectorAll<HTMLElement>('[data-place]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.place===place)))

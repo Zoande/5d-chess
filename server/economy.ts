@@ -1,5 +1,5 @@
 import {randomBytes,randomInt} from 'node:crypto'
-import {type Wallet,type Drop,type Listing,type Collectible,type ItemType,STARTER_COINS,PAID_SPIN_PRICE,ITEMS,GENERAL_ITEMS,CRATES,crateTickets,monthKey,nextMonth,CRATE_ODDS,RARITIES,SPIN_REWARDS,dailyDeals,dayKey,nextReset,nextWeek,weeklyItems,itemById,duplicateRefund} from '../src/collection.ts'
+import {type Wallet,type Drop,type Listing,type Collectible,type ItemType,STARTER_COINS,MARKET_DESCRIPTION_LIMIT,PAID_SPIN_PRICE,ITEMS,GENERAL_ITEMS,CRATES,crateTickets,monthKey,nextMonth,CRATE_ODDS,RARITIES,SPIN_REWARDS,dailyDeals,dayKey,nextReset,nextWeek,weeklyItems,itemById,duplicateRefund} from '../src/collection.ts'
 import {KINDS,type Kind} from '../src/model.ts'
 export interface EconomicAccount {name:string;wallet?:Wallet;receipts?:{key:string;drop:Drop}[]}
 export const uid=()=>randomBytes(12).toString('hex')
@@ -70,12 +70,14 @@ export function equipLook(account:EconomicAccount,target:unknown,primary:unknown
  wallet(account).loadout=wallet(candidate).loadout
 }
 function unequipIfMissing(w:Wallet,itemId:string){if(w.inventory.some(i=>i.itemId===itemId&&!i.listed&&!i.pending))return;if(w.loadout.icon===itemId)w.loadout.icon='default';for(const slot of ['frame','shape'] as const)if(w.loadout[slot]===itemId)delete w.loadout[slot];for(const k of KINDS){if(w.loadout.pieces[k]===itemId)delete w.loadout.pieces[k];if(w.loadout.shapes?.[k]===itemId)delete w.loadout.shapes[k]}}
-export function listItem(account:EconomicAccount,listings:Listing[],id:unknown,price:unknown,now=Date.now()){
+export function listItem(account:EconomicAccount,listings:Listing[],id:unknown,price:unknown,now=Date.now(),description:unknown=''){
  if(typeof price!=='number'||!Number.isSafeInteger(price)||price<1||price>100000000)reject(400,'Price must be a whole number from 1 to 100,000,000')
+ if(typeof description!=='string'||description.length>MARKET_DESCRIPTION_LIMIT||/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(description))reject(400,`Description must be plain text of at most ${MARKET_DESCRIPTION_LIMIT} characters`)
+ const note=(description as string).replace(/\r\n?/g,'\n').trim()
  if(listings.filter(l=>l.seller===account.name).length>=100)reject(409,'You can have up to 100 active listings')
  const w=wallet(account),owned=w.inventory.find(i=>i.uid===id)??reject(404,'Item not found')
  if(owned.listed||owned.pending)reject(409,'This item is already listed or awaiting your duplicate choice')
- const listing:Listing={id:uid(),seller:account.name,uid:owned.uid,itemId:owned.itemId,price:price as number,created:now}
+ const listing:Listing={id:uid(),seller:account.name,uid:owned.uid,itemId:owned.itemId,price:price as number,created:now,...(note?{description:note}:{})}
  owned.listed=listing.id;unequipIfMissing(w,owned.itemId);listings.push(listing);return listing
 }
 export function cancelListing(account:EconomicAccount,listings:Listing[],id:unknown){const listing=listings.find(l=>l.id===id&&l.seller===account.name)??reject(404,'Listing not found');const owned=wallet(account).inventory.find(i=>i.uid===listing.uid);if(owned)delete owned.listed;listings.splice(listings.indexOf(listing),1)}

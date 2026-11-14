@@ -43,7 +43,8 @@ export interface Loadout {icon:string;frame?:string;shape?:string;shapes?:Partia
 export const STARTER_COINS=480
 export const PAID_SPIN_PRICE=200
 export interface Wallet {starterGranted?:boolean;coins:number;inventory:OwnedItem[];loadout:Loadout;lastSpin?:string;shopSeen?:boolean}
-export interface Listing {id:string;seller:string;uid:string;itemId:string;price:number;created:number}
+export const MARKET_DESCRIPTION_LIMIT=240
+export interface Listing {description?:string;id:string;seller:string;uid:string;itemId:string;price:number;created:number}
 export interface Drop {id:string;source:'spin'|'crate';paid?:boolean;coins?:number;uid?:string;itemId?:string;duplicate?:boolean;refund?:number;segment?:number;created:number}
 export interface Crate {id:string;type:ItemType|'mixed';tier:0|1|2;name:string;price:number;monthly?:'solar'|'lunar'|'exclusive';styles?:[string,string]}
 export const CRATES:Crate[]=[

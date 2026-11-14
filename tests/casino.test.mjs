@@ -17,14 +17,15 @@ test('casino odds, roulette boundaries and net payouts match the disclosed sched
  assert.equal(rouletteResult(0),0);assert.equal(rouletteResult(35999),0)
  for(let n=1;n<=36;n++){assert.equal(rouletteResult(36000+(n-1)*49000),n);assert.equal(rouletteResult(36000+n*49000-1),n)}
  const alice=account('Alice'),owner=account(CASINO_OWNER,0),accounts=[alice,owner]
+ owner.settings.moveNotifications=false
  const r=casinoBet(alice,accounts,bet(),1000,1)
- assert.equal(r.round.gross,588);assert.equal(r.round.tax,4.88);assert.equal(alice.wallet.coins,3963.12);assert.equal(owner.wallet.coins,4.88)
+ assert.equal(r.round.gross,588);assert.equal(r.round.tax,4.88);assert.equal(alice.wallet.coins,3963.12);assert.equal(owner.wallet.coins,4.88);assert.equal(owner.notifications.length,1);assert.equal(owner.notifications[0].kind,'casino');assert.equal(owner.notifications[0].game,'dice');assert.match(owner.notifications[0].title,/Alice won 488 coins/);assert.match(owner.notifications[0].detail,/received 4.88 coins/)
  assert.deepEqual(casinoBet(alice,accounts,bet(),2000,6).round,r.round)
  assert.equal(alice.wallet.coins,3963.12)
  assert.throws(()=>casinoBet(alice,accounts,bet({stake:101}),2000,1),/different bet/)
  assert.throws(()=>casinoBet(alice,accounts,bet({requestId:'new-fixture-0002'}),2000,1),/sequence changed/)
  const losing=casinoBet(alice,accounts,bet({sequence:2,requestId:'casino-fixture-0002'}),3000,6)
- assert.equal(losing.round.tax,0);assert.equal(losing.round.gross,0);assert.equal(alice.wallet.coins,3863.12);assert.equal(owner.wallet.coins,4.88)
+ assert.equal(losing.round.tax,0);assert.equal(losing.round.gross,0);assert.equal(alice.wallet.coins,3863.12);assert.equal(owner.wallet.coins,4.88);assert.equal(owner.notifications.length,1)
 })
 
 test('invalid and unsupported wagers cannot debit coins or create a receipt',()=>{
