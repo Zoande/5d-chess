@@ -18,7 +18,7 @@ All resets use `Europe/Amsterdam`, including daylight saving. Selection is deter
 
 | Department | Stock | Reset |
 | --- | --- | --- |
-| Permanent cases | Scout, Artisan, Workshop | Always available |
+| Permanent cases | Scout, Artisan, Workshop, Motion Studio, Capture Theatre | Always available |
 | Weekly cases | Six unique slots: icon, skin, outline, mixed, frame, full Sets | Monday midnight |
 | Weekly direct items | Four rare-or-better items, one per category | Monday midnight |
 | Daily offers | Four direct deals, 25% off; one case, 15% off | Local midnight |
@@ -67,3 +67,9 @@ Wallets, per-piece rights, Set escrow, cases, equipment, claims and receipts per
 Deploy the client and Node server together. Make a private SQLite backup first and restart only the chess PM2 process. See [Server architecture and operations](server-storage.md).
 
 Tests cover exact weights, rotation clocks, legacy ownership, per-piece equipment, Set escrow/transfer/retries/rollback/restart, capacity failures, saved cases, yearly wheel value, browser purchases/sales/reveals and small-screen layouts.
+
+## Board animations
+
+Twenty tradable account cosmetics add ten movement trails and ten capture effects. Inventory → Animations equips one of each for all six piece kinds. The inspect window plays a real canvas preview. Motion Studio (350 coins) and Capture Theatre (650 coins) are always available; the weighted Encore Effects Case (1,400 coins) can appear in mixed/daily slots. Multiverse, Prismatic and Relic cases also include these cosmetics. Case previews expose their exact odds.
+
+Both Classic resolution and Live continuous travel use the owner's equipped effects. Live collisions use the opposing capturer's effect at the actual contact position. Dust, flight, shattering, ice, blossoms, light, gravity, lightning and temporal effects are visual only. Particle counts are bounded, animation state expires with resolution, and reduced-motion mode uses a short static/fading mark instead of movement or bursts. Classic cosmetics and historical ownership remain compatible.

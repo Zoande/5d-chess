@@ -21,7 +21,7 @@ test('expanded shop: monthly purchase, continuous animations, one-time welcome, 
  const page=await browser.newPage({viewport:{width:1366,height:768}}),errors=[];page.on('pageerror',e=>errors.push(e.message))
  await page.request.post(base+'/api/login',{data:{username:'Collector',password:'test'}})
  await page.goto(base+'/chess/collection.html#shop');await page.locator('#starter-note').waitFor()
- await page.waitForFunction(()=>document.querySelectorAll('[data-crate-card]').length===13)
+ await page.waitForFunction(()=>document.querySelectorAll('[data-crate-card]').length===15)
  await page.reload();await page.locator('.monthly-grid .crate-card').first().waitFor()
  assert.equal(await page.locator('#starter-note').isVisible(),false)
  assert.equal((await (await page.request.get(base+'/api/economy')).json()).wallet.shopSeen,true)

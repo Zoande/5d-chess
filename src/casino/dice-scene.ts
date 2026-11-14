@@ -6,7 +6,7 @@ import {People} from './scene/rig.ts'
 import {Table,type TableAction} from './scene/table.ts'
 
 export type {TableAction} from './scene/table.ts'
-export type DicePhase='idle'|'exchange'|'ready'|'rolling'|'result'
+export type DicePhase='idle'|'exchange'|'ready'|'rolling'|'result'|'payout'|'banish'
 const smooth=(t:number)=>{t=T.MathUtils.clamp(t,0,1);return t*t*(3-2*t)}
 function track(t:number,keys:Array<[number,T.Vector3]>){
  for(let i=1;i<keys.length;i++)if(t<=keys[i][0])return keys[i-1][1].clone().lerp(keys[i][1],smooth((t-keys[i-1][0])/(keys[i][0]-keys[i-1][0])))
@@ -30,6 +30,7 @@ export class DiceScene {
  private raycaster=new T.Raycaster()
  private resize:ResizeObserver
  private coinOwner='table';private dieOwner='keeper'
+ private reactionStart=0;private reactionKind:'none'|'payout'|'banish'='none';private reactionResolve:(()=>void)|undefined;private mood=0;
  private result=1;private coins=0;private stake=100;private face=1;private disabled=false
  private startPosition=v();private landing=v();private startRotation=new T.Quaternion()
  private reduced=matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -82,7 +83,7 @@ export class DiceScene {
    if(this.disposed)return
    this.ticker=requestAnimationFrame(tick)
    if(document.visibilityState!=='visible')return
-   const interval=this.phase==='rolling'||this.phase==='exchange'?16:this.reduced?125:48
+   const interval=this.phase==='rolling'||this.phase==='exchange'||this.reactionKind!=='none'?16:this.reduced?125:48
    if(now-this.drawn<interval)return
    // Do not build a queue of stale frames on integrated/software GPUs. Input
    // remains responsive while the previous shadowed frame completes.
@@ -90,7 +91,7 @@ export class DiceScene {
    if(this.fence){const status=gl.clientWaitSync(this.fence,0,0);if(status===gl.TIMEOUT_EXPIRED)return;gl.deleteSync(this.fence);this.fence=null}
    const dt=Math.min(.25,(now-this.previous)/1000||.016);this.previous=now;this.drawn=now
    this.yaw=T.MathUtils.damp(this.yaw,this.lookYaw,12,dt);this.pitch=T.MathUtils.damp(this.pitch,this.lookPitch,12,dt)
-   this.updateCamera();this.pose(now);this.table.animate(dt);if(this.mode==='elo')this.wager.visible=false;this.haze.forEach(m=>m.uniforms.time.value=now/1000);if(this.speech.visible){const remaining=this.speechUntil-now;this.speech.material.opacity=T.MathUtils.clamp(remaining/900,0,1);this.speech.visible=remaining>0}
+   this.updateCamera();this.pose(now);this.table.animate(dt);if(this.mode==='elo'&&this.reactionKind!=='payout')this.wager.visible=false;this.haze.forEach(m=>m.uniforms.time.value=now/1000);if(this.speech.visible){const remaining=this.speechUntil-now;this.speech.material.opacity=T.MathUtils.clamp(remaining/900,0,1);this.speech.visible=remaining>0}
    this.candles.forEach((c,i)=>c.intensity=1.28+Math.sin(now*.002+i)*.035+Math.sin(now*.007+i)*.012)
    this.renderer.render(this.world,this.camera);this.canvas.dataset.frame=String(++this.frame);this.canvas.dataset.pitch=this.pitch.toFixed(3)
    this.fence=gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE,0);gl.flush()
@@ -123,7 +124,25 @@ export class DiceScene {
    right=track(t,[[0,right],[.12,v(.40,1.12,.94)],[.25,v(.26,1.03,.54)],[.40,v(.44,.95,.86)],[1,v(.44,.95,.86)]])
    rc=t<.18?.65:.12
   }
-  this.people.pose(pl,dl,left,right,kl,kr,lc,rc,kc)
+  const reaction=T.MathUtils.clamp((now-this.reactionStart)/(this.reduced?180:this.reactionKind==='banish'?1900:2600),0,1)
+  if(this.reactionKind==='payout'){
+   dl=Math.sin(Math.PI*reaction)*.55
+   kr=track(reaction,[[0,kr],[.18,v(-.62,.99,-.60)],[.32,v(-.62,1.06,-.60)],[.64,v(.12,1.08,.55)],[.78,v(.12,1.08,.55)],[1,kr]])
+   left=track(reaction,[[0,left],[.40,left],[.63,v(.11,1.03,.65)],[.79,v(.11,1.03,.65)],[1,v(-.80,.96,.75)]])
+   kc=reaction>.17&&reaction<.69?.8:.2;lc=reaction>.65?.8:.2
+  }
+  const lunge=this.reactionKind==='banish'&&!this.reduced?Math.pow(Math.sin(Math.min(1,reaction/.48)*Math.PI/2),5)*(1-smooth((reaction-.78)/.22)):0
+  if(lunge){kl=v(-.24,1.46,-.45);kr=v(.24,1.46,-.45);kc=.9}
+  this.people.pose(pl,dl,left,right,kl,kr,lc,rc,kc);this.people.lunge(lunge)
+  if(this.reactionKind==='banish'){this.canvas.style.filter=`brightness(${1-.98*smooth((reaction-.46)/.12)*(1-smooth((reaction-.86)/.14))})`;this.canvas.dataset.cutscene='banish'}
+  if(this.reactionKind==='payout'){
+   this.wager.visible=reaction>.18
+   if(reaction<.69){if(this.coinOwner!=='keeper'){this.people.keeperRight.hand.grip.attach(this.wager);this.coinOwner='keeper'}this.wager.position.set(0,.014,0)}
+   else if(reaction<.93){if(this.coinOwner!=='player'){this.people.left.hand.grip.attach(this.wager);this.coinOwner='player'}this.wager.position.set(0,.014,0)}
+   else{this.world.attach(this.wager);this.coinOwner='purse';this.wager.position.set(-.80,.96,.75);this.wager.scale.setScalar(Math.max(.01,(1-reaction)/.07))}
+  }
+  if(this.reactionKind!=='none'&&reaction===1){this.reactionKind='none';this.phase='result';this.wager.visible=false;this.wager.scale.setScalar(1);this.canvas.style.filter='';this.canvas.dataset.cutscene='';this.canvas.dataset.reaction='idle';this.people.lunge(0);const resolve=this.reactionResolve;this.reactionResolve=undefined;resolve?.()}
+
   this.world.updateMatrixWorld(true)
   if(ex){
    if(t<.22){this.wager.visible=true;this.wager.position.set(-.83,.936,.773)}
@@ -201,9 +220,12 @@ export class DiceScene {
   })
  }
  highlight(id:string|undefined){for(const c of this.table.controls)(c.edge.material as T.MeshStandardMaterial).emissive.set(c.id===id?0x5b3a12:0x000000)}
+ setMood(value:number){this.mood=value;this.people.setMood(value);this.canvas.dataset.dealerMood=value.toFixed(2)}
+ async reward(){this.wager.scale.setScalar(1.25);this.wager.visible=true;this.reactionKind='payout';this.phase='payout';this.reactionStart=performance.now();this.canvas.dataset.reaction='payout';this.lockCamera(true);await new Promise<void>(resolve=>this.reactionResolve=resolve)}
+ async banish(){this.reactionKind='banish';this.phase='banish';this.reactionStart=performance.now();this.canvas.dataset.reaction='banish';this.lockCamera(true);await new Promise<void>(resolve=>this.reactionResolve=resolve)}
  diagnostics(){return {phase:this.phase,coinOwner:this.coinOwner,dieOwner:this.dieOwner,look:this.getLook(),drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles}}
  dispose(){
-  if(this.disposed)return;this.disposed=true;cancelAnimationFrame(this.ticker);this.resize.disconnect();this.finish?.();this.finish=undefined
+  if(this.disposed)return;this.disposed=true;cancelAnimationFrame(this.ticker);this.resize.disconnect();this.finish?.();this.finish=undefined;this.reactionResolve?.();this.reactionResolve=undefined
   const geometries=new Set<T.BufferGeometry>(),materials=new Set<T.Material>(),textures=new Set<T.Texture>()
   this.world.traverse(object=>{if(object instanceof T.Mesh||object instanceof T.Points){geometries.add(object.geometry);for(const m of Array.isArray(object.material)?object.material:[object.material]){materials.add(m);for(const value of Object.values(m))if(value instanceof T.Texture)textures.add(value)}}})
   if(this.fence)(this.renderer.getContext() as WebGL2RenderingContext).deleteSync(this.fence)

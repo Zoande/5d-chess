@@ -6,8 +6,8 @@ import {grant,grantSet,buySet,buyCrate,openOwnedCase,equip,equipCollection,listI
 const now=Date.parse('2026-11-14T12:00:00Z'),user=name=>({name,wallet:{coins:1000000,starterGranted:true,inventory:[],loadout:{icon:'default',pieces:{}}}})
 
 test('case slots rotate deterministically with exact categories, permanent stock and server-enforced offers',()=>{
- const offers=caseOffers(now);for(const [window,count]of [['weekly',6],['daily',1],['permanent',3],['seasonal',3]])assert.equal(offers.filter(o=>o.window===window).length,count)
- assert.equal(new Set(offers.map(o=>o.id)).size,13);assert.deepEqual(caseOffers(nextReset(now)-1),offers)
+ const offers=caseOffers(now);for(const [window,count]of [['weekly',6],['daily',1],['permanent',5],['seasonal',3]])assert.equal(offers.filter(o=>o.window===window).length,count)
+ assert.equal(new Set(offers.map(o=>o.id)).size,15);assert.deepEqual(caseOffers(nextReset(now)-1),offers)
  assert.deepEqual(weeklyCases(nextWeek(now)-1),weeklyCases(now));assert.notDeepEqual(weeklyCases(nextWeek(now)),weeklyCases(now))
  assert.deepEqual(weeklyCases(now).map(c=>c.setChance===1000000?'sets':c.type),['icon','skin','shape','mixed','frame','sets'])
  assert.equal(weeklyItems(now).length,4);assert.ok(weeklyItems(now).every(i=>i.price>=700));assert.equal(seasonalItems(now).length,3);assert.ok(seasonalItems(now).every(i=>i.monthly))
@@ -44,7 +44,7 @@ test('complete Sets escrow all members, cancel together, retry once and transfer
 test('the 25-slot wheel respects each rotation clock and visual sizes are independent from draw odds',()=>{
  assert.equal(PAID_SPIN_PRICE,300);const pool=spinRewards(now);assert.equal(pool.length,25);assert.equal(pool.reduce((s,r)=>s+r.weight,0),1000000);assert.ok(pool.every(r=>r.weight>0));assert.deepEqual(['fixed','daily','weekly','seasonal'].map(c=>pool.filter(r=>r.cadence===c).length),[10,5,5,5])
  const next=spinRewards(nextReset(now));assert.deepEqual(next.slice(0,10),pool.slice(0,10));assert.notDeepEqual(next.slice(10,15),pool.slice(10,15));assert.deepEqual(next.slice(15,20),pool.slice(15,20));assert.deepEqual(next.slice(20),pool.slice(20));assert.notDeepEqual(spinRewards(nextWeek(now)).slice(15,20),pool.slice(15,20));assert.notDeepEqual(spinRewards(nextMonth(now)).slice(20),pool.slice(20))
- const arcs=wheelArcs(pool);assert.ok(Math.abs(arcs.at(-1).end-360)<1e-9);const rare=pool.findIndex(r=>r.cadence==='seasonal'&&r.rarity==='mythic');assert.ok((arcs[rare].end-arcs[rare].start)/360>pool[rare].weight/1000000*100);assert.ok(new Set(pool.map(r=>r.visualWeight)).size>3)
+ const arcs=wheelArcs(pool);assert.ok(Math.abs(Math.max(...arcs.map(a=>a.end))-360)<1e-9);const rare=pool.findIndex(r=>r.cadence==='seasonal'&&r.rarity==='mythic');assert.ok((arcs[rare].end-arcs[rare].start)/360>pool[rare].weight/1000000*100);assert.ok(new Set(pool.map(r=>r.visualWeight)).size>3)
 })
 
 test('earned case vouchers remain openable after rotation and are consumed only once',()=>{

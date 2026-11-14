@@ -32,7 +32,7 @@ With sample ratings [900, 1100, 1200, 1200, 1300, 1500, 1800], a winning 50-Elo 
 
 ## Transactions and midnight
 
-Per-account state records day, allowed flag, offer, daily uses and lifetime Elo lost. Both wins and losses count towards ten wagers. The tenth settlement closes the alternate table; a saved throw is still presented before the client morphs back. Exhausting spendable Elo also returns to coins, without consuming any remaining daily allowance. At the next Dutch midnight the server logically resets allowance, uses and mode on access; lifetime loss remains. This avoids rewriting every account at midnight.
+Per-account state records day, allowed flag, offer, daily uses and lifetime Elo lost. Both wins and losses count towards five wagers. The fifth settlement closes the alternate table; a saved throw is still presented before the client morphs back. Exhausting spendable Elo also returns to coins, without consuming any remaining daily allowance. At the next Dutch midnight the server logically resets allowance, uses and mode on access; lifetime loss remains. This avoids rewriting every account at midnight.
 
 The account's existing casino sequence and request IDs cover coin and Elo bets. The Elo debit or coin payout, receipt, quota and lifetime totals commit atomically. Retries return the original receipt before checking current-day eligibility. The previous 100 mixed-currency casino receipts remain available for recovery. Concurrent tabs cannot bypass the cap or settle the same sequence twice. An open alternate offer prevents another tab from accidentally placing ordinary dice bets until the offer is resolved.
 

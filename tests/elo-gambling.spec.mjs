@@ -40,8 +40,8 @@ test('a completed broke coin throw requests the soul encounter; refusing persist
  await page.reload();await page.locator('.webgl-unavailable[data-table-mode=normal]').waitFor();assert.equal((await view()).allowed,false);assert.doesNotMatch(await page.locator('body').innerText(),/Keeper/i);assert.deepEqual(errors,[])
 })
 
-test('consented Elo wagers wrap increments, survive a lost reply/reload, pay no tax and close after the tenth',async t=>{
- const {page,view,casino,errors}=await fixture(t,{used:9})
+test('consented Elo wagers wrap increments, survive a lost reply/reload, pay no tax and close after the fifth',async t=>{
+ const {page,view,casino,errors}=await fixture(t,{used:4})
  await page.locator('[data-table-mode=offer]').waitFor();assert.match(await page.locator('#encounter-question').textContent(),/try something new/)
  await page.getByRole('button',{name:'Yes',exact:true}).click();await page.locator('.silent-room[data-table-mode=elo]').waitFor();assert.equal(await page.locator('#stake').inputValue(),'0')
  for(let i=0;i<3;i++)await page.getByRole('button',{name:'+50 Elo',exact:true}).click();assert.equal(await page.locator('#stake').inputValue(),'50')
@@ -50,7 +50,7 @@ test('consented Elo wagers wrap increments, survive a lost reply/reload, pay no 
  await page.route('**/api/casino/elo/bet',async route=>{await route.fetch();await route.abort('failed');await page.unroute('**/api/casino/elo/bet')})
  await page.getByRole('button',{name:'DEAL',exact:true}).click();await page.locator('[data-phase=ready]').waitFor();const settled=await casino(),round=settled.recent[0]
  assert.equal(round.currency,'elo');assert.equal(round.tax,0);assert.ok((await page.locator('#elo-fallback-quote').textContent()).includes(casinoCoins(round.coinReward)));assert.equal(round.credited,round.won?before.quotes[50]:0);assert.equal(settled.coins,coins+round.credited)
- assert.equal((await view()).used,10);assert.equal((await view()).allowed,false)
+ assert.equal((await view()).used,5);assert.equal((await view()).allowed,false)
  await page.reload();await page.locator('[data-phase=ready][data-table-mode=elo]').waitFor();assert.deepEqual(await casino(),settled)
  await page.locator('#dice-canvas').focus();await page.keyboard.press(' ');await page.locator('[data-phase=result][data-table-mode=normal]').waitFor()
  assert.deepEqual(await casino(),settled);const after=await view();assert.equal(after.elo,before.elo-(round.won?0:50));assert.equal(after.lifetimeLost,7+(round.won?0:50));assert.deepEqual(errors,[])

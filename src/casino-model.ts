@@ -24,7 +24,7 @@ export const casinoCoins=(value:number)=>new Intl.NumberFormat('en',{maximumFrac
 
 export const MIN_DICE_STAKE=1
 export const MAX_ELO_STAKE=100
-export const MAX_ELO_ROUNDS=10
+export const MAX_ELO_ROUNDS=5
 export type EncounterReason='broke'|'marathon'|'chance'
 export interface EloGamblingState {day:string;allowed:boolean;stage:'normal'|'offered'|'active';used:number;lifetimeLost:number;reason?:EncounterReason;offerId?:string}
 export interface EloGamblingView extends EloGamblingState {elo:number;quotes:number[];resetAt:number;totalLost:number}

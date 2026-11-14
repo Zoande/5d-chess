@@ -26,7 +26,7 @@ test('paired looks validate both layers atomically and shape overrides apply to 
 })
 
 test('monthly exclusives stay out of all general crates and weekly offers; exact tickets sum to a million',()=>{
- assert.equal(ITEMS.length,112)
+ assert.equal(ITEMS.length,132)
  for(const [type,general,monthly] of [['skin',40,10],['icon',20,10],['frame',10,5],['shape',10,5]]){
   assert.equal(GENERAL_ITEMS.filter(i=>i.type===type).length,general)
   assert.equal(ITEMS.filter(i=>i.type===type&&i.monthly).length,monthly)

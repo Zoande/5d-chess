@@ -1,8 +1,9 @@
+import {EFFECT_ITEMS} from './effects.ts'
 import {EXPANSION_ITEMS} from './collection-expansion.ts'
 import {KINDS,type Kind} from './model.ts'
 export const RARITIES=['common','uncommon','rare','epic','legendary','mythic'] as const
 export type Rarity=typeof RARITIES[number]
-export type ItemType='icon'|'skin'|'frame'|'shape'
+export type ItemType='icon'|'skin'|'frame'|'shape'|'movement'|'capture'
 export const RARITY_COLORS:Record<Rarity,string>={common:'#aeb6bd',uncommon:'#8dbb7b',rare:'#6daaf0',epic:'#b587e8',legendary:'#e8b65a',mythic:'#ed88b7'}
 export interface Collectible {id:string;type:ItemType;name:string;rarity:Rarity;motif:string;description:string;price:number;monthly?:'solar'|'lunar';exclusive?:boolean}
 const levels:Rarity[]=['common','common','common','common','uncommon','uncommon','uncommon','uncommon','rare','rare','rare','rare','epic','epic','epic','legendary','legendary','legendary','legendary','mythic']
@@ -32,24 +33,27 @@ const extraSkins:[string,string,string,string,Rarity][]=[
  ['tapestry','Tapestry','tapestry','A royal coat of arms woven into faction cloth.','epic']
 ]
 export const ITEMS:Collectible[]=[...icons.map((x,i)=>({id:'icon-'+x[0],type:'icon' as const,name:x[1],motif:x[2],description:x[3],rarity:levels[i],price:prices[RARITIES.indexOf(levels[i])]})),...skins.map((x,i)=>({id:'skin-'+x[0],type:'skin' as const,name:x[1],motif:x[2],description:x[3],rarity:levels[i],price:prices[RARITIES.indexOf(levels[i])]})),...extraSkins.map(([id,name,motif,description,rarity])=>({id:'skin-'+id,type:'skin' as const,name,motif,description,rarity,price:prices[RARITIES.indexOf(rarity)]}))]
-ITEMS.push(...EXPANSION_ITEMS,
+ITEMS.push(...EXPANSION_ITEMS,...EFFECT_ITEMS,
  {id:'skin-etc',type:'skin',name:'Eternal Court',rarity:'mythic',motif:'eternal',description:'Black opal armor, interlocked gold infinity seams and a radiant faction core.',price:48000,exclusive:true},
  {id:'shape-etc',type:'shape',name:'Eternal Crown',rarity:'mythic',motif:'eternal',description:'Split architectural crowns, floating shoulders and double-cut ceremonial bases.',price:37000,exclusive:true})
 export const GENERAL_ITEMS=ITEMS.filter(i=>!i.monthly&&!i.exclusive)
-export const ITEM_LABELS:Record<ItemType,string>={icon:'Player icon',skin:'Piece skin',frame:'Icon frame',shape:'Piece outline'}
+export const ITEM_LABELS:Record<ItemType,string>={icon:'Player icon',skin:'Piece skin',frame:'Icon frame',shape:'Piece outline',movement:'Movement animation',capture:'Capture animation'}
 const itemIndex=new Map(ITEMS.map(item=>[item.id,item]))
 export const itemById=(id:string)=>itemIndex.get(id)
 export const DEFAULT_ICON='default'
 export interface OwnedItem {kind?:Kind;uid:string;itemId:string;acquired:number;pending:boolean;listed?:string}
-export interface Loadout {icon:string;frame?:string;shape?:string;shapes?:Partial<Record<Kind,string>>;pieces:Partial<Record<Kind,string>>}
+export interface Loadout {movement?:string;capture?:string;icon:string;frame?:string;shape?:string;shapes?:Partial<Record<Kind,string>>;pieces:Partial<Record<Kind,string>>}
 export const STARTER_COINS=480
 export const PAID_SPIN_PRICE=300
 export interface Wallet {cases?:{uid:string;caseId:string;acquired:number}[];starterGranted?:boolean;coins:number;inventory:OwnedItem[];loadout:Loadout;lastSpin?:string;shopSeen?:boolean}
 export const MARKET_DESCRIPTION_LIMIT=240
 export interface Listing {kind?:Kind;setId?:string;uids?:string[];description?:string;id:string;seller:string;uid:string;itemId:string;price:number;created:number}
 export interface Drop {caseId?:string;caseUid?:string;wheel?:SpinReward[];kind?:Kind;setId?:string;items?:{uid:string;itemId:string;kind?:Kind}[];id:string;source:'spin'|'crate';paid?:boolean;coins?:number;uid?:string;itemId?:string;duplicate?:boolean;refund?:number;segment?:number;created:number}
-export interface Crate {weight?:number;permanent?:boolean;setChance?:number;id:string;type:ItemType|'mixed';tier:0|1|2;name:string;price:number;monthly?:'solar'|'lunar'|'exclusive';styles?:[string,string]}
+export interface Crate {effectsOnly?:boolean;weight?:number;permanent?:boolean;setChance?:number;id:string;type:ItemType|'mixed';tier:0|1|2;name:string;price:number;monthly?:'solar'|'lunar'|'exclusive';styles?:[string,string]}
 export const CASES:Crate[]=[
+ {id:'movement-studio',type:'movement',tier:1,name:'Motion Studio Case',price:350,permanent:true},
+ {id:'capture-theatre',type:'capture',tier:1,name:'Capture Theatre Case',price:650,permanent:true},
+ {id:'effects-encore',type:'mixed',tier:2,name:'Encore Effects Case',price:1400,weight:35,effectsOnly:true},
  {id:'icon-bronze',type:'icon',tier:0,name:'Scout Case',price:120,permanent:true},
  {id:'skin-bronze',type:'skin',tier:0,name:'Artisan Case',price:160,permanent:true},
  {id:'outline-basic',type:'shape',tier:0,name:'Workshop Case',price:160,permanent:true},
@@ -121,7 +125,12 @@ export function spinRewards(now=Date.now()):SpinReward[]{
  if(!setById(seasonal[4].setId!)){seasonal[4].setId=undefined;seasonal[4].label=itemById(seasonal[4].itemId!)!.name}
  return [...fixed.map(r=>({...r,cadence:'fixed' as const})),...daily,...weekly,...seasonal]
 }
-export function wheelArcs(rewards:readonly SpinReward[]){let angle=0;const total=rewards.reduce((s,r)=>s+r.visualWeight,0);return rewards.map(r=>{const start=angle;angle+=r.visualWeight/total*360;return {start,end:angle,mid:(start+angle)/2}})}
+export function wheelArcs(rewards:readonly SpinReward[]){
+ // Keep receipt indices intact while interleaving wide and narrow visual wedges.
+ const sorted=rewards.map((r,i)=>i).sort((a,b)=>rewards[b].visualWeight-rewards[a].visualWeight||a-b),order=rewards.length===25?sorted.map((_,i)=>sorted[i*11%25]):rewards.map((_,i)=>i)
+ let angle=0;const sizes=rewards.map(r=>rewards.length===25?Math.max(8,r.visualWeight):r.visualWeight),total=sizes.reduce((s,r)=>s+r,0),arcs:{start:number;end:number;mid:number}[]=[]
+ for(const i of order){const start=angle;angle+=sizes[i]/total*360;arcs[i]={start,end:angle,mid:(start+angle)/2}}return arcs
+}
 
 export const duplicateRefund=(item:Collectible)=>Math.max(10,Math.floor(item.price*.12))
 export const percent=(weight:number)=>`${weight/10000}%`
@@ -161,7 +170,7 @@ function apportion(rows:{item:Collectible;raw:number;setId?:string}[],total:numb
  return out.filter(r=>r.weight>0)
 }
 export function crateTickets(crate:Crate):CaseTicket[]{
- const monthly=crate.monthly,pool=monthly==='exclusive'?ITEMS.filter(i=>i.monthly):monthly?ITEMS.filter(i=>!i.exclusive&&(!i.monthly||i.monthly===monthly)):GENERAL_ITEMS.filter(i=>crate.type==='mixed'||i.type===crate.type),weights=CRATE_ODDS[crate.tier]
+ const monthly=crate.monthly,pool=monthly==='exclusive'?ITEMS.filter(i=>i.monthly):monthly?ITEMS.filter(i=>!i.exclusive&&(!i.monthly||i.monthly===monthly)):GENERAL_ITEMS.filter(i=>crate.effectsOnly?['movement','capture'].includes(i.type):crate.type==='mixed'||i.type===crate.type),weights=CRATE_ODDS[crate.tier]
  const raw=(items:Collectible[])=>items.map(item=>{const rarity=items.filter(i=>i.rarity===item.rarity),same=rarity.filter(i=>!!i.monthly===!!item.monthly),group=monthly&&monthly!=='exclusive'&&rarity.some(i=>i.monthly)&&rarity.some(i=>!i.monthly)?item.monthly?.65:.35:1;return {item,raw:weights[RARITIES.indexOf(item.rarity)]*group/same.length}})
  const sets=SETS.filter(s=>!s.exclusive&&pool.some(i=>i.id===s.itemId)),setRows=raw(sets.map(s=>itemById(s.itemId)!)).map(r=>({...r,setId:sets.find(s=>s.itemId===r.item.id)!.id})),chance=setRows.length?crate.setChance??0:0
  return [...apportion(raw(pool),1000000-chance),...apportion(setRows,chance)]

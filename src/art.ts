@@ -22,6 +22,7 @@ const pathCache=new Map<string,Path2D>()
 const path=(d:string)=>{let p=pathCache.get(d);if(!p){p=new Path2D(d);pathCache.set(d,p)}return p}
 let loadouts:Partial<Record<Player,Loadout>>={}
 export function setCosmetics(next:Partial<Record<Player,Loadout>>){loadouts=next}
+export const equippedEffect=(player:Player,type:'movement'|'capture')=>loadouts[player]?.[type]??'default'
 interface PieceVector {shape:string;base:string;rim:string;detail:string;layers:{d:string;fill?:string;stroke?:string;width:number;opacity:number}[]}
 const vectorCache=new Map<string,PieceVector>()
 /** One vector recipe drives both the board canvas and every collection preview. */

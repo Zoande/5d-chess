@@ -3,7 +3,8 @@ import {type Profile} from './account-model.ts'
 import {type Collectible,type ItemType,type OwnedItem,type Listing,MARKET_DESCRIPTION_LIMIT,SETS,setById,planSet,setRequirements,covers,ITEMS,ITEM_LABELS,CRATES,crateTickets,RARITIES,RARITY_COLORS,itemById,duplicateRefund} from './collection.ts'
 import {type Kind,type Player,KINDS,PLAYERS} from './model.ts'
 import {framedAvatar,frameArt} from './cosmetic-art.ts'
-import {COLORS,NAMES,pieceIcon,skinSetIcon} from './art.ts'
+import {drawMovement,drawCapture} from './effects.ts'
+import {COLORS,NAMES,pieceIcon,skinSetIcon,drawPiece} from './art.ts'
 import {type Economy,type RewardReply,requestId,setArt,itemArt,itemCard,countdown,revealDrop,crateArt} from './rewards.ts'
 import {icon} from './icons.ts'
 const el=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T
@@ -34,12 +35,28 @@ function transaction(title:string,body:string,confirm:string,action:(dialog:HTML
  return dialog
 }
 function inspectItem(item:Collectible){
+ if(item.type==='movement'||item.type==='capture'){inspectEffect(item);return}
  const dialog=document.createElement('dialog');dialog.className='transaction-dialog inspect-dialog';dialog.style.setProperty('--rarity',RARITY_COLORS[item.rarity])
  const draw=(player:Player)=>{
   const set=item.type==='skin'||item.type==='shape'
   dialog.innerHTML=`<button class="dialog-close inspect-close" type="button" data-close-x aria-label="Close item preview">&times;</button><div class="inspect-art">${art(item,player)}</div><small class="rarity-label">${item.rarity} &middot; ${ITEM_LABELS[item.type]}${item.monthly?' &middot; SEASONAL':''}</small><h2>${item.name}</h2><p>${item.description}</p>${set?`<div class="inspect-roster">${KINDS.map(k=>pieceIcon(k,player,48,item.type==='skin'?item.id:'default',item.type==='shape'?item.id:undefined)).join('')}</div><div class="preview-colors" aria-label="Inspect faction color">${PLAYERS.map(p=>`<button type="button" data-variant="${p}" style="--faction:${COLORS[p]}" aria-label="Inspect ${p} variant" aria-pressed="${p===player}"></button>`).join('')}</div>`:''}<button type="button" class="button" data-close>Close preview</button>`
   dialog.querySelector<HTMLButtonElement>('[data-close]')!.onclick=()=>dialog.close();dialog.querySelector<HTMLButtonElement>('[data-close-x]')!.onclick=()=>dialog.close();dialog.querySelectorAll<HTMLButtonElement>('[data-variant]').forEach(b=>b.onclick=()=>draw(b.dataset.variant as Player))
  };draw(color);document.body.append(dialog);dialog.showModal();dialog.onclose=()=>dialog.remove()
+}
+function inspectEffect(item:Collectible){
+ const dialog=document.createElement('dialog');dialog.className='transaction-dialog effect-preview-dialog';dialog.innerHTML=`<h2>${item.name}</h2><canvas width="480" height="240" aria-label="${item.name} animated board preview"></canvas><p>${item.description}</p><p class="pool-note">Cosmetic only. Applies to all your pieces, including online play.</p><button type="button" class="button" data-close>Close preview</button>`
+ document.body.append(dialog);dialog.showModal();const canvas=dialog.querySelector('canvas')!,ctx=canvas.getContext('2d')!,start=performance.now(),reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;let frame=0
+ const tick=(now:number)=>{const p=reduced?.45:((now-start)%2600)/2600;ctx.clearRect(0,0,480,240);ctx.fillStyle='#17241e';ctx.fillRect(0,0,480,240);for(let y=0;y<4;y++)for(let x=0;x<8;x++){ctx.fillStyle=(x+y)%2?'#d6d0ad22':'#697f5322';ctx.fillRect(x*60,y*60,60,60)}
+ if(item.type==='movement'){const at={x:70+p*330,y:120};drawMovement(ctx,item.id,[{x:70,y:120},at],at,p,(x,y,a)=>{ctx.save();ctx.globalAlpha=a;drawPiece(ctx,'N','red',x,y,46);ctx.restore()},reduced);drawPiece(ctx,'N','red',at.x,at.y,46)}else{drawPiece(ctx,'R','red',180,120,46);drawCapture(ctx,item.id,{x:290,y:120},p,()=>drawPiece(ctx,'N','blue',0,0,46),reduced)}
+ if(!reduced)frame=requestAnimationFrame(tick)};tick(start+800);dialog.querySelector<HTMLButtonElement>('[data-close]')!.onclick=()=>dialog.close();dialog.onclose=()=>{cancelAnimationFrame(frame);dialog.remove()}
+}
+function renderEffects(){
+ if(inventoryTab!=='effects')return
+ const inventory=state.wallet.inventory
+ el('animation-grid').innerHTML=(['movement','capture'] as const).map(type=>{const equipped=state.wallet.loadout[type]??'default',items=ITEMS.filter(i=>i.type===type&&inventory.some(o=>o.itemId===i.id));return `<section class="collection-panel effect-department"><div class="section-title"><h2>${type==='movement'?'Movement trails':'Capture effects'}</h2><button class="button" type="button" data-equip-effect="default" data-effect-slot="${type}" ${equipped==='default'?'disabled':''}>Use classic</button></div><div class="effect-inventory-grid">${items.map(item=>{const copies=inventory.filter(o=>o.itemId===item.id),owned=copies.find(o=>!o.listed&&!o.pending);return `<article class="inventory-card" style="--rarity:${RARITY_COLORS[item.rarity]}"><button class="inventory-select" type="button" data-effect-preview="${item.id}">${itemArt(item)}<strong>${item.name}</strong></button><small class="rarity-label">${item.rarity} · ${copies.length} copies</small><div class="effect-actions"><button class="button" type="button" data-equip-effect="${owned?.uid??''}" data-effect-slot="${type}" ${!owned||equipped===item.id?'disabled':''}>${equipped===item.id?'Equipped':'Equip'}</button><button class="button" type="button" data-effect-copies="${item.id}">Manage / sell</button></div></article>`}).join('')||'<p class="market-empty">Collect animations from Motion Studio, Capture Theatre or mixed cases.</p>'}</div></section>`}).join('')
+ el('animation-grid').querySelectorAll<HTMLButtonElement>('[data-equip-effect]').forEach(b=>b.onclick=()=>void submit('/economy/equip',{slot:b.dataset.effectSlot,uid:b.dataset.equipEffect}).then(()=>message('collection-status','Board animation updated.')).catch(report))
+ el('animation-grid').querySelectorAll<HTMLButtonElement>('[data-effect-preview]').forEach(b=>b.onclick=()=>inspectEffect(itemById(b.dataset.effectPreview!)!))
+ el('animation-grid').querySelectorAll<HTMLButtonElement>('[data-effect-copies]').forEach(b=>b.onclick=()=>manageCopies(b.dataset.effectCopies!))
 }
 const shopKeys=new Map<string,string>()
 let showWelcome=false,shopVisited=false,crateFilter='all',inventoryTab='equipment',setSearch='',setsOnlyComplete=false,setLimit=18
@@ -200,7 +217,7 @@ function renderMarket(){
  })
 }
 async function loadMarket(){listings=(await api<{listings:Listing[]}>('/market')).listings;renderMarket()}
-function render(){renderShop();renderInventory();renderMarket();renderSets();renderOwnedCases()}
+function render(){renderShop();renderInventory();renderMarket();renderSets();renderOwnedCases();renderEffects()}
 function route(){
  const view=['shop','inventory','market'].includes(location.hash.slice(1))?location.hash.slice(1):'shop'
  document.querySelectorAll<HTMLElement>('.collection-view').forEach(v=>v.hidden=v.id!==view)
@@ -216,7 +233,7 @@ async function init(){
  profile=session.profile!;state=await api<Economy>('/economy');clockOffset=state.now-Date.now()
  preview=state.wallet.inventory.find(o=>o.itemId===state.wallet.loadout.pieces.K&&!o.listed&&!o.pending)?.uid??'default'
  bindShop()
- document.querySelectorAll<HTMLButtonElement>('[data-inventory-tab]').forEach(b=>b.onclick=()=>{inventoryTab=b.dataset.inventoryTab!;el('inventory-equipment').hidden=inventoryTab!=='equipment';el('set-collection').hidden=inventoryTab!=='sets';el('owned-cases').hidden=inventoryTab!=='cases';document.querySelectorAll('[data-inventory-tab]').forEach(t=>t.setAttribute('aria-pressed',String(t===b)));if(inventoryTab==='sets')renderSets();if(inventoryTab==='cases')renderOwnedCases()})
+ document.querySelectorAll<HTMLButtonElement>('[data-inventory-tab]').forEach(b=>b.onclick=()=>{inventoryTab=b.dataset.inventoryTab!;el('inventory-equipment').hidden=inventoryTab!=='equipment';el('set-collection').hidden=inventoryTab!=='sets';el('owned-cases').hidden=inventoryTab!=='cases';el('animation-collection').hidden=inventoryTab!=='effects';document.querySelectorAll('[data-inventory-tab]').forEach(t=>t.setAttribute('aria-pressed',String(t===b)));if(inventoryTab==='sets')renderSets();if(inventoryTab==='cases')renderOwnedCases();if(inventoryTab==='effects')renderEffects()})
  el('set-search').oninput=()=>{setSearch=el<HTMLInputElement>('set-search').value.trim().toLowerCase();setLimit=18;renderSets()}
  el('sets-complete').onchange=()=>{setsOnlyComplete=el<HTMLInputElement>('sets-complete').checked;setLimit=18;renderSets()}
  el('set-more').onclick=()=>{setLimit+=18;renderSets()}

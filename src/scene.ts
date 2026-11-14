@@ -4,7 +4,8 @@ import {
   type Candidate, type Coord, type Order, type Outcome, type Player, type State, type Universe, type Travel,
   SIZE, boardBounds, boardKey, boardTurn, coordKey, frontier, getUniverse, index, insideState, isMain, pieceAt, playerCount, present, squares
 } from './model.ts'
-import {COLORS, drawPiece} from './art.ts'
+import {drawMovement,drawCapture} from './effects.ts'
+import {COLORS, drawPiece,equippedEffect} from './art.ts'
 
 interface Camera extends Point {scale: number}
 interface Display {
@@ -492,7 +493,7 @@ export class Scene {
     if (this.view.animation) {
       const {outcomes, started, duration} = this.view.animation
       const p = clamp((now - started) / duration, 0, 1)
-      if (this.view.animation.travel) this.drawTravel(this.view.animation.travel, p * (this.view.animation.ticks ?? 1))
+      if (this.view.animation.travel) this.drawTravel(this.view.animation.travel, p * ((this.view.animation.ticks ?? 1)+(outcomes.some(o=>o.captures.length&&equippedEffect(o.move.player,'capture')!=='default')?1.8:0)))
       else this.drawAnimation(outcomes, p)
       if (p < 1) this.request()
     }
@@ -738,6 +739,9 @@ export class Scene {
     for (const trace of travel) {
       const at = travelPosition(trace.points, Math.min(tick, trace.endTick))
       if (trace.collision && tick >= trace.endTick) {
+        const attack=this.view.animation?.outcomes.find(o=>o.captures.some(c=>c.piece.player===trace.piece.player&&c.piece.kind===trace.piece.kind&&coordKey(c.at)===coordKey(trace.to)))
+        if(attack&&drawCapture(ctx,equippedEffect(attack.move.player,'capture'),at,(tick-trace.endTick)/1.8,()=>drawPiece(ctx,trace.piece.kind,trace.piece.player,0,0,32),reduced.matches))continue
+
         const fade = Math.max(0, 1 - (tick - trace.endTick) / 1.5)
         if (fade) {
           ctx.save(); ctx.globalAlpha = fade; ctx.strokeStyle = '#ff776b'; ctx.lineWidth = 3
@@ -745,6 +749,8 @@ export class Scene {
         }
         continue
       }
+      const tail=travelPosition(trace.points,Math.max(0,Math.min(tick,trace.endTick)-.65))
+      if(tick<trace.endTick)drawMovement(ctx,equippedEffect(trace.piece.player,'movement'),[tail,at],at,tick,(x,y,alpha)=>{ctx.save();ctx.globalAlpha=alpha;drawPiece(ctx,trace.piece.kind,trace.piece.player,x,y,32);ctx.restore()},reduced.matches)
       drawPiece(ctx, trace.piece.kind, trace.piece.player, at.x, at.y, 32)
     }
   }
@@ -766,9 +772,12 @@ export class Scene {
           const a = this.squarePoint(path[Math.floor(position)])
           const b = this.squarePoint(path[Math.min(path.length - 1, Math.ceil(position))])
           const k = position % 1
-          drawPiece(ctx, leg.piece.kind, leg.piece.player, a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, 33)
+          const at={x:a.x+(b.x-a.x)*k,y:a.y+(b.y-a.y)*k}
+          if(p<.88)drawMovement(ctx,equippedEffect(leg.piece.player,'movement'),[a,at],at,p,(x,y,alpha)=>{ctx.save();ctx.globalAlpha=alpha;drawPiece(ctx,leg.piece.kind,leg.piece.player,x,y,33);ctx.restore()},reduced.matches)
+          drawPiece(ctx,leg.piece.kind,leg.piece.player,at.x,at.y,33)
         }
       }
+      if(p>.50)for(const c of captures){const at=this.squarePoint(c.at);drawCapture(ctx,equippedEffect(move.player,'capture'),at,(p-.50)/.50,()=>drawPiece(ctx,c.piece.kind,c.piece.player,0,0,32),reduced.matches)}
       if ((captures.length || status !== 'applied' || move.branch) && p > .45) {
         ctx.save()
         ctx.globalAlpha = (1 - p) * 1.8
