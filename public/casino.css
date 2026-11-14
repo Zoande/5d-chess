@@ -114,3 +114,8 @@ body[data-casino=dice] .casino-page { flex:1;width:100%;margin:0;height:auto;min
  .table-result { top:75px;left:17px;min-width:0;padding:10px 27px 10px 12px; }.table-result>strong { font-size:23px; }.table-result>p { font-size:8px; }
 }
 @media(min-width:701px){body[data-casino="dice"] .table-dialogue{top:105px;right:28px;left:auto;bottom:auto;max-width:290px;text-align:right}body[data-casino="dice"] .table-dialogue p{font-size:13px}body[data-casino="dice"] .table-dialogue #table-instructions{line-height:1.6}}
+/* Receipts and rules remain reachable when the roulette table exceeds a viewport. */
+body[data-casino="roulette"]{overflow:auto}
+body[data-casino="roulette"] .casino-page{height:auto;min-height:calc(100dvh - 78px);overflow:visible;width:100%;margin:0;box-sizing:border-box}
+body[data-casino="roulette"] .casino-layout{height:auto}
+body[data-casino="roulette"] .casino-history{display:block}

@@ -67,7 +67,7 @@ async function present(round:CasinoRound,recovered=false){
  if(game==='roulette'){if(!recovered)await animateRoulette(round.result);reveal(round);return}
  awaitingThrow=round;lock(true);renderHistory()
  if(!recovered){setPhase('exchange');say('Your offer crosses the table.');await scene?.exchange()}
- scene?.ready();setPhase('ready');say(recovered?'Your offer is saved. The die is yours to throw.':'“Your move.”');el('roll-die').hidden=false
+ scene?.ready();setPhase('ready');say(recovered?'Your offer is saved. The die is yours to throw.':'“Your move.”');el('roll-die').hidden=false;el<HTMLButtonElement>('roll-die').disabled=false
 }
 async function settle(event?:Event){
  event?.preventDefault();if(busy){if(phase==='ready')void throwDie();return}
