@@ -28,25 +28,3 @@ export function avatarArt(id:string){
  const color=RARITY_COLORS[item.rarity]
  return `<svg class="collectible-avatar" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#202522" stroke="${color}" stroke-width="1"/><g fill="none" stroke="${color}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">${motifs[item.motif]}</g></svg>`
 }
-export const SKIN_MARKS:Record<string,string>={
- lines:'M0 6h24M0 10h24M0 14h24M0 18h24M0 22h24',
- flecks:'m6 6 2 1m7 1 2-1M8 13l2 1m5 3 2-1m-9 3 1 1m3-9 1 1',
- grain:'M4 0c12 6-10 10 2 24M9 0c12 6-10 10 2 24M14 0c12 6-10 10 2 24M19 0c12 6-10 10 2 24',
- bands:'M0 8h24M0 9h24M0 16h24M0 17h24',
- tiles:'M0 8h24M0 14h24M0 20h24M6 0v24M12 0v24M18 0v24',
- stripes:'M-12 24 12 0M-8 24 16 0M-4 24 20 0M0 24 24 0M4 24 28 0M8 24 32 0M12 24 36 0',
- rings:'M6 7a3 3 0 1 0 6 0 3 3 0 1 0-6 0m6 8a3 3 0 1 0 6 0 3 3 0 1 0-6 0m-8 7a3 3 0 1 0 6 0 3 3 0 1 0-6 0',
- leaves:'M7 24 17 0M10 16q-8-6-5-7 6 0 5 7m2-6q7 2 7-3-6-2-7 3m-5 14q-7-5-4-7 6 0 4 7m3-6q8 2 8-3-6-2-8 3',
- facets:'M0 0 12 8 24 0M0 12l12-4 12 4-12 8-12-8m12-4v12m0 0v4M0 24l12-4 12 4',
- circuit:'M6 0v8h6v8h6v8M18 0v5h-5m-13 9h5v10M24 10h-7v3M10 24v-4H7',
- waves:'M0 5q6-5 12 0t12 0M0 10q6-5 12 0t12 0M0 15q6-5 12 0t12 0M0 20q6-5 12 0t12 0',
- stars:'m8 7 1-3 1 3 3 1-3 1-1 3-1-3-3-1 3-1Zm6 11 1-3 1 3 3 1-3 1-1 3-1-3-3-1 3-1Z',
- petals:'M12 12c-10-8 10-8 0 0-8-10-8 10 0 0 10 8-10 8 0 0 8 10 8-10 0 0Zm-6-8 1 1m12 16 1 1',
- cracks:'m6 0 6 8-5 4 8 6-5 6m2-16 8-2m-13 6-7 2m15 4 9-1',
- ribbons:'M0 0c24 5-12 16 24 24M0 4c24 5-12 16 24 24M0-4c24 5-12 16 24 24',
- filigree:'M12 0v24M12 12c-12-12-12 12 0 0 12-12 12 12 0 0m0-6c-8-8-8 8 0 0 8-8 8 8 0 0m0 12c-8-8-8 8 0 0 8-8 8 8 0 0',
- rays:'M12 12 0 0m12 12V0m0 12L24 0m-12 12h12m-12 0 12 12m-12-12v12m0-12L0 24m12-12H0m12 0L4 0m8 12 8 12m-8-12L0 6m12 6 12 6',
- constellation:'m4 19 5-7 7 2 4-8M4 19h.1M9 12h.1M16 14h.1M20 6h.1M6 5h.1M14 3h.1',
- diamonds:'m12 0 6 6-6 6-6-6 6-6Zm0 12 6 6-6 6-6-6 6-6ZM0 6l6 6-6 6m24-12-6 6 6 6',
- orbit:'M4 12a8 3 35 1 0 16 0 8 3 35 1 0-16 0m0 0a8 3-35 1 0 16 0 8 3-35 1 0-16 0M12 1v4m0 14v4'
-}
