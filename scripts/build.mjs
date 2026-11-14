@@ -18,6 +18,8 @@ await build({entryPoints: ['src/online.ts'], bundle: true, minify: true, format:
 await build({entryPoints: ['src/store.ts'], bundle:true, minify:true, format:'esm',target:['es2022'],outfile:'dist/chess/collection.js',legalComments:'none'})
 await build({entryPoints: ['server/index.ts'], bundle: true, platform: 'node', format: 'esm',
   target: ['node24'], outfile: 'dist/server.mjs', legalComments: 'none'})
+await build({entryPoints: ['server/storage-admin.ts'], bundle: true, platform: 'node', format: 'esm',
+  target: ['node24'], outfile: 'dist/storage-admin.mjs', legalComments: 'none'})
 
 // Bundle the same public files as a module for path-scoped Cloudflare Worker deployment.
 const types = {'index.html': 'text/html; charset=utf-8', 'login.html': 'text/html; charset=utf-8',

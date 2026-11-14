@@ -1,11 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {spawn} from 'node:child_process'
-import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises'
+import {mkdtemp,rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {createServer} from 'node:net'
 import {initialState,index} from '../src/model.ts'
+import {ChessStore} from '../server/storage.ts'
 
 test('ratings, notifications and settings are private, durable and settled atomically',async t=>{
  const listener=createServer();await new Promise(r=>listener.listen(0,'127.0.0.1',r));const port=listener.address().port;await new Promise(r=>listener.close(r))
@@ -39,11 +40,11 @@ test('ratings, notifications and settings are private, durable and settled atomi
  assert.equal(privateRoom.rated,true)
  // A legal near-finish position tests the actual orders endpoint and persisted settlement.
  await stop()
- const path=join(data,'multiplayer.json'),db=JSON.parse(await readFile(path,'utf8')),stored=db.rooms.find(r=>r.code===room.code)
  const state=initialState(2,'classic',['red','yellow']),cells=Array(196).fill(null)
  for(const [x,y,player,kind]of [[3,10,'red','K'],[7,5,'red','R'],[7,3,'yellow','K']])cells[index({x,y})]={player,kind,moved:true}
- stored.state={...state,universes:[{...state.universes[0],boards:[{...state.universes[0].boards[0],cells}]}]}
- await writeFile(path,JSON.stringify(db));await start()
+ const store=new ChessStore(data)
+ try{store.transaction(unit=>{unit.rooms.get(room.code).state={...state,universes:[{...state.universes[0],boards:[{...state.universes[0].boards[0],cells}]}]}})}finally{store.close()}
+ await start()
  const order={player:'red',from:{x:7,y:5,u:0,t:0},to:{x:7,y:3,u:0,t:0},route:[0]}
  const responses=await Promise.all([call(`/games/${room.code}/orders`,{orders:[order]},alice),call(`/games/${room.code}/orders`,{orders:[order]},alice)])
  assert.deepEqual(responses.map(r=>r.status).sort(),[200,409])
@@ -59,7 +60,7 @@ test('ratings, notifications and settings are private, durable and settled atomi
  assert.deepEqual((await call('/me',undefined,alice)).data.profile,winner)
  assert.deepEqual((await call('/me',undefined,alice)).data.profile.settings,{...prefs,avatar:'default'})
  assert.equal((await call('/notifications',undefined,alice)).data.items.filter(n=>n.kind==='rating').length,1)
- // Rewards and the market share the durable serialized mutation queue.
+ // Rewards and the market share durable SQL transactions.
  assert.equal((await call('/economy')).status,401)
  const newcomer=(await call('/signup',{username:'Newcomer',password:'p',confirm:'p'})).cookie
  assert.equal((await call('/me',undefined,newcomer)).data.profile.coins,480)
