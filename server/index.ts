@@ -1,3 +1,5 @@
+import {economyView,purchase,spin,buyCrate,buyFeatured,resolveDuplicate,equip,listItem,cancelListing,buyListing,wallet} from './economy.ts'
+import {type Listing} from '../src/collection.ts'
 import {ensureAccount,profile,notify,startRatings,settleRatings,gameNotices,type Account,type RatedRoom} from './accounts.ts'
 import {AVATARS,POOLS,poolFor,type Preferences} from '../src/account-model.ts'
 import {requiredBoards} from '../src/rules.ts'
@@ -14,7 +16,7 @@ type Login = {user: string; expires: number}
 type Room = {code: string; title: string; owner: string; password?: string; salt?: string;
   seats: Partial<Record<Player, string>>; state: State; journal: Order[][]; results: Resolution[];
   locked: Partial<Record<Player, Order[]>>; created: number} & RatedRoom
-type Database = {users: User[]; logins: Record<string, Login>; rooms: Room[]}
+type Database = {users: User[]; logins: Record<string, Login>; rooms: Room[]; listings?: Listing[]}
 const file = resolve(process.env.DATA_DIR || 'data', 'multiplayer.json')
 const staticRoot = resolve('dist/chess')
 const port = Number(process.env.PORT || 4174)
@@ -29,6 +31,7 @@ let queue: Promise<unknown> = Promise.resolve()
 try { db = JSON.parse(await readFile(file, 'utf8')) as Database } catch (error) {
   if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
 }
+db.listings??=[]
 await mkdir(resolve(file, '..'), {recursive: true})
 
 function save() {
@@ -102,7 +105,7 @@ function roomView(room: Room, viewer: string) {
   const active = survivors(room.state)
   return {code: room.code, title: room.title, seats: room.seats, seat, state: room.state,
     journal: room.journal, results: room.results, locked: Object.fromEntries(PLAYERS.map(p => [p, !!room.locked[p]])),
-    waiting: Object.keys(room.seats).length < playerCount(room.state), finished: active.length <= 1, created: room.created, rated: !!room.rated, ratingChanges: room.ratingChanges}
+    waiting: Object.keys(room.seats).length < playerCount(room.state), finished: active.length <= 1, created: room.created, rated: !!room.rated, ratingChanges: room.ratingChanges,cosmetics:Object.fromEntries(Object.entries(room.seats).map(([p,name])=>[p,structuredClone(wallet(db.users.find(a=>a.name===name)!).loadout)]))}
 }
 function summary(room: Room) {
   return {code: room.code, title: room.title, players: Object.keys(room.seats).length,
@@ -166,11 +169,31 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string, sear
   })
   const me = requireUser(req)
   const account = ensureAccount(db.users.find(a=>a.name===me)!)
+  if(path==='/api/economy'&&method==='GET')return json(res,200,economyView(account))
+  if(path==='/api/market'&&method==='GET')return json(res,200,{listings:db.listings})
+  if(path.startsWith('/api/economy/')&&method==='POST'){
+    const data=await body(req)
+    return mutation(res,()=>{
+      let drop
+      switch(path){
+        case '/api/economy/spin':drop=purchase(account,data.requestId,()=>spin(account));break
+        case '/api/economy/crate':drop=purchase(account,data.requestId,()=>buyCrate(account,data.crate));break
+        case '/api/economy/buy':drop=purchase(account,data.requestId,()=>buyFeatured(account,data.itemId));break
+        case '/api/economy/duplicate':resolveDuplicate(account,data.uid,data.refund);break
+        case '/api/economy/equip':equip(account,data.slot,data.uid);break
+        case '/api/economy/list':listItem(account,db.listings!,data.uid,data.price);break
+        case '/api/economy/cancel':cancelListing(account,db.listings!,data.id);break
+        case '/api/economy/market-buy':buyListing(account,db.users,db.listings!,data.id);break
+        default:fail(404,'Not found')
+      }
+      return {status:200,value:{...economyView(account),profile:profile(account),drop}}
+    })
+  }
   if (path === '/api/settings' && method === 'POST') {
     const data=await body(req)
-    if (!AVATARS.includes(data.avatar as Preferences['avatar']) || !['classic','live'].includes(data.movement as string) ||
+    if (!['classic','live'].includes(data.movement as string) ||
       ![2,3,4].includes(data.players as number) || typeof data.moveNotifications !== 'boolean') fail(400,'Invalid settings')
-    return mutation(res,()=>{account.settings={avatar:data.avatar as Preferences['avatar'],movement:data.movement as Movement,players:data.players as PlayerCount,moveNotifications:data.moveNotifications as boolean};return {status:200,value:{profile:profile(account)}}})
+    return mutation(res,()=>{account.settings={avatar:wallet(account).loadout.icon,movement:data.movement as Movement,players:data.players as PlayerCount,moveNotifications:data.moveNotifications as boolean};return {status:200,value:{profile:profile(account)}}})
   }
   if (path === '/api/notifications' && method === 'GET') return json(res,200,{items:account.notifications,unread:account.notifications.filter(n=>!n.read).length})
   if (path === '/api/notifications/read' && method === 'POST') {
@@ -179,11 +202,8 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string, sear
     return mutation(res,()=>{const ids=new Set((data.ids??[]) as string[]);for(const n of account.notifications)if(data.all===true||ids.has(n.id))n.read=true;return {status:200,value:{items:account.notifications,unread:account.notifications.filter(n=>!n.read).length}}})
   }
   if (path === '/api/leaderboard' && method === 'GET') {
-    const selected=search.get('pool')??poolFor(account.settings.movement,account.settings.players)
-    if (!POOLS.includes(selected as typeof POOLS[number])) fail(400,'Invalid rating pool')
-    const pool=selected as typeof POOLS[number]
-    const rows=db.users.map(a=>{const p=profile(a);return {name:p.name,avatar:p.settings.avatar,rating:Math.round(p.ratings[pool].value),games:p.ratings[pool].games}}).filter(a=>a.games>0).sort((a,b)=>b.rating-a.rating||a.name.localeCompare(b.name))
-    return json(res,200,{pool,players:rows.slice(0,10).map((p,i)=>({...p,rank:i+1})),me:{name:me,rating:Math.round(account.ratings[pool].value),games:account.ratings[pool].games,rank:rows.findIndex(a=>a.name===me)+1||null}})
+    const rows=db.users.map(a=>{const p=profile(a);return {name:p.name,avatar:p.loadout.icon,rating:Math.round(p.rating.value),games:p.rating.games}}).filter(a=>a.games>0).sort((a,b)=>b.rating-a.rating||a.name.localeCompare(b.name))
+    return json(res,200,{players:rows.slice(0,10).map((p,i)=>({...p,rank:i+1})),me:{name:me,rating:Math.round(account.rating.value),games:account.rating.games,rank:rows.findIndex(a=>a.name===me)+1||null}})
   }
   if (path === '/api/games' && method === 'GET') return json(res, 200, {
     available: db.rooms.filter(r => !r.password && Object.keys(r.seats).length < playerCount(r.state) && survivors(r.state).length > 1).map(summary),
@@ -197,7 +217,7 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string, sear
     if (data.movement !== undefined && !['classic', 'live'].includes(data.movement as string)) fail(400, 'Invalid movement mode')
     const movement = data.movement as Movement | undefined
     if (data.rated !== undefined && typeof data.rated!=='boolean') fail(400,'Invalid rated setting')
-    if (data.rated && !movement) fail(400,'Rated games require a movement mode')
+
     return mutation(res, () => {
       if (db.rooms.filter(r => survivors(r.state).length > 1).length >= maxGames) fail(409, '50 active games already exist')
       let code = ''
@@ -205,7 +225,7 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string, sear
       while (db.rooms.some(r => r.code === code))
       const salt = password ? randomBytes(16).toString('hex') : undefined
       const room: Room = {code, title, owner: me, password: password && salt ? hash(password, salt) : undefined,
-        salt, rated: data.rated === true && !password, seats: {red: me}, state: initialState(count, movement, movement === 'classic' ? shuffledPlayers(count) : undefined), journal: [], results: [], locked: {}, created: Date.now()}
+        salt, rated: true, seats: {red: me}, state: initialState(count, movement, movement === 'classic' ? shuffledPlayers(count) : undefined), journal: [], results: [], locked: {}, created: Date.now()}
       db.rooms.push(room)
       return {status: 201, value: roomView(room, me)}
     })

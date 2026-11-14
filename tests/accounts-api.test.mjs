@@ -19,10 +19,10 @@ test('ratings, notifications and settings are private, durable and settled atomi
  assert.equal((await call('/notifications')).status,401)
  const alice=(await call('/signup',{username:'Alice',password:'p',confirm:'p'})).cookie
  const bob=(await call('/signup',{username:'Bob',password:'p',confirm:'p'})).cookie
- const me=await call('/me',undefined,alice);assert.equal(me.data.profile.ratings['classic-duel'].value,1200);assert.equal('hash' in me.data.profile,false)
- const prefs={avatar:'knight',movement:'classic',players:3,moveNotifications:true}
+ const me=await call('/me',undefined,alice);assert.equal(me.data.profile.rating.value,1200);assert.equal('hash' in me.data.profile,false)
+ const prefs={movement:'classic',players:3,moveNotifications:true}
  assert.equal((await call('/settings',prefs,alice)).status,200)
- assert.equal((await call('/settings',{...prefs,avatar:'<script>'},alice)).status,400)
+ assert.equal((await call('/settings',{...prefs,players:7},alice)).status,400)
  const room=(await call('/games',{title:'Rated duel',playerCount:2,movement:'classic',rated:true},alice)).data
  await call(`/games/${room.code}/join`,{},bob)
  const notifications=(await call('/notifications',undefined,alice)).data
@@ -32,7 +32,7 @@ test('ratings, notifications and settings are private, durable and settled atomi
  await call('/notifications/read',{all:true},alice)
  assert.equal((await call('/notifications',undefined,alice)).data.unread,0)
  const privateRoom=(await call('/games',{title:'Private',playerCount:2,movement:'live',rated:true,password:'secret'},alice)).data
- assert.equal(privateRoom.rated,false)
+ assert.equal(privateRoom.rated,true)
  // A legal near-finish position tests the actual orders endpoint and persisted settlement.
  await stop()
  const path=join(data,'multiplayer.json'),db=JSON.parse(await readFile(path,'utf8')),stored=db.rooms.find(r=>r.code===room.code)
@@ -44,8 +44,8 @@ test('ratings, notifications and settings are private, durable and settled atomi
  const responses=await Promise.all([call(`/games/${room.code}/orders`,{orders:[order]},alice),call(`/games/${room.code}/orders`,{orders:[order]},alice)])
  assert.deepEqual(responses.map(r=>r.status).sort(),[200,409])
  const winner=(await call('/me',undefined,alice)).data.profile,loser=(await call('/me',undefined,bob)).data.profile
- assert.equal(winner.ratings['classic-duel'].value,1216);assert.equal(loser.ratings['classic-duel'].value,1184)
- assert.equal(winner.ratings['classic-duel'].games,1);assert.equal(winner.ratings['live-multi'].games,0)
+ assert.equal(winner.rating.value,1216);assert.equal(loser.rating.value,1184)
+ assert.equal(winner.rating.games,1);assert.equal('ratings' in winner,false);assert.equal(winner.coins,120);assert.equal(loser.coins,60)
  const board=(await call('/leaderboard?pool=classic-duel',undefined,alice)).data
  assert.equal(board.players[0].name,'Alice');assert.equal(board.players[1].name,'Bob')
  const feed=(await call('/notifications',undefined,alice)).data.items
@@ -53,6 +53,6 @@ test('ratings, notifications and settings are private, durable and settled atomi
  assert.ok(feed.some(n=>n.kind==='result'))
  await stop();await start()
  assert.deepEqual((await call('/me',undefined,alice)).data.profile,winner)
- assert.deepEqual((await call('/me',undefined,alice)).data.profile.settings,prefs)
+ assert.deepEqual((await call('/me',undefined,alice)).data.profile.settings,{...prefs,avatar:'default'})
  assert.equal((await call('/notifications',undefined,alice)).data.items.filter(n=>n.kind==='rating').length,1)
 })
