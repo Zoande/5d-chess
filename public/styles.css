@@ -335,3 +335,7 @@ dialog p:not(.eyebrow) { color: var(--muted); }
 .map-caption { left: 16px; right: auto; top: 58px; max-width: min(500px, calc(100% - 200px)); text-align: left; }
 .check-notice { color: #ffaaa4; font-size: 11px; line-height: 1.45; margin: 8px 0 0; }
 @media (max-width: 1000px) { .minimap { top: 8px; right: 8px; width: 124px; } .minimap canvas { width: 120px; height: 72px; } .map-caption { top: 8px; left: 8px; max-width: calc(100% - 148px); } }
+.required-notice { font-size: 11px; line-height: 1.4; color: #bbb; margin: 8px 0 0; }
+.new-game-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+.new-game-options label { display: grid; gap: 8px; font-size: 12px; }
+.new-game-options select { max-width: 100%; min-width: 0; padding: 8px; background: #303030; color: var(--text); border: 1px solid var(--border); border-radius: 4px; }

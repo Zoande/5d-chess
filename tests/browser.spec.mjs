@@ -27,9 +27,15 @@ test('production paths serve on refresh, with chess-only routing', async t => {
   const root = await fetch(base + '/chess/')
   assert.equal(root.status, 200)
   assert.match(await root.text(), /src="\/chess\/game\.js"/)
-  for (const asset of ['game.js', 'styles.css', 'emblem.svg']) {
+  for (const asset of ['game.js', 'styles.css', 'emblem.svg', 'shell.css', 'collection.html', 'collection.css', 'collection.js']) {
     assert.equal((await fetch(base + '/chess/' + asset)).status, 200)
   }
+  const logo = await fetch(base + '/chess/logo.png')
+  assert.equal(logo.headers.get('content-type'),'image/png')
+  assert.deepEqual(Buffer.from(await logo.arrayBuffer()),await readFile('public/logo.png'))
+  const head = await fetch(base + '/chess/logo.png',{method:'HEAD'})
+  assert.equal(head.headers.get('content-type'),'image/png')
+  assert.equal((await head.arrayBuffer()).byteLength,0)
   assert.equal((await fetch(base + '/chess/', {method:'POST'})).status, 405)
 })
 
@@ -45,6 +51,8 @@ test('four players create a branch and Rift in one scene, then reload, replay, e
   page.on('console', message => {
     if (message.type() === 'error' && !message.location().url.endsWith('/api/me')) errors.push(message.text())
   })
+  const {newSession,encode,SAVE_KEY}=await import('../src/session.ts')
+  await page.addInitScript(([key,save])=>{if(!localStorage.getItem(key))localStorage.setItem(key,save)},[`${SAVE_KEY}/live/4`,encode(newSession())])
   await page.goto(base + '/chess/')
   const canvas = page.locator('#scene')
   const waitText = (selector, value) => page.waitForFunction(([selector, value]) =>
@@ -141,6 +149,7 @@ test('four players create a branch and Rift in one scene, then reload, replay, e
   assert.equal(saved.journal.length,4)
   assert.deepEqual(saved.journal[3][0].route,[1,0])
   const phone = await browser.newPage({viewport:{width:393,height:852},isMobile:true,hasTouch:true,reducedMotion:'reduce'})
+  await phone.addInitScript(([key,save])=>{if(!localStorage.getItem(key))localStorage.setItem(key,save)},[`${SAVE_KEY}/live/4`,encode(newSession())])
   await phone.goto(base + '/chess/')
   if (process.env.QA_PHONE_SCREENSHOT) await phone.screenshot({path:process.env.QA_PHONE_SCREENSHOT})
   const sheet = phone.locator('#sidebar')
@@ -201,7 +210,7 @@ test('match controls stay aligned and recover after dragging and resizing', asyn
     await handle.click()
     assert.equal(await handle.getAttribute('aria-expanded'),'true')
     assert.equal(await page.locator('.round-panel').evaluate(el => el.scrollHeight <= el.clientHeight),true)
-    assert.equal(await page.getByRole('button',{name:'Lock in a pass'}).isVisible(),true)
+    assert.equal(await page.getByRole('button',{name:/Lock in a pass|Plan required moves/}).isVisible(),true)
     await handle.click()
     const menu = page.locator('.match-menu')
     await menu.locator('summary').click()
@@ -235,4 +244,37 @@ test('online check warning and movable camera minimap are available without chan
   assert.notEqual(Math.round((await mini.boundingBox()).x),Math.round(before.x))
   await mini.locator('canvas').click()
   assert.equal(await page.getByText('CHRONOGRAPH').count(),0)
+})
+
+test('local creation persists a Classic order and requires Present moves before submitting',async t=>{
+ const base=await server(t)
+ const browser=await chromium.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']})
+ t.after(()=>browser.close())
+ const page=await browser.newPage({viewport:{width:1380,height:900},reducedMotion:'reduce'})
+ await page.goto(base+'/chess/?local=1&players=2&movement=live')
+ await page.locator('.match-menu summary').click()
+ await page.getByRole('button',{name:'New match',exact:true}).click()
+ await page.locator('#new-players').selectOption('3')
+ await page.locator('#new-movement').selectOption('classic')
+ await page.getByRole('button',{name:'Start new match'}).click()
+ await page.waitForURL(/players=3&movement=classic/)
+ const getSave=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('four-player-multiverse-chess/v1/classic/3')))
+ const first=await getSave()
+ assert.equal(first.movement,'classic');assert.equal(new Set(first.turnOrder).size,3)
+ await page.reload()
+ assert.deepEqual((await getSave()).turnOrder,first.turnOrder)
+ await page.getByRole('button',{name:'Submit turn'}).click()
+ await page.getByRole('heading',{name:'Finish the Present first'}).waitFor()
+ await page.getByRole('button',{name:'Back to the boards'}).click()
+ const player=first.turnOrder[0]
+ await page.getByRole('button',{name:'Focus player',exact:true}).click()
+ await page.waitForTimeout(50)
+ const box=await page.locator('#scene').boundingBox(),scale=Number((await page.locator('#scale').textContent()).replace('%',''))/100
+ const route={red:[[4,13],[5,11]],blue:[[0,9],[2,8]],yellow:[[9,0],[8,2]]}[player]
+ for(const [x,y]of route)await page.locator('#scene').click({position:{x:box.width/2+(x+.5-5.5)*32*scale,y:box.height/2+((y+.5-7)*32-2)*scale}})
+ await page.getByRole('button',{name:'Submit turn'}).click()
+ await page.getByRole('button',{name:'Begin next round'}).click()
+ await page.getByRole('button',{name:/Ready/}).click()
+ assert.equal(await page.locator('#faction-label').textContent(),first.turnOrder[1][0].toUpperCase()+first.turnOrder[1].slice(1))
+ assert.equal((await getSave()).journal.length,1)
 })

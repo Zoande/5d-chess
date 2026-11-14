@@ -97,3 +97,56 @@ test('accounts, rooms and four private plans survive a server restart', async t 
   assert.equal(restored.value.state.round, 2)
   assert.equal(restored.value.journal.length, 1)
 })
+
+test('Classic and Live rooms enforce their own turn rules for two, three and four seats',async t=>{
+ const {requiredBoards}=await import('../src/rules.ts')
+ const {legalMoves}=await import('../src/moves.ts')
+ const {boardTurn}=await import('../src/model.ts')
+ const data=await mkdtemp(join(tmpdir(),'movement-server-')),number=await port(),base=`http://127.0.0.1:${number}`
+ let child
+ const start=async()=>{
+  child=spawn(process.execPath,['dist/server.mjs'],{env:{...process.env,DATA_DIR:data,PORT:String(number)},stdio:'ignore'})
+  for(let i=0;i<100;i++){try{if((await fetch(base+'/api/me')).ok)return}catch{}await new Promise(r=>setTimeout(r,30))}
+  throw new Error('Server did not start')
+ }
+ const stop=async()=>{child.kill();await new Promise(r=>child.once('exit',r))}
+ t.after(async()=>{if(child?.exitCode===null)await stop();await rm(data,{recursive:true,force:true})})
+ await start()
+ const call=async(path,value,cookie)=>{
+  const r=await fetch(base+'/api'+path,{method:value===undefined?'GET':'POST',headers:{...(cookie?{cookie}:{}),...(value===undefined?{}:{'content-type':'application/json'})},body:value===undefined?undefined:JSON.stringify(value)})
+  return {status:r.status,value:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0]}
+ }
+ const cookies=[]
+ for(let i=0;i<4;i++)cookies.push((await call('/signup',{username:`Player${i}`,password:'p',confirm:'p'})).cookie)
+ const saved=[]
+ for(const count of [2,3,4])for(const movement of ['classic','live']){
+  let room=(await call('/games',{title:`${count} ${movement}`,playerCount:count,movement},cookies[0])).value
+  const bySeat={red:cookies[0]}
+  for(let i=1;i<count;i++){const joined=(await call(`/games/${room.code}/join`,{},cookies[i])).value;bySeat[joined.seat]=cookies[i];room=joined}
+  assert.equal(room.state.movement,movement)
+  if(movement==='classic'){
+   const permutation=[...room.state.turnOrder]
+   for(let step=0;step<count;step++){
+    const p=room.state.turn,other=Object.keys(bySeat).find(q=>q!==p)
+    assert.equal((await call(`/games/${room.code}/orders`,{orders:[]},bySeat[other])).status,409)
+    assert.equal((await call(`/games/${room.code}/orders`,{orders:[]},bySeat[p])).status,400)
+    const orders=requiredBoards(room.state,p).map(from=>legalMoves(room.state,from).find(m=>!m.needsVacancy&&m.from.u===m.to.u&&m.from.t===m.to.t))
+    const result=await call(`/games/${room.code}/orders`,{orders},bySeat[p]);assert.equal(result.status,200)
+    room=result.value;assert.deepEqual(room.state.turnOrder,permutation);assert.equal(room.state.round,step+2)
+    assert.equal(boardTurn(room.state,room.state.universes[0]),room.state.turn)
+   }
+  }else{
+   for(const [p,cookie] of Object.entries(bySeat)){
+    assert.equal((await call(`/games/${room.code}/orders`,{orders:[]},cookie)).status,400)
+    const orders=requiredBoards(room.state,p).map(from=>legalMoves(room.state,from).find(m=>!m.needsVacancy&&m.from.u===m.to.u&&m.from.t===m.to.t))
+    const result=await call(`/games/${room.code}/orders`,{orders},cookie);assert.equal(result.status,200);room=result.value
+   }
+   assert.equal(room.state.round,2);assert.ok(room.results[0].travel.length>=count)
+   assert.ok(room.results[0].travel.every(t=>Number.isFinite(t.distance)&&Number.isFinite(t.endTick)))
+  }
+  saved.push({code:room.code,state:room.state})
+ }
+ assert.equal((await call('/games',{title:'bad mode',movement:'warp'},cookies[0])).status,400)
+ await stop();await start()
+ for(const room of saved)assert.deepEqual((await call(`/games/${room.code}`,undefined,cookies[0])).value.state,room.state)
+})

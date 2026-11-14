@@ -1,17 +1,22 @@
+import {economyView,purchase,spin,buyCrate,buyFeatured,resolveDuplicate,equip,listItem,cancelListing,buyListing,wallet} from './economy.ts'
+import {type Listing} from '../src/collection.ts'
+import {ensureAccount,profile,notify,startRatings,settleRatings,gameNotices,type Account,type RatedRoom} from './accounts.ts'
+import {type Preferences} from '../src/account-model.ts'
+import {requiredBoards} from '../src/rules.ts'
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http'
 import {randomBytes, scryptSync, timingSafeEqual, createHash} from 'node:crypto'
 import {readFile, writeFile, mkdir, rename} from 'node:fs/promises'
 import {resolve, extname} from 'node:path'
-import {initialState, playerCount, players, survivors, type Order, type Player, type PlayerCount, type State, type Resolution, PLAYERS} from '../src/model.ts'
+import {initialState, playerCount, players, survivors, type Order, type Player, type PlayerCount, type State, type Resolution, type Movement, shuffledPlayers, PLAYERS, KINDS} from '../src/model.ts'
 import {legalMoves, routeKey} from '../src/moves.ts'
 import {resolveRound, sourceBudget} from '../src/resolve.ts'
 
-type User = {name: string; salt: string; hash: string}
+type User = Account
 type Login = {user: string; expires: number}
 type Room = {code: string; title: string; owner: string; password?: string; salt?: string;
   seats: Partial<Record<Player, string>>; state: State; journal: Order[][]; results: Resolution[];
-  locked: Partial<Record<Player, Order[]>>; created: number}
-type Database = {users: User[]; logins: Record<string, Login>; rooms: Room[]}
+  locked: Partial<Record<Player, Order[]>>; created: number} & RatedRoom
+type Database = {users: User[]; logins: Record<string, Login>; rooms: Room[]; listings?: Listing[]}
 const file = resolve(process.env.DATA_DIR || 'data', 'multiplayer.json')
 const staticRoot = resolve('dist/chess')
 const port = Number(process.env.PORT || 4174)
@@ -26,12 +31,16 @@ let queue: Promise<unknown> = Promise.resolve()
 try { db = JSON.parse(await readFile(file, 'utf8')) as Database } catch (error) {
   if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
 }
+db.listings??=[]
+// Persist the one-time welcome grant before accepting requests, including existing accounts.
+const needsWelcome=db.users.some(u=>!u.wallet?.starterGranted)
 await mkdir(resolve(file, '..'), {recursive: true})
 
 function save() {
   const temporary = `${file}.${process.pid}.tmp`
   return writeFile(temporary, JSON.stringify(db), {mode: 0o600}).then(() => rename(temporary, file))
 }
+if(needsWelcome){for(const account of db.users)wallet(account);await save()}
 function mutate<T>(work: () => Promise<T> | T): Promise<T> {
   const run = queue.then(async () => { const result = await work(); await save(); return result })
   queue = run.catch(() => {})
@@ -99,14 +108,14 @@ function roomView(room: Room, viewer: string) {
   const active = survivors(room.state)
   return {code: room.code, title: room.title, seats: room.seats, seat, state: room.state,
     journal: room.journal, results: room.results, locked: Object.fromEntries(PLAYERS.map(p => [p, !!room.locked[p]])),
-    waiting: Object.keys(room.seats).length < playerCount(room.state), finished: active.length <= 1, created: room.created}
+    waiting: Object.keys(room.seats).length < playerCount(room.state), finished: active.length <= 1, created: room.created, rated: !!room.rated, ratingChanges: room.ratingChanges,cosmetics:Object.fromEntries(Object.entries(room.seats).map(([p,name])=>[p,structuredClone(wallet(db.users.find(a=>a.name===name)!).loadout)]))}
 }
 function summary(room: Room) {
   return {code: room.code, title: room.title, players: Object.keys(room.seats).length,
-    maxPlayers: playerCount(room.state), protected: !!room.password, round: room.state.round, finished: survivors(room.state).length <= 1}
+    maxPlayers: playerCount(room.state), protected: !!room.password, movement: room.state.movement ?? 'legacy', rated: !!room.rated, turn: room.state.turn, round: room.state.round, finished: survivors(room.state).length <= 1}
 }
 function orders(value: unknown, seat: Player, state: State): Order[] {
-  if (!Array.isArray(value) || value.length > 5) fail(400, 'Invalid orders')
+  if (!Array.isArray(value) || value.length > (state.movement ? Math.min(512, state.universes.length + 1) : 5)) fail(400, 'Invalid orders')
   const checked: Order[] = []
   for (const raw of value) {
     if (!raw || typeof raw !== 'object') fail(400, 'Invalid order')
@@ -121,14 +130,14 @@ function orders(value: unknown, seat: Player, state: State): Order[] {
   }
   return checked
 }
-async function api(req: IncomingMessage, res: ServerResponse, path: string) {
+async function api(req: IncomingMessage, res: ServerResponse, path: string, search = new URLSearchParams()) {
   const method = req.method || 'GET'
   if (method !== 'GET') {
     const origin = req.headers.origin
     const forwardedHost = req.headers['x-forwarded-host'] || req.headers.host
     if (origin && new URL(origin).host !== forwardedHost) fail(403, 'Cross-origin request denied')
   }
-  if (path === '/api/me' && method === 'GET') return json(res, 200, {user: user(req) ?? null})
+  if (path === '/api/me' && method === 'GET') { const name = user(req); return json(res, 200, {user: name ?? null, profile: name ? profile(db.users.find(a=>a.name===name)!) : null}) }
   if (path === '/api/signup' && method === 'POST') {
     const data = await body(req)
     const name = string(data.username, 'username', 32)
@@ -162,15 +171,58 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
     return {status: 200, value: {ok: true}, headers: {'set-cookie': `${cookieName}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`}}
   })
   const me = requireUser(req)
+  const account = ensureAccount(db.users.find(a=>a.name===me)!)
+  if(path==='/api/economy'&&method==='GET')return json(res,200,economyView(account))
+  if(path==='/api/market'&&method==='GET')return json(res,200,{listings:db.listings})
+  if(path.startsWith('/api/economy/')&&method==='POST'){
+    const data=await body(req)
+    return mutation(res,()=>{
+      let drop
+      switch(path){
+        case '/api/economy/spin-again':drop=purchase(account,data.requestId,()=>spin(account,Date.now(),true));break
+        case '/api/economy/spin':drop=purchase(account,data.requestId,()=>spin(account));break
+        case '/api/economy/crate':drop=purchase(account,data.requestId,()=>buyCrate(account,data.crate));break
+        case '/api/economy/buy':drop=purchase(account,data.requestId,()=>buyFeatured(account,data.itemId));break
+        case '/api/economy/duplicate':resolveDuplicate(account,data.uid,data.refund);break
+        case '/api/economy/equip-set':for(const kind of KINDS)equip(account,kind,data.uid);break
+        case '/api/economy/equip':equip(account,data.slot,data.uid);break
+        case '/api/economy/list':listItem(account,db.listings!,data.uid,data.price);break
+        case '/api/economy/cancel':cancelListing(account,db.listings!,data.id);break
+        case '/api/economy/market-buy':buyListing(account,db.users,db.listings!,data.id);break
+        default:fail(404,'Not found')
+      }
+      return {status:200,value:{...economyView(account),profile:profile(account),drop}}
+    })
+  }
+  if (path === '/api/settings' && method === 'POST') {
+    const data=await body(req)
+    if (!['classic','live'].includes(data.movement as string) ||
+      ![2,3,4].includes(data.players as number) || typeof data.moveNotifications !== 'boolean') fail(400,'Invalid settings')
+    return mutation(res,()=>{account.settings={avatar:wallet(account).loadout.icon,movement:data.movement as Movement,players:data.players as PlayerCount,moveNotifications:data.moveNotifications as boolean};return {status:200,value:{profile:profile(account)}}})
+  }
+  if (path === '/api/notifications' && method === 'GET') return json(res,200,{items:account.notifications,unread:account.notifications.filter(n=>!n.read).length})
+  if (path === '/api/notifications/read' && method === 'POST') {
+    const data=await body(req)
+    if (data.all !== true && (!Array.isArray(data.ids) || data.ids.length>100 || data.ids.some(id=>typeof id!=='string'||! /^[a-f0-9]{24}$/.test(id)))) fail(400,'Invalid notification selection')
+    return mutation(res,()=>{const ids=new Set((data.ids??[]) as string[]);for(const n of account.notifications)if(data.all===true||ids.has(n.id))n.read=true;return {status:200,value:{items:account.notifications,unread:account.notifications.filter(n=>!n.read).length}}})
+  }
+  if (path === '/api/leaderboard' && method === 'GET') {
+    const rows=db.users.map(a=>{const p=profile(a);return {name:p.name,avatar:p.loadout.icon,rating:Math.round(p.rating.value),games:p.rating.games}}).filter(a=>a.games>0).sort((a,b)=>b.rating-a.rating||a.name.localeCompare(b.name))
+    return json(res,200,{players:rows.slice(0,10).map((p,i)=>({...p,rank:i+1})),me:{name:me,rating:Math.round(account.rating.value),games:account.rating.games,rank:rows.findIndex(a=>a.name===me)+1||null}})
+  }
   if (path === '/api/games' && method === 'GET') return json(res, 200, {
     available: db.rooms.filter(r => !r.password && Object.keys(r.seats).length < playerCount(r.state) && survivors(r.state).length > 1).map(summary),
-    mine: db.rooms.filter(r => Object.values(r.seats).includes(me)).map(summary), limit: maxGames})
+    mine: db.rooms.filter(r => Object.values(r.seats).includes(me)).map(r=>{const seat=players(r.state).find(p=>r.seats[p]===me)!;return {...summary(r),myTurn:Object.keys(r.seats).length===playerCount(r.state)&&survivors(r.state).includes(seat)&&!r.locked[seat]&&(r.state.movement!=='classic'||r.state.turn===seat)}}), limit: maxGames})
   if (path === '/api/games' && method === 'POST') {
     const data = await body(req)
     const title = string(data.title || `${me}'s game`, 'game name', 60)
     const password = passwordValue(data.password, true)
     if (data.playerCount !== undefined && ![2, 3, 4].includes(data.playerCount as number)) fail(400, 'Invalid player count')
     const count = (data.playerCount ?? 4) as PlayerCount
+    if (data.movement !== undefined && !['classic', 'live'].includes(data.movement as string)) fail(400, 'Invalid movement mode')
+    const movement = data.movement as Movement | undefined
+    if (data.rated !== undefined && typeof data.rated!=='boolean') fail(400,'Invalid rated setting')
+
     return mutation(res, () => {
       if (db.rooms.filter(r => survivors(r.state).length > 1).length >= maxGames) fail(409, '50 active games already exist')
       let code = ''
@@ -178,7 +230,7 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
       while (db.rooms.some(r => r.code === code))
       const salt = password ? randomBytes(16).toString('hex') : undefined
       const room: Room = {code, title, owner: me, password: password && salt ? hash(password, salt) : undefined,
-        salt, seats: {red: me}, state: initialState(count), journal: [], results: [], locked: {}, created: Date.now()}
+        salt, rated: true, seats: {red: me}, state: initialState(count, movement, movement === 'classic' ? shuffledPlayers(count) : undefined), journal: [], results: [], locked: {}, created: Date.now()}
       db.rooms.push(room)
       return {status: 201, value: roomView(room, me)}
     })
@@ -193,7 +245,11 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
       if (Object.keys(room.seats).length >= playerCount(room.state)) fail(409, 'Game is full')
       if (room.password && (!room.salt || typeof data.password !== 'string' || !verify(data.password, room.salt, room.password))) fail(403, 'Incorrect game password')
       const seat = players(room.state).find(p => !room.seats[p])!
+      const existing=Object.values(room.seats)
       room.seats[seat] = me
+      startRatings(room,db.users)
+      for(const name of existing){const target=db.users.find(a=>a.name===name);if(target)notify(target,{kind:'join',code:room.code,title:`${me} joined`,detail:`${room.title}: ${Object.keys(room.seats).length}/${playerCount(room.state)} seats filled.`})}
+      if (Object.keys(room.seats).length===playerCount(room.state)) gameNotices(room,db.users,me,true)
       return {status: 200, value: roomView(room, me)}
     })
   }
@@ -203,18 +259,25 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string) {
     return mutation(res, () => {
       if (Object.keys(room.seats).length < playerCount(room.state)) fail(409, `Waiting for ${playerCount(room.state)} players`)
       const seat = PLAYERS.find(p => room.seats[p] === me)!
+      if (survivors(room.state).length <= 1) fail(409,'This game has finished')
       if (!survivors(room.state).includes(seat)) fail(409, 'Your faction is eliminated')
       if (room.locked[seat]) fail(409, 'Orders already locked')
-      room.locked[seat] = orders(data.orders, seat, room.state)
+      if (room.state.movement === 'classic' && room.state.turn !== seat) fail(409, 'It is another player’s turn')
+      const checked = orders(data.orders, seat, room.state)
+      if (requiredBoards(room.state, seat, checked).length) fail(400, 'Play every required Present board first')
       const alive = survivors(room.state)
-      if (alive.every(p => room.locked[p])) {
-        const batch = alive.flatMap(p => room.locked[p] || [])
+      const locks = {...room.locked, [seat]: checked}
+      if (room.state.movement === 'classic' || alive.every(p => locks[p])) {
+        const batch = room.state.movement === 'classic' ? checked : alive.flatMap(p => locks[p] || [])
         const result = resolveRound(room.state, batch)
+        if (result.rejected.length) fail(400, result.rejected[0].reason)
         room.state = result.state
         room.journal.push(batch)
         room.results.push(result)
         room.locked = {}
-      }
+        settleRatings(room,db.users)
+        gameNotices(room,db.users,me,true)
+      } else {room.locked = locks;gameNotices(room,db.users,me,false)}
       return {status: 200, value: roomView(room, me)}
     })
   }
@@ -226,7 +289,7 @@ function sessionCookie(req: IncomingMessage, token: string) {
   return `${cookieName}=${token}; Path=/; Max-Age=${30 * 86400}; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`
 }
 const types: Record<string, string> = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml'}
+  '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml'}
 async function staticFile(req: IncomingMessage, res: ServerResponse, path: string) {
   if (req.method !== 'GET' && req.method !== 'HEAD') fail(405, 'Method not allowed')
   if (path === '/') { res.writeHead(302, {location: '/chess/'}).end(); return }
@@ -248,8 +311,9 @@ async function staticFile(req: IncomingMessage, res: ServerResponse, path: strin
 }
 createServer(async (req, res) => {
   try {
-    const path = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`).pathname
-    if (path.startsWith('/api/')) await api(req, res, path)
+    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`)
+    const path = url.pathname
+    if (path.startsWith('/api/')) await api(req, res, path,url.searchParams)
     else await staticFile(req, res, path)
   } catch (error) {
     const status = (error as {status?: number}).status || 500

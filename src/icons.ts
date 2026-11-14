@@ -1,0 +1,32 @@
+const paths: Record<string,string> = {
+ coin:'<circle cx="12" cy="12" r="10" fill="#c89b3b" stroke="#f4d785"/><circle cx="12" cy="12" r="7" stroke="#86631f"/><path d="M14 8h-4v8h4m-5-4h5" stroke="#fff1b4"/>',
+ shop:'<path d="M3 10v12h18V10M2 10l3-8h14l3 8M8 22v-8h8v8M2 10q3 4 5 0 3 4 5 0 3 4 5 0 3 4 5 0"/>',
+ inventory:'<path d="M3 7h18v15H3V7ZM2 2h20v5H2V2Zm7 10h6"/>',
+ market:'<path d="M3 7h17l-4-4m5 14H4l4 4M20 7l-4 4M4 17l4-4"/>',
+ wheel:'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="2"/><path d="M12 2v8m0 4v8M2 12h8m4 0h8M5 5l5 5m4 4 5 5M5 19l5-5m4-4 5-5"/>',
+
+ person:'<circle cx="12" cy="8" r="4"/><path d="M4 22v-2a8 8 0 0 1 16 0v2"/>',
+ king:'<path d="M12 2v6M9 5h6M6 11l3 8h6l3-8-6 3-6-3Zm2 11h8"/>',
+ queen:'<path d="m3 7 4 12h10l4-12-5 5-4-8-4 8-5-5ZM7 22h10"/><circle cx="12" cy="3" r="1"/>',
+ rook:'<path d="M5 3h3v4h2V3h4v4h2V3h3v7l-3 3v6H8v-6l-3-3V3Zm2 19h10"/>',
+ bishop:'<path d="m13 3 4 6-2 4h-6L7 9l6-6Zm0 0-2 7M9 14l-2 5h10l-2-5M6 22h12"/>',
+ knight:'<path d="m7 3 10 5 2 7-4 4v3H6l1-5 5-6-6 3-3-3 4-8Zm5 5h.01"/>',
+ bell:'<path d="M18 8a6 6 0 0 0-12 0c0 8-3 8-3 10h18c0-2-3-2-3-10ZM10 21h4M12 2V1"/>',
+ trophy:'<path d="M7 3h10v7a5 5 0 0 1-10 0V3ZM7 5H3v4c0 3 2 4 5 4m9-8h4v4c0 3-2 4-5 4M12 15v6M7 22h10"/>',
+ online:'<circle cx="12" cy="12" r="2"/><path d="M7 7a7 7 0 0 0 0 10M17 7a7 7 0 0 1 0 10M3 3a13 13 0 0 0 0 18M21 3a13 13 0 0 1 0 18"/>',
+ monitor:'<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M12 17v5M7 22h10"/>',
+ live:'<path d="M12 12c-8-12-16 12-8 6S20 0 22 8s-6 10-10 4Z"/>',
+ search:'<circle cx="10" cy="10" r="7"/><path d="m15 15 7 7"/>',
+ play:'<path d="m7 3 14 9-14 9V3Z"/>',
+ robot:'<rect x="3" y="6" width="18" height="15" rx="4"/><path d="M12 2v4M1 11v6M23 11v6M8 16h8"/><circle cx="8" cy="11" r="1"/><circle cx="16" cy="11" r="1"/>',
+ plus:'<path d="M12 3v18M3 12h18"/>',
+ menu:'<path d="M3 5h18M3 12h18M3 19h18"/>',
+ chevron:'<path d="m6 9 6 6 6-6"/>',
+ back:'<path d="m10 5-7 7 7 7M3 12h18"/>',
+ chart:'<path d="M4 22V12h4v10m2 0V6h4v16m2 0V2h4v20"/>',
+ settings:'<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/>',
+ info:'<circle cx="12" cy="12" r="10"/><path d="M12 11v6M12 7h.01"/>',
+ check:'<path d="m4 12 5 5L20 6"/>',
+ home:'<path d="m2 10 10-8 10 8M5 9v13h14V9M10 22v-8h4v8"/>'
+}
+export function icon(name: string, className='') {return `<svg class="icon ${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]??paths.person}</svg>`}

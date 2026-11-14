@@ -23,6 +23,7 @@ export function checks(s: State, player: Player): Threat[] {
   return result
 }
 export function playableBoards(s: State, player: Player, orders: readonly Order[]): Coord[] {
+  if (s.movement === 'classic' && s.turn !== player) return []
   return s.universes.flatMap(u => {
     const from = {u: u.id, t: frontier(u).t, x: 0, y: 0}
     if (!sourceBudget(s, from, orders)) return []
@@ -36,8 +37,8 @@ export function playableBoards(s: State, player: Player, orders: readonly Order[
 const plans = new WeakMap<State, Map<string, ReturnType<typeof analyze>>>()
 function analyze(s: State, player: Player, orders: readonly Order[]) {
   const threats = checks(s, player)
-  const projected = orders.length ? resolveRound(s, orders).state : s
-  return {threats, remaining: checks(projected, player), playable: playableBoards(s, player, orders)}
+  const projected = orders.length ? resolveRound(s, orders, {partial: true}).state : s
+  return {threats, kingLost: projected.eliminated.includes(player) && !s.eliminated.includes(player), remaining: checks(projected, player), playable: playableBoards(s, player, orders)}
 }
 export function awareness(s: State, player: Player, orders: readonly Order[]) {
   let cache = plans.get(s)

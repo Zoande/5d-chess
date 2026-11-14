@@ -1,7 +1,9 @@
+import {requiredBoards} from './rules.ts'
+import {resolveLive} from './continuous.ts'
 import {
   type Board, type Candidate, type Capture, type Coord, type EnPassant, type Order, type Outcome,
   type Piece, type Player, type Resolution, type State, type Universe,
-  activation, boardKey, coordKey, frontier, getBoard, getUniverse, index, isMain,
+  activation, boardTurn, nextPlayer, boardKey, coordKey, frontier, getBoard, getUniverse, index, isMain,
   moveBudget, pieceAt, playerCount, players, present, promotes, sameBoard, survivors
 } from './model.ts'
 import {legalMoves, orderKey, routeKey} from './moves.ts'
@@ -9,6 +11,7 @@ import {legalMoves, orderKey, routeKey} from './moves.ts'
 export function sourceBudget(s: State, from: Coord, orders: readonly Order[]): 'main' | 'optional' | null {
   const u = getUniverse(s, from.u)
   if (!u || frontier(u).t !== from.t || orders.some(o => sameBoard(o.from, from))) return null
+  if (s.movement === 'classic' && boardTurn(s, u) !== s.turn) return null
   const t = present(s)
   const main = orders.filter(o => isMain(getUniverse(s, o.from.u)!, t)).length
   if (isMain(u, t)) return main < moveBudget(s).main ? 'main' : null
@@ -25,6 +28,10 @@ function validate(s: State, orders: readonly Order[]) {
   if (survivors(s).length <= 1) return {valid, rejected: sorted.map(order => ({order, reason: 'Game over'}))}
   const geometric: Candidate[] = []
   for (const order of sorted) {
+    const source = getUniverse(s, order.from.u)
+    if (s.movement === 'classic' && (order.player !== s.turn || !source || boardTurn(s, source) !== order.player)) {
+      rejected.push({order, reason: 'This faction does not own the board turn'}); continue
+    }
     const piece = pieceAt(s, order.from)
     const move = piece?.player === order.player && legalMoves(s, order.from, order.to)
     const match = move && move.find(m => routeKey(m.route) === routeKey(order.route))
@@ -98,10 +105,10 @@ interface Draft {
   t: number
   cells: (Piece | null)[]
   enPassant: EnPassant[]
+  turn?: Player
 }
 
-export function resolveRound(s: State, orders: readonly Order[]): Resolution {
-  const {valid, rejected} = validate(s, orders)
+function resolveFrozen(s: State, valid: Candidate[], rejected: Resolution['rejected']): Resolution {
   if (survivors(s).length <= 1) return {state: s, outcomes: [], rejected, eliminated: []}
   const outcomes = determine(s, valid)
   const applied = outcomes.filter(o => o.status === 'applied')
@@ -112,7 +119,7 @@ export function resolveRound(s: State, orders: readonly Order[]): Resolution {
   const dead = new Set<Player>()
 
   function clone(board: Board): Draft {
-    return {t: board.t + 1, cells: board.cells.map(p => p && !s.eliminated.includes(p.player) ? p : null),
+    return {turn: board.turn, t: board.t + 1, cells: board.cells.map(p => p && !s.eliminated.includes(p.player) ? p : null),
       enPassant: []}
   }
   function advance(c: Pick<Coord, 'u' | 't'>): Draft {
@@ -129,10 +136,14 @@ export function resolveRound(s: State, orders: readonly Order[]): Resolution {
     if (target.kind === 'K') dead.add(target.player)
   }
   const t = present(s)
-  for (const u of s.universes) if (isMain(u, t)) advance({u: u.id, t})
+  for (const u of s.universes) if (s.movement !== 'classic' && isMain(u, t)) advance({u: u.id, t})
 
   for (const out of applied) {
-    for (const leg of legs(out.move)) advance(leg.from).cells[index(leg.from)] = null
+    for (const leg of legs(out.move)) {
+      const draft = advance(leg.from)
+      draft.cells[index(leg.from)] = null
+      if (s.movement === 'classic') draft.turn = nextPlayer(s, out.move.player)
+    }
   }
 
   // All captures inspect the post-departure, pre-arrival positions. En passant
@@ -145,6 +156,7 @@ export function resolveRound(s: State, orders: readonly Order[]): Resolution {
     let draft: Draft
     if (m.branch) {
       draft = clone(getBoard(s, m.to)!)
+      if (s.movement === 'classic') draft.turn = nextPlayer(s, m.player)
       const id = nextId++
       branches.push({id, parent: m.to.u, divergence: m.to.t, creator: m.player, created: s.round,
         active: false, boards: [draft]})
@@ -188,6 +200,18 @@ export function resolveRound(s: State, orders: readonly Order[]): Resolution {
     const board = drafts.get(u.id)
     return board ? {...u, boards: [...u.boards, board]} : u
   })
-  return {state: {playerCount: playerCount(s), round, universes: activation([...advanced, ...branches], allDead, playerCount(s)), rifts, eliminated: allDead},
+  return {state: {...s, ...(s.movement === 'classic' ? {turn: nextPlayer({...s, eliminated: allDead}, s.turn!)} : {}), playerCount: playerCount(s), round, universes: activation([...advanced, ...branches], allDead, playerCount(s)), rifts, eliminated: allDead},
     outcomes, rejected, eliminated}
+}
+
+export function resolveRound(s: State, orders: readonly Order[], options: {partial?: boolean} = {}): Resolution {
+  const {valid, rejected} = validate(s, orders)
+  if (survivors(s).length <= 1) return {state: s, outcomes: [], rejected, eliminated: []}
+  if (s.movement && !options.partial) {
+    for (const player of s.movement === 'classic' ? [s.turn!] : survivors(s)) {
+      for (const from of requiredBoards(s, player, valid)) rejected.push({order: {player, from, to: from, route: [from.u]}, reason: 'A move is required on every playable Present board'})
+    }
+  }
+  if (s.movement && rejected.length) return {state: s, outcomes: [], rejected, eliminated: []}
+  return s.movement === 'live' ? resolveLive(s, valid, rejected) : resolveFrozen(s, valid, rejected)
 }

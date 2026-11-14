@@ -1,3 +1,5 @@
+import {itemById,type Loadout} from './collection.ts'
+import {designFor,pigments,alternateShapes,type Inlay} from './skin-designs.ts'
 import {type Kind, type Player} from './model.ts'
 
 export const COLORS: Record<Player, string> = {red: '#df9187', blue: '#91bad5', yellow: '#f3d58d', green: '#a5c69a'}
@@ -15,24 +17,37 @@ const detail: Record<Kind, string> = {
   P: 'M8 16.9h8', R: 'M7.6 12.05h8.8m-9.6 4.8h10.4', N: 'M7.4 17h10.2m-7.3-8.7.35-.24',
   B: 'M13.8 8.2l-2.7 3.1m-2.4 5.4h6.6', Q: 'M7.2 16.6h9.6m-8.7-2.1h7.8', K: 'M7.4 16.2h9.2M12 10v3.7'
 }
-const art = Object.fromEntries(Object.entries(silhouette).map(([k, d]) => [k, new Path2D(d)])) as Record<Kind, Path2D>
-const lines = Object.fromEntries(Object.entries(detail).map(([k, d]) => [k, new Path2D(d)])) as Record<Kind, Path2D>
-export function drawPiece(ctx: CanvasRenderingContext2D, kind: Kind, player: Player, x: number, y: number, size: number) {
-  ctx.save()
-  ctx.translate(x - size / 2, y - size / 2)
-  ctx.scale(size / 24, size / 24)
-  ctx.lineJoin = 'round'
-  ctx.lineCap = 'round'
-  ctx.strokeStyle = '#2c241c'
-  ctx.lineWidth = 1.55
-  ctx.stroke(art[kind])
-  ctx.fillStyle = COLORS[player]
-  ctx.fill(art[kind])
-  ctx.lineWidth = .8
-  ctx.strokeStyle = '#33271e'
-  ctx.stroke(lines[kind])
-  ctx.restore()
+const pathCache=new Map<string,Path2D>()
+const path=(d:string)=>{let p=pathCache.get(d);if(!p){p=new Path2D(d);pathCache.set(d,p)}return p}
+let loadouts:Partial<Record<Player,Loadout>>={}
+export function setCosmetics(next:Partial<Record<Player,Loadout>>){loadouts=next}
+interface PieceVector {shape:string;base:string;rim:string;detail:string;layers:{d:string;fill?:string;stroke?:string;width:number;opacity:number}[]}
+const vectorCache=new Map<string,PieceVector>()
+/** One vector recipe drives both the board canvas and every collection preview. */
+export function pieceVectors(kind:Kind,player:Player,skinId?:string):PieceVector{
+ const skin=itemById(skinId??loadouts[player]?.pieces[kind]??''),design=designFor(skin),key=`${kind}:${player}:${skin?.id??'default'}`
+ const cached=vectorCache.get(key);if(cached)return cached
+ if(!design)return {shape:silhouette[kind],base:COLORS[player],rim:'#33271e',detail:'#33271e',layers:[] as {d:string;fill?:string;stroke?:string;width:number;opacity:number}[]}
+ const colors=pigments(COLORS[player],design)
+ const facets:Inlay[]=[{d:'M0 0h7L9 24H0Z',fill:'light',opacity:.18},{d:'M19 0h5v24h-7Z',fill:'ink',opacity:.18}]
+ const vector:PieceVector={shape:design.family==='classic'?silhouette[kind]:alternateShapes[design.family][kind],base:colors.body,rim:design.material==='dark'?colors.faction:['legendary','mythic'].includes(skin!.rarity)?colors.gold:colors.shade,detail:design.material==='dark'?colors.ivory:colors.ink,layers:[...facets,...design.inlays].map(l=>({d:l.d,fill:l.fill?colors[l.fill]:undefined,stroke:l.stroke?colors[l.stroke]:undefined,width:l.width??.4,opacity:l.opacity??1}))}
+ vectorCache.set(key,vector);return vector
 }
-export function pieceIcon(kind: Kind, player: Player, size = 24) {
-  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><path fill="${COLORS[player]}" d="${silhouette[kind]}"/><path d="${detail[kind]}" fill="none" stroke="#33271e" stroke-width=".8" stroke-linecap="round"/></svg>`
+export function drawPiece(ctx: CanvasRenderingContext2D, kind: Kind, player: Player, x: number, y: number, size: number) {
+ const vector=pieceVectors(kind,player),shape=path(vector.shape)
+ ctx.save();ctx.translate(x-size/2,y-size/2);ctx.scale(size/24,size/24);ctx.lineJoin='round';ctx.lineCap='round'
+ ctx.strokeStyle='#29251e';ctx.lineWidth=1.65;ctx.stroke(shape);ctx.fillStyle=vector.base;ctx.fill(shape)
+ ctx.save();ctx.clip(shape)
+ for(const layer of vector.layers){ctx.globalAlpha=layer.opacity;if(layer.fill){ctx.fillStyle=layer.fill;ctx.fill(path(layer.d))}if(layer.stroke){ctx.strokeStyle=layer.stroke;ctx.lineWidth=layer.width;ctx.stroke(path(layer.d))}}
+ ctx.restore();ctx.lineWidth=.55;ctx.strokeStyle=vector.rim;ctx.stroke(shape)
+ ctx.lineWidth=.7;ctx.strokeStyle=vector.detail;ctx.stroke(path(detail[kind]));ctx.restore()
+}
+let svgId=0
+export function pieceIcon(kind: Kind, player: Player, size = 24, skinId?:string) {
+ const v=pieceVectors(kind,player,skinId),id=`piece-${++svgId}`
+ const layers=v.layers.map(l=>`<path d="${l.d}" fill="${l.fill??'none'}" stroke="${l.stroke??'none'}" stroke-width="${l.width}" opacity="${l.opacity}"/>`).join('')
+ return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><defs><clipPath id="${id}"><path d="${v.shape}"/></clipPath></defs><g stroke-linejoin="round" stroke-linecap="round"><path fill="${v.base}" stroke="#29251e" stroke-width=".75" d="${v.shape}"/><g clip-path="url(#${id})">${layers}</g><path d="${v.shape}" fill="none" stroke="${v.rim}" stroke-width=".4"/><path d="${detail[kind]}" fill="none" stroke="${v.detail}" stroke-width=".7"/></g></svg>`
+}
+export function skinSetIcon(skinId:string,player:Player='red'){
+ return `<span class="skin-set-art"><span>${pieceIcon('K',player,86,skinId)}</span><span>${pieceIcon('N',player,104,skinId)}</span><span>${pieceIcon('Q',player,86,skinId)}</span></span>`
 }
