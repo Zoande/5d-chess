@@ -75,6 +75,11 @@
 .settings-collection-link { grid-column:1/-1;color:#aaa;font-size:13px;line-height:1.7; }
 .settings-collection-link a { color:var(--accent); }
 @media(max-width:1100px) and (min-width:701px) { .economy-nav a { padding-inline:7px; }.economy-nav a span { display:none; }.economy-nav a::after { content:attr(data-title); }.masthead.app-topbar:has(.economy-nav) { gap:0 12px; } }
+@media(max-width:1100px) {
+ .masthead.app-topbar:has(.economy-nav) { grid-template-columns:minmax(0,1fr) auto;gap:0 12px; }
+ .masthead.app-topbar:has(.economy-nav) #account-area,.masthead.app-topbar:has(.economy-nav) .header-actions { grid-column:2; }
+ .masthead.app-topbar:has(.economy-nav) .economy-nav { grid-column:1/-1;grid-row:2;justify-content:center;width:100%;margin-top:9px;padding:5px 0 0;border-top:1px solid #353535;gap:3px; }
+}
 @media(max-width:700px) {
  .masthead.app-topbar:has(.economy-nav) { grid-template-columns:minmax(0,1fr) auto;gap:0 8px; }
  .masthead.app-topbar:has(.economy-nav) #account-area,.masthead.app-topbar:has(.economy-nav) .header-actions { grid-column:2; }
@@ -106,3 +111,7 @@ body[data-page=collection] .equipment-slots button,body[data-page=collection] .o
 .frame-plasma .frame-structure,.frame-clock-ring .frame-structure,.frame-solar-corona .frame-structure { transform-origin:32px 32px;animation:frame-orbit 40s linear infinite; }.frame-tideline .frame-glimmer,.frame-lunar-tide .frame-glimmer { stroke-dasharray:12 8 3 28;animation-duration:14s; }.frame-arcade .frame-structure { animation:frame-breathe 1.8s steps(3) infinite; }.frame-ember-wings .frame-structure,.frame-seraph .frame-structure { animation:frame-breathe 3s ease-in-out infinite; }.frame-rift-halo .frame-glimmer { stroke-width:4;stroke-dasharray:15 65 10 25; }
 @keyframes frame-orbit { to { transform:rotate(360deg); } }@keyframes frame-breathe { 50% { opacity:.45; } }
 @media(prefers-reduced-motion:reduce) { .frame-orbit,.frame-glimmer,.frame-structure { animation:none!important; } }
+/* Casino links remain available beside the collection controls on every screen. */
+.casino-nav-link { color:#d9c49a!important; }
+@media(max-width:700px) { .economy-nav a { gap:3px;padding:8px 5px;font-size:10px; }.economy-nav .coin-balance { font-size:11px;padding-right:7px;margin-right:2px; }.economy-nav { gap:2px; } }
+@media(max-width:380px) { .economy-nav a:not(.casino-nav-link) span { display:none; }.economy-nav a { padding-inline:7px; }.economy-nav .casino-nav-link span { display:inline; } }

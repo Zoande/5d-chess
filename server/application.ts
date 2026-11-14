@@ -6,6 +6,7 @@ import {authApi} from './auth-api.ts'
 import {accountApi} from './account-api.ts'
 import {economyApi} from './economy-api.ts'
 import {gameApi} from './game-api.ts'
+import {casinoApi} from './casino-api.ts'
 import {ensureAccount} from './accounts.ts'
 import {staticFile} from './static.ts'
 import {STORAGE_SCHEMA} from './storage.ts'
@@ -32,6 +33,7 @@ export function createApplication(store: ChessStore) {
           const account = ensureAccount(unit.users.get(me) ?? fail(401,'Log in first'))
           return accountApi(store,account,path,method,data)
             ?? economyApi(unit,account,path,method,data)
+            ?? casinoApi(unit,account,path,method,data)
             ?? gameApi(store,unit,me,path,method,data)
             ?? fail(404,'Not found')
         })

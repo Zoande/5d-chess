@@ -18,7 +18,7 @@ function applyRating(){
   if(!current)return
   const el=document.getElementById('account-rating')
   if(el){el.textContent=`${Math.round(current.rating.value)} ELO`;el.title=`${current.rating.games} rated games`}
-  document.querySelectorAll<HTMLElement>('[data-coins]').forEach(el=>{el.textContent=current!.coins>=100000?new Intl.NumberFormat('en',{notation:'compact',maximumFractionDigits:1}).format(current!.coins):current!.coins.toLocaleString();el.parentElement!.title=`${current!.coins.toLocaleString()} earned coins`})
+  document.querySelectorAll<HTMLElement>('[data-coins]').forEach(el=>{el.textContent=current!.coins>=100000?new Intl.NumberFormat('en',{notation:'compact',maximumFractionDigits:1}).format(current!.coins):current!.coins.toLocaleString(undefined,{maximumFractionDigits:4});el.parentElement!.title=`${current!.coins.toLocaleString(undefined,{maximumFractionDigits:4})} earned coins`})
 }
 export function renderAccount(profile:Profile){
   current=profile
@@ -46,7 +46,7 @@ function renderEconomyNav(){
  if(!header)return
  let nav=header.querySelector<HTMLElement>('.economy-nav')
  if(!nav){nav=document.createElement('nav');nav.className='economy-nav';nav.setAttribute('aria-label','Collection');header.insertBefore(nav,header.querySelector('.match-meta')??header.querySelector('#account-area')??header.querySelector('.header-actions'))}
- nav.innerHTML=`<span class="coin-balance" title="Coins earned in games and daily spins">${icon('coin')}<strong data-coins>0</strong></span><a href="/chess/collection.html#shop" aria-label="Shop" title="Shop">${icon('shop')}<span>Shop</span></a><a href="/chess/collection.html#inventory" aria-label="Inventory" title="Inventory">${icon('inventory')}<span>Inventory</span></a><a href="/chess/collection.html#market" aria-label="Market" title="Market">${icon('market')}<span>Market</span></a>`
+ nav.innerHTML=`<span class="coin-balance" title="Coins earned in games and daily spins">${icon('coin')}<strong data-coins>0</strong></span><a href="/chess/collection.html#shop" aria-label="Shop" title="Shop">${icon('shop')}<span>Shop</span></a><a href="/chess/collection.html#inventory" aria-label="Inventory" title="Inventory">${icon('inventory')}<span>Inventory</span></a><a href="/chess/collection.html#market" aria-label="Market" title="Market">${icon('market')}<span>Market</span></a><a class="casino-nav-link" href="/chess/roulette.html" aria-label="Roulette" title="Roulette">${icon('wheel')}<span>Roulette</span></a><a class="casino-nav-link" href="/chess/dice.html" aria-label="Dice" title="Dice">${icon('dice')}<span>Dice</span></a>`
 }
 export function updateNoticeCount(count:number){document.querySelectorAll<HTMLElement>('[data-notification-count]').forEach(el=>{el.hidden=!count;el.textContent=String(count)})}
 export async function fetchNotices(){const data=await api<{items:Notice[];unread:number}>('/notifications');updateNoticeCount(data.unread);renderNotificationPanel(data.items);return data}
