@@ -1,12 +1,12 @@
-import {economyView,purchase,spin,buyCrate,buyFeatured,resolveDuplicate,equip,listItem,cancelListing,buyListing,wallet} from './economy.ts'
+import {economyView,purchase,spin,buyCrate,buyFeatured,resolveDuplicate,equip,equipLook,listItem,cancelListing,buyListing,wallet} from './economy.ts'
 import {type Listing} from '../src/collection.ts'
-import {ensureAccount,profile,notify,startRatings,settleRatings,gameNotices,type Account,type RatedRoom} from './accounts.ts'
+import {ensureAccount,profile,notify,startRatings,settleRatings,gameNotices,rankedPlayers,type Account,type RatedRoom} from './accounts.ts'
 import {type Preferences} from '../src/account-model.ts'
 import {requiredBoards} from '../src/rules.ts'
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http'
 import {randomBytes, scryptSync, timingSafeEqual, createHash} from 'node:crypto'
 import {readFile, writeFile, mkdir, rename} from 'node:fs/promises'
-import {resolve, extname} from 'node:path'
+import {resolve, extname, sep} from 'node:path'
 import {initialState, playerCount, players, survivors, type Order, type Player, type PlayerCount, type State, type Resolution, type Movement, shuffledPlayers, PLAYERS, KINDS} from '../src/model.ts'
 import {legalMoves, routeKey} from '../src/moves.ts'
 import {resolveRound, sourceBudget} from '../src/resolve.ts'
@@ -179,11 +179,13 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string, sear
     return mutation(res,()=>{
       let drop
       switch(path){
+        case '/api/economy/visit-shop':wallet(account).shopSeen=true;break
         case '/api/economy/spin-again':drop=purchase(account,data.requestId,()=>spin(account,Date.now(),true));break
         case '/api/economy/spin':drop=purchase(account,data.requestId,()=>spin(account));break
-        case '/api/economy/crate':drop=purchase(account,data.requestId,()=>buyCrate(account,data.crate));break
-        case '/api/economy/buy':drop=purchase(account,data.requestId,()=>buyFeatured(account,data.itemId));break
+        case '/api/economy/crate':drop=purchase(account,data.requestId,()=>buyCrate(account,data.crate,undefined,data.month));break
+        case '/api/economy/buy':drop=purchase(account,data.requestId,()=>buyFeatured(account,data.itemId,undefined,data.expectedPrice));break
         case '/api/economy/duplicate':resolveDuplicate(account,data.uid,data.refund);break
+        case '/api/economy/equip-look':equipLook(account,data.target,data.primary,data.secondary);break
         case '/api/economy/equip-set':for(const kind of KINDS)equip(account,kind,data.uid);break
         case '/api/economy/equip':equip(account,data.slot,data.uid);break
         case '/api/economy/list':listItem(account,db.listings!,data.uid,data.price);break
@@ -207,8 +209,8 @@ async function api(req: IncomingMessage, res: ServerResponse, path: string, sear
     return mutation(res,()=>{const ids=new Set((data.ids??[]) as string[]);for(const n of account.notifications)if(data.all===true||ids.has(n.id))n.read=true;return {status:200,value:{items:account.notifications,unread:account.notifications.filter(n=>!n.read).length}}})
   }
   if (path === '/api/leaderboard' && method === 'GET') {
-    const rows=db.users.map(a=>{const p=profile(a);return {name:p.name,avatar:p.loadout.icon,rating:Math.round(p.rating.value),games:p.rating.games}}).filter(a=>a.games>0).sort((a,b)=>b.rating-a.rating||a.name.localeCompare(b.name))
-    return json(res,200,{players:rows.slice(0,10).map((p,i)=>({...p,rank:i+1})),me:{name:me,rating:Math.round(account.rating.value),games:account.rating.games,rank:rows.findIndex(a=>a.name===me)+1||null}})
+    const rows=rankedPlayers(db.users),self=rows.find(p=>p.name===me)!
+    return json(res,200,{players:rows.slice(0,10),me:{name:me,rating:self.rating,games:self.games,rank:self.rank}})
   }
   if (path === '/api/games' && method === 'GET') return json(res, 200, {
     available: db.rooms.filter(r => !r.password && Object.keys(r.seats).length < playerCount(r.state) && survivors(r.state).length > 1).map(summary),
@@ -297,7 +299,7 @@ async function staticFile(req: IncomingMessage, res: ServerResponse, path: strin
   const name = path.slice('/chess/'.length) || 'index.html'
   if (!/^[a-zA-Z0-9._/-]+$/.test(name) || name.split('/').includes('..')) fail(404, 'Not found')
   const absolute = resolve(staticRoot, name)
-  if (!absolute.startsWith(staticRoot + '/') && absolute !== staticRoot) fail(404, 'Not found')
+  if (!absolute.startsWith(staticRoot + sep) && absolute !== staticRoot) fail(404, 'Not found')
   try {
     const data = await readFile(absolute)
     res.writeHead(200, {'content-type': types[extname(name)] || 'application/octet-stream',

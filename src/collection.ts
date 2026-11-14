@@ -1,9 +1,10 @@
+import {EXPANSION_ITEMS} from './collection-expansion.ts'
 import {type Kind} from './model.ts'
 export const RARITIES=['common','uncommon','rare','epic','legendary','mythic'] as const
 export type Rarity=typeof RARITIES[number]
-export type ItemType='icon'|'skin'
+export type ItemType='icon'|'skin'|'frame'|'shape'
 export const RARITY_COLORS:Record<Rarity,string>={common:'#aeb6bd',uncommon:'#8dbb7b',rare:'#6daaf0',epic:'#b587e8',legendary:'#e8b65a',mythic:'#ed88b7'}
-export interface Collectible {id:string;type:ItemType;name:string;rarity:Rarity;motif:string;description:string;price:number}
+export interface Collectible {id:string;type:ItemType;name:string;rarity:Rarity;motif:string;description:string;price:number;monthly?:'solar'|'lunar'}
 const levels:Rarity[]=['common','common','common','common','uncommon','uncommon','uncommon','uncommon','rare','rare','rare','rare','epic','epic','epic','legendary','legendary','legendary','legendary','mythic']
 const prices=[160,320,700,1600,4000,12000]
 const icons=[['pawn-scout','Pawn Scout','pawn','Every great game starts with one small step.'],['castle-guard','Castle Guard','rook','A watchful tower, a steady hand.'],['night-rider','Night Rider','knight','The unexpected route.'],['quiet-bishop','Quiet Bishop','bishop','Patience on the long diagonal.'],['laurel','Laurel','laurel','A well-earned victory.'],['compass','Wayfinder','compass','Find your way across the multiverse.'],['hourglass','Hourglass','hourglass','A moment worth keeping.'],['shield','Sentinel','shield','Hold the line.'],['eclipse','Eclipse','eclipse','Between light and shadow.'],['rift-eye','Rift Eye','eye','Watch every timeline.'],['crystal','Prism','crystal','A thousand possible futures.'],['comet','Comet','comet','Leave a trail.'],['phoenix','Phoenix','phoenix','Rise in another timeline.'],['serpent','Ouroboros','serpent','The end is another beginning.'],['lotus','Lotus','lotus','Calm at the center of the board.'],['sun-king','Sun King','sun','A crown forged in daylight.'],['imperial-crown','Imperial Crown','crown','The weight of a dynasty.'],['celestial-stag','Celestial Stag','stag','A guardian between worlds.'],['dragon','Golden Dragon','dragon','A legend across every age.'],['singularity','Singularity','orbit','One king. Infinite worlds.']]
@@ -31,17 +32,36 @@ const extraSkins:[string,string,string,string,Rarity][]=[
  ['tapestry','Tapestry','tapestry','A royal coat of arms woven into faction cloth.','epic']
 ]
 export const ITEMS:Collectible[]=[...icons.map((x,i)=>({id:'icon-'+x[0],type:'icon' as const,name:x[1],motif:x[2],description:x[3],rarity:levels[i],price:prices[RARITIES.indexOf(levels[i])]})),...skins.map((x,i)=>({id:'skin-'+x[0],type:'skin' as const,name:x[1],motif:x[2],description:x[3],rarity:levels[i],price:prices[RARITIES.indexOf(levels[i])]})),...extraSkins.map(([id,name,motif,description,rarity])=>({id:'skin-'+id,type:'skin' as const,name,motif,description,rarity,price:prices[RARITIES.indexOf(rarity)]}))]
+ITEMS.push(...EXPANSION_ITEMS)
+export const GENERAL_ITEMS=ITEMS.filter(i=>!i.monthly)
+export const ITEM_LABELS:Record<ItemType,string>={icon:'Player icon',skin:'Skin set',frame:'Icon frame',shape:'Shape set'}
 const itemIndex=new Map(ITEMS.map(item=>[item.id,item]))
 export const itemById=(id:string)=>itemIndex.get(id)
 export const DEFAULT_ICON='default'
 export interface OwnedItem {uid:string;itemId:string;acquired:number;pending:boolean;listed?:string}
-export interface Loadout {icon:string;pieces:Partial<Record<Kind,string>>}
+export interface Loadout {icon:string;frame?:string;shape?:string;shapes?:Partial<Record<Kind,string>>;pieces:Partial<Record<Kind,string>>}
 export const STARTER_COINS=480
 export const PAID_SPIN_PRICE=200
-export interface Wallet {starterGranted?:boolean;coins:number;inventory:OwnedItem[];loadout:Loadout;lastSpin?:string}
+export interface Wallet {starterGranted?:boolean;coins:number;inventory:OwnedItem[];loadout:Loadout;lastSpin?:string;shopSeen?:boolean}
 export interface Listing {id:string;seller:string;uid:string;itemId:string;price:number;created:number}
 export interface Drop {id:string;source:'spin'|'crate';paid?:boolean;coins?:number;uid?:string;itemId?:string;duplicate?:boolean;refund?:number;segment?:number;created:number}
-export const CRATES=[{id:'icon-bronze',type:'icon',tier:0,name:'Bronze icon crate',price:120},{id:'icon-silver',type:'icon',tier:1,name:'Silver icon crate',price:450},{id:'icon-gold',type:'icon',tier:2,name:'Gold icon crate',price:1200},{id:'skin-bronze',type:'skin',tier:0,name:'Bronze skin crate',price:160},{id:'skin-silver',type:'skin',tier:1,name:'Silver skin crate',price:600},{id:'skin-gold',type:'skin',tier:2,name:'Gold skin crate',price:1600}] as const
+export interface Crate {id:string;type:ItemType|'mixed';tier:0|1|2;name:string;price:number;monthly?:'solar'|'lunar'|'exclusive';styles?:[string,string]}
+export const CRATES:Crate[]=[
+ {id:'icon-bronze',type:'icon',tier:0,name:'Scout capsule',price:120},
+ {id:'icon-silver',type:'icon',tier:1,name:'Herald capsule',price:450},
+ {id:'icon-gold',type:'icon',tier:2,name:'Sovereign capsule',price:1200},
+ {id:'skin-bronze',type:'skin',tier:0,name:'Artisan chest',price:160},
+ {id:'skin-silver',type:'skin',tier:1,name:'Atelier chest',price:600},
+ {id:'skin-gold',type:'skin',tier:2,name:'Heirloom chest',price:1600},
+ {id:'frame-orbit',type:'frame',tier:1,name:'Orbit casket',price:350},
+ {id:'frame-aureole',type:'frame',tier:2,name:'Aureole casket',price:950},
+ {id:'shape-workshop',type:'shape',tier:1,name:'Sculptor vault',price:400},
+ {id:'shape-masterwork',type:'shape',tier:2,name:'Masterwork vault',price:1100},
+ {id:'mixed-vault',type:'mixed',tier:1,name:'Multiverse cache',price:420},
+ {id:'monthly-solar',type:'mixed',tier:1,name:'Solar Observatory',price:500,monthly:'solar',styles:['Sunstone','Obsidian']},
+ {id:'monthly-lunar',type:'mixed',tier:1,name:'Lunar Sanctuary',price:500,monthly:'lunar',styles:['Moonstone','Midnight']},
+ {id:'monthly-eclipse',type:'mixed',tier:2,name:'Eclipse Reliquary',price:1800,monthly:'exclusive',styles:['Totality','Afterglow']}
+]
 // Integer weights total 1,000,000. Within a rarity every item is equally likely.
 export const CRATE_ODDS:readonly (readonly number[])[]=[[699000,240000,55000,5900,99,1],[250000,400000,270000,74000,5900,100],[50000,180000,420000,300000,49000,1000]]
 export const SPIN_REWARDS=[{label:'40',coins:40,weight:410000},{label:'80',coins:80,weight:300000},{label:'150',coins:150,weight:160000},{label:'300',coins:300,weight:80000},{label:'1,000',coins:1000,weight:35000},{label:'Rare item',rarity:'rare' as Rarity,weight:12000},{label:'Legendary',rarity:'legendary' as Rarity,weight:2900},{label:'Mythic',rarity:'mythic' as Rarity,weight:100}]
@@ -55,9 +75,39 @@ export function weekKey(now=Date.now()){const d=new Date(dayKey(now)+'T12:00:00Z
 export function nextWeek(now=Date.now()){const d=new Date(weekKey(now)+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+7);return midnight(d.toISOString().slice(0,10))}
 export function weeklyItems(now=Date.now()){
  let seed=Number(weekKey(now).replaceAll('-',''))
- const shuffled=[...ITEMS.filter(i=>i.rarity!=='mythic')].sort((a,b)=>a.id.localeCompare(b.id))
+ const shuffled=[...GENERAL_ITEMS.filter(i=>i.rarity!=='mythic')].sort((a,b)=>a.id.localeCompare(b.id))
  const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296}
  for(let i=shuffled.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]]}
- // Two premium features plus two accessible items of each type.
- return (['skin','icon'] as const).flatMap(type=>[...shuffled.filter(i=>i.type===type&&['epic','legendary'].includes(i.rarity)).slice(0,2),...shuffled.filter(i=>i.type===type&&!['epic','legendary'].includes(i.rarity)).slice(0,2)])
+ // A premium and an accessible find of every type, then interleave the edit.
+ const selected=(['skin','icon','frame','shape'] as const).flatMap(type=>[...shuffled.filter(i=>i.type===type&&['epic','legendary'].includes(i.rarity)).slice(0,1),...shuffled.filter(i=>i.type===type&&!['epic','legendary'].includes(i.rarity)).slice(0,1)])
+ return [0,1].flatMap(n=>selected.filter((_,i)=>i%2===n))
+}
+
+/** Four deterministic offers per Amsterdam day, including a guaranteed animated frame. */
+export function dailyDeals(now=Date.now()){
+ let seed=Number(dayKey(now).replaceAll('-',''))^0x5dce55
+ const weekly=new Set(weeklyItems(now).map(i=>i.id))
+ const pool=GENERAL_ITEMS.filter(i=>i.rarity!=='mythic'&&!weekly.has(i.id)).sort((a,b)=>a.id.localeCompare(b.id))
+ for(let i=pool.length-1;i>0;i--){seed=(Math.imul(seed,1664525)+1013904223)>>>0;const j=seed%(i+1);[pool[i],pool[j]]=[pool[j],pool[i]]}
+ const skin=pool.find(i=>i.type==='skin')!,avatar=pool.find(i=>i.type==='icon')!,frame=pool.find(i=>i.type==='frame')!
+ return [skin,avatar,pool.find(i=>i!==skin&&i!==avatar&&i!==frame)!,frame].map(i=>({itemId:i.id,price:Math.floor(i.price*.75),originalPrice:i.price}))
+}
+
+export const monthKey=(now=Date.now())=>dayKey(now).slice(0,7)
+export function nextMonth(now=Date.now()){const d=new Date(monthKey(now)+'-01T12:00:00Z');d.setUTCMonth(d.getUTCMonth()+1);return midnight(d.toISOString().slice(0,10))}
+/** Explicit per-item integer tickets shared by the server draw and the displayed odds. */
+export function crateTickets(crate:Crate){
+ const monthly=crate.monthly
+ const pool=monthly==='exclusive'?ITEMS.filter(i=>i.monthly):monthly?ITEMS.filter(i=>!i.monthly||i.monthly===monthly):GENERAL_ITEMS.filter(i=>crate.type==='mixed'||i.type===crate.type)
+ const weights=CRATE_ODDS[crate.tier]
+ const weighted=pool.map(item=>{
+  const rarity=pool.filter(i=>i.rarity===item.rarity),same=rarity.filter(i=>!!i.monthly===!!item.monthly)
+  const groupWeight=monthly&&monthly!=='exclusive'&&rarity.some(i=>i.monthly)&&rarity.some(i=>!i.monthly)?(item.monthly ? 0.65 : 0.35):1
+  return {item,raw:weights[RARITIES.indexOf(item.rarity)]*groupWeight/same.length}
+ })
+ const total=weighted.reduce((s,x)=>s+x.raw,0),tickets=weighted.map(x=>({item:x.item,weight:Math.floor(x.raw/total*1000000)}))
+ let remainder=1000000-tickets.reduce((s,x)=>s+x.weight,0)
+ const fractions=weighted.map((x,i)=>({i,f:x.raw/total*1000000-tickets[i].weight})).sort((a,b)=>b.f-a.f||a.i-b.i)
+ for(let n=0;n<remainder;n++)tickets[fractions[n].i].weight++
+ return tickets.filter(t=>t.weight>0)
 }

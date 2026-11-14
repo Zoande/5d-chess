@@ -1,10 +1,35 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {ITEMS,STARTER_COINS,PAID_SPIN_PRICE,RARITIES,CRATE_ODDS,SPIN_REWARDS,dayKey,nextReset,weekKey,nextWeek,weeklyItems} from '../src/collection.ts'
+import {ITEMS,GENERAL_ITEMS,STARTER_COINS,PAID_SPIN_PRICE,RARITIES,CRATE_ODDS,SPIN_REWARDS,dayKey,nextReset,weekKey,nextWeek,weeklyItems,dailyDeals} from '../src/collection.ts'
 import {wallet,weightedIndex,grant,spin,buyCrate,buyFeatured,resolveDuplicate,equip,listItem,buyListing,cancelListing,purchase} from '../server/economy.ts'
 const user=name=>({name,wallet:{coins:0,starterGranted:true,inventory:[],loadout:{icon:'default',pieces:{}}}})
-test('catalog contains 40 skins and 20 icons, four legendary and one mythic; odds are exact',()=>{
- for(const type of ['icon','skin']){const items=ITEMS.filter(i=>i.type===type);assert.equal(items.length,type==='skin'?40:20);assert.equal(items.filter(i=>i.rarity==='legendary').length,4);assert.equal(items.filter(i=>i.rarity==='mythic').length,1);for(const r of RARITIES)assert.ok(items.some(i=>i.rarity===r))}
+
+test('daily deals are deterministic, reset at Dutch midnight, and charge the server price',()=>{
+ const now=Date.parse('2026-11-14T12:00:00Z'),deals=dailyDeals(now),next=nextReset(now)
+ assert.deepEqual(deals,dailyDeals(next-1))
+ assert.notDeepEqual(deals,dailyDeals(next))
+ assert.equal(new Set(deals.map(d=>d.itemId)).size,4)
+ assert.ok(deals.some(d=>d.itemId.startsWith('skin-')))
+ assert.ok(deals.some(d=>d.itemId.startsWith('icon-')))
+ assert.ok(deals.some(d=>d.itemId.startsWith('frame-')))
+ assert.ok(deals.every(d=>!weeklyItems(now).some(i=>i.id===d.itemId)))
+ for(const deal of deals){
+  assert.equal(deal.price,Math.floor(deal.originalPrice*.75))
+  const buyer=user('Deals');buyer.wallet.coins=deal.price
+  assert.throws(()=>buyFeatured(buyer,deal.itemId,now,deal.price-1),/offer has changed/)
+  assert.equal(buyer.wallet.coins,deal.price)
+  const drop=purchase(buyer,'daily-deal-test-001',()=>buyFeatured(buyer,deal.itemId,now))
+  assert.equal(drop.itemId,deal.itemId);assert.equal(buyer.wallet.coins,0)
+  assert.equal(buyer.wallet.inventory[0].pending,false)
+  purchase(buyer,'daily-deal-test-001',()=>buyFeatured(buyer,deal.itemId,now))
+  assert.equal(buyer.wallet.inventory.length,1)
+ }
+ const expired=deals.find(d=>!dailyDeals(next).some(n=>n.itemId===d.itemId))
+ assert.ok(expired)
+ assert.throws(()=>buyFeatured(user('Expired'),expired.itemId,next),/not in this week/)
+})
+test('general catalog retains 40 skins and 20 icons, four legendary and one mythic; odds are exact',()=>{
+ for(const type of ['icon','skin']){const items=GENERAL_ITEMS.filter(i=>i.type===type);assert.equal(items.length,type==='skin'?40:20);assert.equal(items.filter(i=>i.rarity==='legendary').length,4);assert.equal(items.filter(i=>i.rarity==='mythic').length,1);for(const r of RARITIES)assert.ok(items.some(i=>i.rarity===r))}
  for(const odds of [...CRATE_ODDS,SPIN_REWARDS.map(r=>r.weight)]){assert.equal(odds.reduce((a,b)=>a+b),1000000);let boundary=0;for(let i=0;i<odds.length;i++){assert.equal(weightedIndex(odds,boundary),i);boundary+=odds[i];assert.equal(weightedIndex(odds,boundary-1),i)}}
 })
 test('Dutch daily and weekly resets handle spring and autumn daylight saving',()=>{

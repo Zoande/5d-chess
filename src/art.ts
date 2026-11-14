@@ -1,3 +1,4 @@
+import {shapePath} from './shape-designs.ts'
 import {itemById,type Loadout} from './collection.ts'
 import {designFor,pigments,alternateShapes,type Inlay} from './skin-designs.ts'
 import {type Kind, type Player} from './model.ts'
@@ -24,13 +25,13 @@ export function setCosmetics(next:Partial<Record<Player,Loadout>>){loadouts=next
 interface PieceVector {shape:string;base:string;rim:string;detail:string;layers:{d:string;fill?:string;stroke?:string;width:number;opacity:number}[]}
 const vectorCache=new Map<string,PieceVector>()
 /** One vector recipe drives both the board canvas and every collection preview. */
-export function pieceVectors(kind:Kind,player:Player,skinId?:string):PieceVector{
- const skin=itemById(skinId??loadouts[player]?.pieces[kind]??''),design=designFor(skin),key=`${kind}:${player}:${skin?.id??'default'}`
+export function pieceVectors(kind:Kind,player:Player,skinId?:string,shapeId?:string):PieceVector{
+ const skin=itemById(skinId??loadouts[player]?.pieces[kind]??''),design=designFor(skin),shapeItem=itemById(shapeId??(skinId===undefined?loadouts[player]?.shapes?.[kind]??loadouts[player]?.shape:undefined)??''),customShape=shapeItem?.type==='shape'?shapePath(shapeItem.motif,kind):undefined,key=`${kind}:${player}:${skin?.id??'default'}:${shapeItem?.id??'default'}`
  const cached=vectorCache.get(key);if(cached)return cached
- if(!design)return {shape:silhouette[kind],base:COLORS[player],rim:'#33271e',detail:'#33271e',layers:[] as {d:string;fill?:string;stroke?:string;width:number;opacity:number}[]}
+ if(!design)return {shape:customShape??silhouette[kind],base:COLORS[player],rim:'#33271e',detail:'#33271e',layers:[] as {d:string;fill?:string;stroke?:string;width:number;opacity:number}[]}
  const colors=pigments(COLORS[player],design)
  const facets:Inlay[]=[{d:'M0 0h7L9 24H0Z',fill:'light',opacity:.18},{d:'M19 0h5v24h-7Z',fill:'ink',opacity:.18}]
- const vector:PieceVector={shape:design.family==='classic'?silhouette[kind]:alternateShapes[design.family][kind],base:colors.body,rim:design.material==='dark'?colors.faction:['legendary','mythic'].includes(skin!.rarity)?colors.gold:colors.shade,detail:design.material==='dark'?colors.ivory:colors.ink,layers:[...facets,...design.inlays].map(l=>({d:l.d,fill:l.fill?colors[l.fill]:undefined,stroke:l.stroke?colors[l.stroke]:undefined,width:l.width??.4,opacity:l.opacity??1}))}
+ const vector:PieceVector={shape:customShape??(design.family==='classic'?silhouette[kind]:alternateShapes[design.family][kind]),base:colors.body,rim:design.material==='dark'?colors.faction:['legendary','mythic'].includes(skin!.rarity)?colors.gold:colors.shade,detail:design.material==='dark'?colors.ivory:colors.ink,layers:[...facets,...design.inlays].map(l=>({d:l.d,fill:l.fill?colors[l.fill]:undefined,stroke:l.stroke?colors[l.stroke]:undefined,width:l.width??.4,opacity:l.opacity??1}))}
  vectorCache.set(key,vector);return vector
 }
 export function drawPiece(ctx: CanvasRenderingContext2D, kind: Kind, player: Player, x: number, y: number, size: number) {
@@ -43,11 +44,11 @@ export function drawPiece(ctx: CanvasRenderingContext2D, kind: Kind, player: Pla
  ctx.lineWidth=.7;ctx.strokeStyle=vector.detail;ctx.stroke(path(detail[kind]));ctx.restore()
 }
 let svgId=0
-export function pieceIcon(kind: Kind, player: Player, size = 24, skinId?:string) {
- const v=pieceVectors(kind,player,skinId),id=`piece-${++svgId}`
+export function pieceIcon(kind: Kind, player: Player, size = 24, skinId?:string,shapeId?:string) {
+ const v=pieceVectors(kind,player,skinId,shapeId),id=`piece-${++svgId}`
  const layers=v.layers.map(l=>`<path d="${l.d}" fill="${l.fill??'none'}" stroke="${l.stroke??'none'}" stroke-width="${l.width}" opacity="${l.opacity}"/>`).join('')
  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><defs><clipPath id="${id}"><path d="${v.shape}"/></clipPath></defs><g stroke-linejoin="round" stroke-linecap="round"><path fill="${v.base}" stroke="#29251e" stroke-width=".75" d="${v.shape}"/><g clip-path="url(#${id})">${layers}</g><path d="${v.shape}" fill="none" stroke="${v.rim}" stroke-width=".4"/><path d="${detail[kind]}" fill="none" stroke="${v.detail}" stroke-width=".7"/></g></svg>`
 }
-export function skinSetIcon(skinId:string,player:Player='red'){
- return `<span class="skin-set-art"><span>${pieceIcon('K',player,86,skinId)}</span><span>${pieceIcon('N',player,104,skinId)}</span><span>${pieceIcon('Q',player,86,skinId)}</span></span>`
+export function skinSetIcon(skinId:string,player:Player='red',shapeId?:string){
+ return `<span class="skin-set-art"><span>${pieceIcon('K',player,86,skinId,shapeId)}</span><span>${pieceIcon('N',player,104,skinId,shapeId)}</span><span>${pieceIcon('Q',player,86,skinId,shapeId)}</span></span>`
 }

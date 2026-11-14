@@ -1,8 +1,17 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {eloChanges,ensureAccount,settleRatings,startRatings,notify,profile,mergedChanges,eliminationCredits} from '../server/accounts.ts'
+import {eloChanges,ensureAccount,settleRatings,startRatings,notify,profile,mergedChanges,eliminationCredits,rankedPlayers} from '../server/accounts.ts'
 import {initialState} from '../src/model.ts'
 const account=name=>({name,salt:'test',hash:'test'})
+
+test('new accounts appear on the leaderboard and equal Elo shares a competition rank',()=>{
+ const users=['Zoe','Amy','Bea','Cy','Dan'].map(account)
+ assert.deepEqual(rankedPlayers(users).map(p=>p.rank),[1,1,1,1,1])
+ ensureAccount(users[0]).rating.value=1400
+ ensureAccount(users[3]).rating.value=1100
+ ensureAccount(users[4]).rating.value=1000
+ assert.deepEqual(rankedPlayers(users).map(p=>[p.name,p.rank]),[['Zoe',1],['Amy',2],['Bea',2],['Cy',4],['Dan',5]])
+})
 test('Elo changes are balanced, opponent-normalized and fair for ties and upsets',()=>{
  assert.deepEqual(eloChanges([1200,1200],[1,0]),[16,-16])
  assert.deepEqual(eloChanges([1200,1200,1200,1200],[3,2,1,0]),[16,5,-5,-16])

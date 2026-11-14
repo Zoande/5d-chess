@@ -52,6 +52,18 @@ const themes:Record<string,SkinDesign>={
  peacock:{family:'court',material:'enamel',inlays:[fill('M12 24Q-4 9 4 2q8-4 8 14 0-18 8-14 8 7-8 22Z','shade','gold',.4),fill([7,17,12].map((x,i)=>circle(x,[7,7,15][i],2.8)).join(''),'gold'),fill([7,17,12].map((x,i)=>circle(x,[7,7,15][i],1.7)).join(''),'gem'),fill([7,17,12].map((x,i)=>circle(x,[7,7,15][i],.7)).join(''),'ink'),line('M7 10l5 14 5-14M12 18v6','ivory',.4)]},
  tapestry:{family:'relic',material:'enamel',inlays:[fill('M0 0h12v12H0Zm12 12h12v12H12Z','ivory'),fill('M6 5h12v7l-6 5-6-5Z','shade','gold',.65),fill('M12 7l1.5 3 3 .5-2.3 2 .6 3-2.8-1.5L9.2 16l.6-3-2.3-2 3-.5Z','gold'),fill('M0 18h24v6H0Z','faction'),line('M0 19h24M2 21h2m2 0h2m2 0h2m2 0h2m2 0h2','gold',.55)]}
 }
+Object.assign(themes,{
+ sundial:{family:'court',material:'metal',inlays:[fill('M0 8h24v8H0Z','gold'),fill(circle(12,12,4),'shade','ivory'),line('M12 8v4l3 2M5 8v2m14-2v2M4 18h16','ivory',.5),fill('M0 20h24v4H0Z','faction')]},
+ heliograph:{family:'cut',material:'metal',inlays:[fill('M0 0h24v24H0Z','gold'),fill('M0 0 12 10 4 18Zm24 0L12 10l8 8ZM4 18l8-8 8 8Z','faction','ivory',.4),line('M0 5l24 14M0 9l24 14M0 1l24 14','silver',.5)]},
+ emberglass:{family:'relic',material:'dark',inlays:[fill('M3 23 8 9l3 7 4-14 6 21Z','gold'),fill('M8 24l4-12 5 12Z','faction'),line('M2 3 8 8 4 14m12-12 3 7-3 7 6 7','light',.5),fill(gems([[7,7],[18,18],[12,5]]),'ivory')]},
+ coronation:{family:'court',material:'enamel',inlays:[fill('M0 0h8l4 14 4-14h8v24H0Z','shade'),fill('M3 1 12 14 21 1l-4 17H7Z','gold'),fill('M6 0l6 13L18 0l-3 17H9Z','ivory'),fill('M0 19h24v5H0Z','gold'),fill(gems([[6,20],[12,20],[18,20]]),'gem','ink')]},
+ supernova:{family:'cut',material:'dark',inlays:[fill('M12 1l2 7 9-3-6 7 7 5-10-1-2 8-2-8-10 1 7-5-6-7 9 3Z','gold'),fill('M12 5l1 6 6 1-6 1-1 6-1-6-6-1 6-1Z','ivory'),line('M0 0l7 7m10 10 7 7M24 0l-7 7M0 24l7-7','gem',.8)]},
+ moonstone:{family:'court',material:'ceramic',inlays:[fill('M0 0h24v24H0Z','ivory'),fill('M0 4l24 10v5L0 9Z','silver'),fill('M0 6l24 10v1L0 7Z','faction'),fill(circle(13,10,3),'shade'),fill(circle(14,9,2.5),'ivory'),line('M0 19h24','silver',1)]},
+ selenite:{family:'cut',material:'ceramic',inlays:[fill('M0 0h24v24H0Z','silver'),fill('M0 3 7 0l-3 24H0ZM12 0h5l-6 24H8Zm10 0h2v24h-8Z','ivory'),line('M4 0 1 24M10 0 6 24M19 0l-5 24M24 4l-5 20','faction',.6),fill('M0 19h24v2H0Z','shade')]},
+ nightbloom:{family:'court',material:'dark',inlays:[line('M4 24Q19 16 15 0M10 15 3 8m12-2 7-3','silver',.8),fill(buds([[14,5],[7,11],[17,14],[10,20]]),'ivory','silver'),fill(gems([[14,5],[7,11],[17,14],[10,20]]),'faction'),line('M0 19h24','silver',.4)]},
+ penumbra:{family:'relic',material:'dark',inlays:[fill('M3 2h18v15H3Z','silver'),fill('M4 3h16v13H4Z','shade'),fill(circle(12,10,5),'faction'),fill(circle(14,8,4.5),'ink'),line('M3 18h18m-18 2h18M12 1v3','silver',.7),fill(gems([[6,18],[12,18],[18,18]]),'gem')]},
+ eventide:{family:'relic',material:'dark',inlays:[fill('M2 2h20v18H2Z','shade'),fill('M2 2l10 5 10-5-4 9 4 9-10-4-10 4 4-9Z','faction'),line('M2 2l10 5 10-5M2 20l10-4 10 4M6 0l3 24M18 0l-3 24','silver',.6),fill(gems([[12,10],[6,6],[18,15],[9,19],[16,4]]),'ivory'),fill('M0 21h24v3H0Z','silver')]}
+} satisfies Record<string,SkinDesign>)
 export const designFor=(item:Collectible|undefined)=>item?.type==='skin'?themes[item.motif]:undefined
 export const allDesigns=themes
 export function mix(a:string,b:string,t:number){return '#'+[1,3,5].map(i=>Math.round(parseInt(a.slice(i,i+2),16)*(1-t)+parseInt(b.slice(i,i+2),16)*t).toString(16).padStart(2,'0')).join('')}

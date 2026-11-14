@@ -17,6 +17,11 @@ export function profile(account: Account): Profile {
   const u=ensureAccount(account)
   return {name:u.name,settings:{...u.settings,avatar:wallet(u).loadout.icon},rating:{...u.rating},coins:wallet(u).coins,loadout:structuredClone(wallet(u).loadout)}
 }
+export function rankedPlayers(accounts:Account[]){
+ const rows=accounts.map(a=>{const p=profile(a);return {name:p.name,avatar:p.loadout.icon,frame:p.loadout.frame,rating:Math.round(p.rating.value),games:p.rating.games}}).sort((a,b)=>b.rating-a.rating||a.name.localeCompare(b.name))
+ let rank=1
+ return rows.map((p,i)=>{if(i&&p.rating!==rows[i-1].rating)rank=i+1;return {...p,rank}})
+}
 export function notify(account: Account, notice: Omit<Notice,'id'|'created'|'read'>) {
   const u=ensureAccount(account)
   if (!u.settings.moveNotifications && !['rating','result'].includes(notice.kind)) return
