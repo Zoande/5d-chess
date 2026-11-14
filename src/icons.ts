@@ -1,4 +1,6 @@
 const paths: Record<string,string> = {
+ target:'<circle cx="12" cy="12" r="8"/><path d="M12 1v5m0 12v5M1 12h5m12 0h5"/>',
+ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/>',
  dice:'<rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8" cy="8" r="1"/><circle cx="16" cy="8" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="8" cy="16" r="1"/><circle cx="16" cy="16" r="1"/>',
  coin:'<circle cx="12" cy="12" r="10" fill="#c89b3b" stroke="#f4d785"/><circle cx="12" cy="12" r="7" stroke="#86631f"/><path d="M14 8h-4v8h4m-5-4h5" stroke="#fff1b4"/>',
  shop:'<path d="M3 10v12h18V10M2 10l3-8h14l3 8M8 22v-8h8v8M2 10q3 4 5 0 3 4 5 0 3 4 5 0 3 4 5 0"/>',

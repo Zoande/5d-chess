@@ -18,7 +18,7 @@ function applyRating(){
   if(!current)return
   const el=document.getElementById('account-rating')
   if(el){el.textContent=`${Math.round(current.rating.value)} ELO`;el.title=`${current.rating.games} rated games`}
-  document.querySelectorAll<HTMLElement>('[data-coins]').forEach(el=>{el.textContent=current!.coins>=100000?new Intl.NumberFormat('en',{notation:'compact',maximumFractionDigits:1}).format(current!.coins):current!.coins.toLocaleString(undefined,{maximumFractionDigits:4});el.parentElement!.title=`${current!.coins.toLocaleString()} earned coins`})
+  document.querySelectorAll<HTMLElement>('[data-coins]').forEach(el=>{el.textContent=current!.coins>=100000?new Intl.NumberFormat('en',{notation:'compact',maximumFractionDigits:1}).format(current!.coins):current!.coins.toLocaleString(undefined,{maximumFractionDigits:4});el.parentElement!.title=`${current!.coins.toLocaleString(undefined,{maximumFractionDigits:4})} earned coins`})
 }
 export function renderAccount(profile:Profile){
   current=profile

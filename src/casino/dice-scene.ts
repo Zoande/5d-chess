@@ -1,194 +1,198 @@
-/** Small purpose-built WebGL room. All motion is presentation; no draw uses gesture data. */
-type V=[number,number,number]
-type M=number[]
-const I=():M=>[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]
-const mul=(a:M,b:M):M=>{const r=Array(16).fill(0);for(let c=0;c<4;c++)for(let y=0;y<4;y++)for(let k=0;k<4;k++)r[c*4+y]+=a[k*4+y]*b[c*4+k];return r}
-const translate=(p:V)=>{const m=I();m[12]=p[0];m[13]=p[1];m[14]=p[2];return m}
-const scale=(p:V)=>{const m=I();m[0]=p[0];m[5]=p[1];m[10]=p[2];return m}
-const rx=(a:number):M=>[1,0,0,0,0,Math.cos(a),Math.sin(a),0,0,-Math.sin(a),Math.cos(a),0,0,0,0,1]
-const ry=(a:number):M=>[Math.cos(a),0,-Math.sin(a),0,0,1,0,0,Math.sin(a),0,Math.cos(a),0,0,0,0,1]
-const rz=(a:number):M=>[Math.cos(a),Math.sin(a),0,0,-Math.sin(a),Math.cos(a),0,0,0,0,1,0,0,0,0,1]
-const norm=(v:V):V=>{const n=Math.hypot(...v)||1;return v.map(x=>x/n) as V}
-const cross=(a:V,b:V):V=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]
-const dot=(a:V,b:V)=>a.reduce((s,v,i)=>s+v*b[i],0)
-const sub=(a:V,b:V):V=>a.map((v,i)=>v-b[i]) as V
-const lerp=(a:number,b:number,t:number)=>a+(b-a)*t
-const ease=(t:number)=>1-(1-t)**3
-const color=(hex:string)=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255)
-function camera(eye:V,target:V,aspect:number):M{
- const z=norm(sub(eye,target)),x=norm(cross([0,1,0],z)),y=cross(z,x),view=[x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-dot(x,eye),-dot(y,eye),-dot(z,eye),1]
- const f=1/Math.tan(.62/2),n=.1,far=40,projection=[f/aspect,0,0,0,0,f,0,0,0,0,(far+n)/(n-far),-1,0,0,2*far*n/(n-far),0]
- return mul(projection,view)
-}
-function geometry(kind:'cube'|'sphere'|'cylinder'){
- const data:number[]=[]
- const tri=(p:V[],n:V[])=>p.forEach((v,i)=>data.push(...v,...n[i]))
- if(kind==='cube'){
-  const faces:V[][]=[[[1,-1,1],[1,-1,-1],[1,1,-1],[1,1,1]],[[-1,-1,-1],[-1,-1,1],[-1,1,1],[-1,1,-1]],[[-1,1,1],[1,1,1],[1,1,-1],[-1,1,-1]],[[-1,-1,-1],[1,-1,-1],[1,-1,1],[-1,-1,1]],[[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]],[[1,-1,-1],[-1,-1,-1],[-1,1,-1],[1,1,-1]]]
-  const normals:V[]=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]
-  faces.forEach((p,i)=>{tri([p[0],p[1],p[2]],[normals[i],normals[i],normals[i]]);tri([p[0],p[2],p[3]],[normals[i],normals[i],normals[i]])})
- }else if(kind==='sphere'){
-  const point=(u:number,v:number):V=>[Math.sin(v)*Math.cos(u),Math.cos(v),Math.sin(v)*Math.sin(u)]
-  for(let y=0;y<10;y++)for(let x=0;x<16;x++){
-   const a=point(x*Math.PI/8,y*Math.PI/10),b=point((x+1)*Math.PI/8,y*Math.PI/10),c=point((x+1)*Math.PI/8,(y+1)*Math.PI/10),d=point(x*Math.PI/8,(y+1)*Math.PI/10)
-   tri([a,b,c],[a,b,c]);tri([a,c,d],[a,c,d])
-  }
- }else{
-  for(let i=0;i<24;i++){
-   const a=i*Math.PI/12,b=(i+1)*Math.PI/12,p:V=[Math.cos(a),-1,Math.sin(a)],q:V=[Math.cos(b),-1,Math.sin(b)],r:V=[q[0],1,q[2]],s:V=[p[0],1,p[2]],na:V=[p[0],0,p[2]],nb:V=[q[0],0,q[2]]
-   tri([p,q,r],[na,nb,nb]);tri([p,r,s],[na,nb,na]);tri([[0,1,0],s,r],[[0,1,0],[0,1,0],[0,1,0]]);tri([[0,-1,0],q,p],[[0,-1,0],[0,-1,0],[0,-1,0]])
-  }
- }
- return new Float32Array(data)
-}
-const vertex=`#version 300 es
-in vec3 aPosition;in vec3 aNormal;uniform mat4 uModel;uniform mat4 uVP;out vec3 vWorld;out vec3 vNormal;
-void main(){vec4 w=uModel*vec4(aPosition,1.);vWorld=w.xyz;vNormal=transpose(inverse(mat3(uModel)))*aNormal;gl_Position=uVP*w;}`
-const fragment=`#version 300 es
-precision highp float;in vec3 vWorld;in vec3 vNormal;uniform vec3 uColor;uniform vec3 uEye;uniform vec3 uDie;uniform float uMaterial;uniform float uTime;out vec4 frag;
-void main(){vec3 N=normalize(vNormal),lightPos=vec3(0.,4.45,-.6),L=normalize(lightPos-vWorld),V=normalize(uEye-vWorld);float dist=length(lightPos-vWorld);
-vec3 base=uColor;if(uMaterial==1.&&N.y>.8){float check=mod(floor(vWorld.x*2.)+floor(vWorld.z*2.),2.);base*=mix(.75,1.15,check);vec2 d=vWorld.xz-uDie.xz;float shadow=exp(-dot(d,d)/(.06+max(0.,uDie.y-1.4)*.15));base*=1.-shadow*.55;}
-float light=(.055+max(dot(N,L),0.)*1.35/(1.+dist*dist*.12))*(.98+.02*sin(uTime*3.));float spec=pow(max(dot(N,normalize(L+V)),0.),uMaterial==2.?100.:35.)*(uMaterial==2.?.45:.06);
-vec3 c=base*light*vec3(1.05,.98,.83)+vec3(spec)*vec3(1.,.86,.65);if(uMaterial==4.)c=base*1.8;
-float fog=1.-exp(-length(uEye-vWorld)*.035);c=mix(c,vec3(.015,.019,.026),fog);frag=vec4(c,1.);}`
+import * as T from 'three'
+import {RoomEnvironment} from 'three/examples/jsm/environments/RoomEnvironment.js'
+import {materials} from './scene/materials.ts'
+import {box,mesh,cylinder,dice,resultRotation,v} from './scene/geometry.ts'
+import {People} from './scene/rig.ts'
+import {Table,type TableAction} from './scene/table.ts'
 
-export class DiceScene{
- private gl:WebGL2RenderingContext|null
- private phase='idle'
- private start=performance.now()
- private duration=1
- private result=1
- private drag:V=[0,0,0]
- private look:[number,number]=[0,0]
- private coins=0
- private ticker=0
- private lastFrame=0
- private disposed=false
+export type {TableAction} from './scene/table.ts'
+export type DicePhase='idle'|'exchange'|'ready'|'rolling'|'result'
+const smooth=(t:number)=>{t=T.MathUtils.clamp(t,0,1);return t*t*(3-2*t)}
+function track(t:number,keys:Array<[number,T.Vector3]>){
+ for(let i=1;i<keys.length;i++)if(t<=keys[i][0])return keys[i-1][1].clone().lerp(keys[i][1],smooth((t-keys[i-1][0])/(keys[i][0]-keys[i-1][0])))
+ return keys.at(-1)![1].clone()
+}
+export class DiceScene {
+ readonly world=new T.Scene()
+ readonly camera=new T.PerspectiveCamera(62,1,.035,25)
+ readonly table:Table
+ private renderer:T.WebGLRenderer
+ private people:People
+ private die:T.Group
+ private wager=new T.Group()
+ private environment:T.WebGLRenderTarget
+ private candles:T.PointLight[]=[]
+ private phase:DicePhase='idle'
+ private began=0;private duration=1;private finish:(()=>void)|undefined
+ private ticker=0;private previous=0;private drawn=0;private frame=0;private disposed=false
+ private yaw=0;private pitch=0;private lookYaw=0;private lookPitch=0
+ private drag=new T.Vector2()
+ private raycaster=new T.Raycaster()
+ private resize:ResizeObserver
+ private coinOwner='table';private dieOwner='keeper'
+ private result=1;private coins=0;private stake=100;private face=1;private disabled=false
+ private startPosition=v();private landing=v();private startRotation=new T.Quaternion()
  private reduced=matchMedia('(prefers-reduced-motion: reduce)').matches
- private drawScene:((now:number)=>void)|undefined
- private resizeObserver:ResizeObserver|undefined
+ private fence:WebGLSync|null=null
  constructor(private canvas:HTMLCanvasElement){
-  this.gl=canvas.getContext('webgl2',{alpha:false,antialias:true,powerPreference:'low-power'})
-  const gl=this.gl
-  if(!gl){canvas.parentElement?.classList.add('webgl-unavailable');return}
-  const compile=(type:number,source:string)=>{const s=gl.createShader(type)!;gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s)??'Shader error');return s}
-  const program=gl.createProgram()!;gl.attachShader(program,compile(gl.VERTEX_SHADER,vertex));gl.attachShader(program,compile(gl.FRAGMENT_SHADER,fragment));gl.linkProgram(program)
-  if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(program)??'Room renderer could not start')
-  gl.useProgram(program);gl.enable(gl.DEPTH_TEST)
-  const uniforms=Object.fromEntries(['uModel','uVP','uColor','uEye','uDie','uMaterial','uTime'].map(k=>[k,gl.getUniformLocation(program,k)]))
-  const meshes=Object.fromEntries((['cube','sphere','cylinder'] as const).map(kind=>{
-   const data=geometry(kind),vao=gl.createVertexArray()!,buffer=gl.createBuffer()!;gl.bindVertexArray(vao);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW)
-   for(const [name,offset]of [['aPosition',0],['aNormal',12]] as const){const loc=gl.getAttribLocation(program,name);gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,3,gl.FLOAT,false,24,offset)}
-   return [kind,{vao,count:data.length/6}]
-  })) as Record<'cube'|'sphere'|'cylinder',{vao:WebGLVertexArrayObject;count:number}>
-  const draw=(kind:keyof typeof meshes,p:V,s:V,hex:string,material=0,rotation:M=I(),parent:M=I())=>{
-   gl.uniformMatrix4fv(uniforms.uModel,false,new Float32Array(mul(parent,mul(translate(p),mul(rotation,scale(s))))));gl.uniform3fv(uniforms.uColor,color(hex));gl.uniform1f(uniforms.uMaterial,material);gl.bindVertexArray(meshes[kind].vao);gl.drawArrays(gl.TRIANGLES,0,meshes[kind].count)
+  this.renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'})
+  const glContext=this.renderer.getContext(),debug=glContext.getExtension('WEBGL_debug_renderer_info')
+  const software=debug&&/swiftshader|llvmpipe|software/i.test(String(glContext.getParameter(debug.UNMASKED_RENDERER_WEBGL)))
+  this.renderer.setPixelRatio(software?.45:Math.min(devicePixelRatio||1,1.5));this.renderer.setClearColor(0x030707)
+  this.renderer.shadowMap.enabled=!software;this.renderer.shadowMap.type=T.PCFSoftShadowMap
+  this.renderer.toneMapping=T.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.05;this.renderer.outputColorSpace=T.SRGBColorSpace
+  this.world.background=new T.Color(0x030707);this.world.fog=new T.FogExp2(0x040909,.135)
+  const generator=new T.PMREMGenerator(this.renderer),room=new RoomEnvironment()
+  this.environment=generator.fromScene(room,.06);this.world.environment=this.environment.texture;this.world.environmentIntensity=.16;room.dispose();generator.dispose()
+  const m=materials();this.table=new Table(this.world,m);this.people=new People(this.world,m);this.die=dice(m);this.world.add(this.die);this.die.scale.setScalar(.65)
+  for(let i=0;i<5;i++){const coin=mesh(this.table.coin,m.gold,this.wager,[0,i*.01,0]);coin.rotation.y=i*.38}this.wager.visible=false;this.world.add(this.wager)
+  const floor=mesh(new T.PlaneGeometry(12,12),m.wood,this.world,[0,0,0]);floor.rotation.x=-Math.PI/2
+  for(const side of [-1,1]){
+   box(this.world,[.13,3.1,6],[side*2.65,1.5,-.2],m.ebony)
+   for(let i=0;i<6;i++){box(this.world,[.018,1.9,.023],[side*2.55,1.23,-2.3+i*.77],m.darkGold,.004);box(this.world,[.025,.025,.6],[side*2.54,.40,-2.0+i*.77],m.wood,.008)}
   }
-  const bone=(a:V,b:V,r:number,hex:string)=>{
-   const y=norm(sub(b,a)),x=norm(cross(Math.abs(y[2])>.9?[1,0,0]:[0,0,1],y)),z=cross(x,y),rotation=[...x,0,...y,0,...z,0,0,0,0,1]
-   draw('cylinder',a.map((v,i)=>(v+b[i])/2) as V,[r,Math.hypot(...sub(a,b))/2,r],hex,0,rotation)
+  box(this.world,[5.4,3.1,.14],[0,1.5,-2.8],m.ebony)
+  for(let i=-3;i<=3;i++)box(this.world,[.016,2.35,.02],[i*.61,1.3,-2.70],m.darkGold,.003)
+  const pendant=mesh(new T.ConeGeometry(.36,.24,48,1,true),m.ebony,this.world,[0,2.58,-.05]);pendant.rotation.x=Math.PI
+  cylinder(this.world,.05,.035,[0,2.46,-.05],m.brass)
+  const light=new T.SpotLight(0xffdfaa,37,7,.70,.62,2);light.position.set(0,2.44,-.05);light.target.position.set(0,.85,-.05);light.castShadow=true;light.shadow.mapSize.set(1024,1024);light.shadow.bias=-.0002;light.shadow.normalBias=.012;light.shadow.camera.near=.1;light.shadow.camera.far=6;this.world.add(light,light.target)
+  this.world.add(new T.HemisphereLight(0xabc5c1,0x171b15,.14))
+  const rim=new T.PointLight(0x688d91,.45,2.4,2);rim.position.set(.1,1.9,-1.85);this.world.add(rim)
+  for(const side of [-1,1]){
+   const x=side*1.08,z=-.57;cylinder(this.world,.095,.018,[x,.916,z],m.brass)
+   cylinder(this.world,.033,.21,[x,1.025,z],m.wax)
+   const drips=mesh(new T.TorusGeometry(.032,.004,6,24),m.wax,this.world,[x,1.10,z]);drips.rotation.x=Math.PI/2
+   cylinder(this.world,.002,.025,[x,1.14,z],m.ink,6)
+   const flameMaterial=new T.MeshBasicMaterial({color:0xffcf79,transparent:true,opacity:.86,depthWrite:false})
+   const flame=mesh(new T.SphereGeometry(1,12,10),flameMaterial,this.world,[x,1.174,z],false);flame.scale.set(.013,.039,.013)
+   const candle=new T.PointLight(0xffa54a,1.3,1.9,2);candle.position.set(x,1.20,z);this.world.add(candle);this.candles.push(candle)
   }
-  const hand=(p:V,hex:string)=>{draw('sphere',p,[.13,.045,.17],hex);for(let i=0;i<4;i++)bone([p[0]-.08+i*.05,p[1],p[2]-.07],[p[0]-.08+i*.05,p[1]-.015,p[2]-.24],.021,hex)}
-  this.drawScene=(now)=>{
-   const dpr=Math.min(devicePixelRatio||1,1.7),width=Math.max(1,Math.round(canvas.clientWidth*dpr)),height=Math.max(1,Math.round(canvas.clientHeight*dpr))
-   if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height}gl.viewport(0,0,width,height);gl.clearColor(.012,.016,.023,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program)
-   const t=Math.min(1,(now-this.start)/this.duration),e=ease(t)
-   const eye:V=[Math.sin(this.look[0])*.08,2.78+this.look[1]*.08,3.72+Math.cos(this.look[0])*.08]
-   const target:V=[Math.sin(this.look[0])*5.8,1.62-this.look[1]*2.4,-.4-Math.cos(this.look[0])*5.8]
-   gl.uniformMatrix4fv(uniforms.uVP,false,new Float32Array(camera(eye,target,width/height)));gl.uniform3fv(uniforms.uEye,eye);gl.uniform1f(uniforms.uTime,now/1000)
-   let die:V=[.62,1.78,1.5],rotation=mul(rx(-.2),ry(.3))
-   if(this.phase==='exchange')die=[lerp(-.25,.62,e),lerp(1.65,1.78,e),lerp(-1.3,1.5,e)]
-   if(this.phase==='rolling'||this.phase==='result'){
-    const q=this.phase==='result'?1:e,angles:Record<number,[number,number]>={1:[0,0],2:[-Math.PI/2,0],3:[0,Math.PI/2],4:[0,-Math.PI/2],5:[Math.PI/2,0],6:[Math.PI,0]}
-    die=[lerp(.62,.1,q),lerp(1.78,1.43,q)+Math.sin(Math.PI*q)*1.15+Math.abs(Math.sin(q*Math.PI*5))*.12*(1-q),lerp(1.5,.25,q)]
-    rotation=mul(rx(angles[this.result][0]+(1-q)*Math.PI*8),rz(angles[this.result][1]+(1-q)*Math.PI*6))
-   }else if(this.phase==='ready'){die=[die[0]+this.drag[0],die[1]+this.drag[1],die[2]+this.drag[2]];rotation=mul(rotation,rz(this.drag[0]))}
-   gl.uniform3fv(uniforms.uDie,die)
-   // Room, chair rails, first-person armrests, table apron and its inlaid chessboard.
-   draw('cube',[0,-.1,-1],[6,.1,7],'#090d14');draw('cube',[0,5.25,-.6],[6,.1,6.4],'#080b12')
-   draw('cube',[0,2.3,-4],[6,2.5,.1],'#090c13')
-   const amount=Math.max(0,this.coins)
-   const floorFill=Math.min(1,amount/100_000)
-   const coinHeight=.035+.915*floorFill
-   const diamondShare=Math.min(1,Math.max(0,(amount-100_000)/(100_000_000-100_000)))
-   const multiversalShare=Math.min(1,Math.max(0,(amount-100_000_000)/(1_000_000_000-100_000_000)))
-   const coinCount=Math.min(900,Math.max(8,Math.ceil(24+floorFill*876)))
-   const random=(n:number)=>{const x=Math.sin(n*12.9898+78.233)*43758.5453;return x-Math.floor(x)}
-   const coinPosition=(i:number,elapsed:number):V=>{
-    const phase=random(i*11+6)*Math.PI*2,speed=.35+random(i*13+7)*1.8
-    return [-5.15+random(i*3+1)*10.3+Math.sin(elapsed*speed+phase)*.12,.08+random(i*3+3)*coinHeight+Math.sin(elapsed*speed+phase)*(.08+.06*random(i*17+8)),-3.65+random(i*3+2)*7.2+Math.cos(elapsed*speed*.73+phase)*.12]
-   }
-   for(let i=0;i<coinCount;i++){
-    const phase=random(i*11+6)*Math.PI*2,speed=.35+random(i*13+7)*1.8,elapsed=now/1000
-    const [x,y,z]=coinPosition(i,elapsed)
-    const diamond=random(i*5+4)<diamondShare
-    const multiversal=diamond&&random(i*5+5)<multiversalShare
-    const material=multiversal?4:diamond?2:3
-    const color=multiversal?'#9df4ff':diamond?'#b8e9ff':'#c6a15f'
-    const rotation=mul(ry(elapsed*speed+phase),mul(rx(Math.sin(elapsed*speed*.61+phase)*.35),rz(random(i*7)*.4+elapsed*speed*.8)))
-    draw('cylinder',[x,y,z],[.075,.018,.075],color,material,rotation)
-    if(multiversal)draw('sphere',[x,y+.035,z],[.022,.022,.022],color,4)
-   }
-   draw('cube',[-4,2.2,-.6],[.1,2.5,4],'#090d14');draw('cube',[4,2.2,-.6],[.1,2.5,4],'#090d14')
-   for(let i=-5;i<=5;i++){
-    const x=i*.75
-    draw('cube',[x,2.2,-3.85],[.018,2.2,.04],'#3a342e');draw('cube',[x+.1,2.2,-3.88],[.13,2.2,.025],'#141720')
-    draw('cube',[-3.85,2.2,x],[.04,2.2,.018],'#3a342e');draw('cube',[-3.88,2.2,x+.1],[.025,2.2,.13],'#141720')
-    draw('cube',[3.85,2.2,x],[.04,2.2,.018],'#3a342e');draw('cube',[3.88,2.2,x+.1],[.025,2.2,.13],'#141720')
-   }
-   draw('cube',[0,4.92,-.6],[3.85,.035,3.85],'#15131a',3)
-   draw('cylinder',[0,4.78,-.6],[.18,.08,.18],'#92794b',3);draw('cylinder',[0,4.62,-.6],[.055,.16,.055],'#b3a989',3);draw('sphere',[0,4.43,-.6],[.08,.12,.08],'#ffb85c',4)
-   draw('cube',[0,1.15,0],[2.65,.12,1.85],'#201a17',3);draw('cube',[0,1.286,0],[2.5,.018,1.7],'#183332',1)
-   for(const x of [-2.55,2.55])draw('cube',[x,1.3,0],[.022,.025,1.76],'#92794b',3)
-   for(const z of [-1.76,1.76])draw('cube',[0,1.3,z],[2.57,.025,.022],'#92794b',3)
-   // The player is seated at the near side: torso, knees, shoes and articulated hands.
-   draw('cube',[0,1.05,3.25],[.72,.72,.38],'#17232d',3)
-   draw('cube',[-.48,.76,2.72],[.25,.25,.3],'#23313b',3);draw('cube',[.48,.76,2.72],[.25,.25,.3],'#23313b',3)
-   bone([-.48,.68,2.72],[-.62,.35,3.85],.18,'#1d2b35');bone([.48,.68,2.72],[.62,.35,3.85],.18,'#1d2b35')
-   draw('cube',[-.62,.24,4.05],[.3,.12,.58],'#101820',3);draw('cube',[.62,.24,4.05],[.3,.12,.58],'#101820',3)
-   for(const side of [-1,1]){
-    const handPosition:V=[side*.72,1.15,2.05]
-    bone([side*.58,1.62,2.85],handPosition,.12,'#23313b')
-    hand(handPosition,'#a7aaa2')
-   }
-   for(const x of [-1.65,1.65]){draw('cube',[x,.55,.8],[.12,.6,.12],'#1d1b1a');draw('cube',[x,1,2.7],[.09,.08,.6],'#252321',3)}
-   // Opponent: dark hood, recessed face, almost nothing but ivory eyes.
-   draw('cube',[0,2,-2.45],[.52,.85,.1],'#211e1d',3)
-   draw('sphere',[0,1.88,-2.13],[.58,.74,.36],'#0a0d14');draw('sphere',[0,2.66,-2.05],[.41,.49,.36],'#0c1019')
-   draw('sphere',[0,2.62,-1.755],[.285,.32,.035],'#020509');draw('sphere',[-.108,2.65,-1.711],[.064,.018,.018],'#e8f3ed',4);draw('sphere',[.108,2.65,-1.711],[.064,.018,.018],'#e8f3ed',4)
-   draw('sphere',[0,2.89,-1.82],[.35,.14,.14],'#0c1119')
-   const reach=this.phase==='exchange'?Math.sin(Math.PI*t):0
-   bone([-.43,2.02,-2.1],[-.55,1.43,-.96],.15,'#0d1118');hand([-.55,1.37,-.92],'#1b252a')
-   bone([.43,2.02,-2.1],[.35,1.43,lerp(-1.05,.5,reach)],.15,'#0d1118');hand([.35,1.38,lerp(-1.02,.55,reach)],'#202b30')
-   // Warm pools of candlelight beside the cold figure.
-   for(const x of [-1.9,1.9]){draw('cylinder',[x,1.34,-1.25],[.14,.035,.14],'#7b633c',3);draw('cylinder',[x,1.57,-1.25],[.043,.22,.043],'#b3a989');draw('sphere',[x,1.83,-1.25],[.028,.07,.028],'#ffbf68',4)}
-   if(this.phase==='exchange'){
-    const exchangeT=Math.min(1,t*3),h:V=[lerp(.85,.2,exchangeT),1.45,lerp(2,.58,exchangeT)]
-    bone([1.05,1.15,2.9],h,.1,'#354344');hand(h,'#a6aaa2')
-    for(let i=0;i<9;i++){
-     const collect=Math.min(1,t*1.7),targetCoin:V=[.18+(i%3)*.07,1.38+Math.floor(i/3)*.025,.18]
-     const actual=coinPosition(i*37,now/1000),pickup:V=[actual[0],actual[1]+.05,actual[2]]
-     const coin:V=[lerp(pickup[0],targetCoin[0],collect),lerp(pickup[1],targetCoin[1],collect)+Math.sin(collect*Math.PI)*.8,lerp(pickup[2],targetCoin[2],collect)]
-     if(t<.7||collect<1)draw('cylinder',coin,[.10,.012,.10],'#c6a15f',3,ry(collect*Math.PI*4))
-    }
-   }
-   if(this.phase!=='idle'){
-    const parent=mul(translate(die),rotation),half=.135
-    draw('cube',[0,0,0],[half,half,half],'#e4dbc4',2,I(),parent)
-    const faces:{n:number;p:V;r:M}[]=[{n:1,p:[0,half+.001,0],r:rx(-Math.PI/2)},{n:6,p:[0,-half-.001,0],r:rx(Math.PI/2)},{n:2,p:[0,0,half+.001],r:I()},{n:5,p:[0,0,-half-.001],r:ry(Math.PI)},{n:3,p:[half+.001,0,0],r:ry(Math.PI/2)},{n:4,p:[-half-.001,0,0],r:ry(-Math.PI/2)}]
-    const positions:Record<number,number[][]>={1:[[0,0]],2:[[-1,-1],[1,1]],3:[[-1,-1],[0,0],[1,1]],4:[[-1,-1],[1,-1],[-1,1],[1,1]],5:[[-1,-1],[1,-1],[0,0],[-1,1],[1,1]],6:[[-1,-1],[1,-1],[-1,0],[1,0],[-1,1],[1,1]]}
-    for(const face of faces){const faceMatrix=mul(parent,mul(translate(face.p),face.r));for(const [x,y]of positions[face.n])draw('sphere',[x*.067,y*.067,0],[.021,.021,.006],'#182128',0,I(),faceMatrix)}
-   }
-  }
-  const tick=(now:number)=>{if(this.disposed)return;if(document.visibilityState==='visible'&&now-this.lastFrame>(this.phase==='rolling'?15:32)){this.lastFrame=now;this.drawScene?.(now)}this.ticker=requestAnimationFrame(tick)}
-  this.ticker=requestAnimationFrame(tick);this.resizeObserver=new ResizeObserver(()=>this.drawScene?.(performance.now()));this.resizeObserver.observe(canvas)
+  // Quiet airborne dust, not weightless coins. A single draw call.
+  const dust=new Float32Array(90*3);for(let i=0;i<90;i++){dust[i*3]=Math.sin(i*73.3)*2.2;dust[i*3+1]=.4+(i%19)/10;dust[i*3+2]=Math.cos(i*31.7)*2}
+  const dustGeometry=new T.BufferGeometry();dustGeometry.setAttribute('position',new T.BufferAttribute(dust,3));this.world.add(new T.Points(dustGeometry,new T.PointsMaterial({color:0xa99462,size:.004,transparent:true,opacity:.22,depthWrite:false})))
+  this.resize=new ResizeObserver(()=>this.fit());this.resize.observe(canvas);this.fit();this.pose(0)
+  const tick=(now:number)=>{
+   if(this.disposed)return
+   this.ticker=requestAnimationFrame(tick)
+   if(document.visibilityState!=='visible')return
+   const interval=this.phase==='rolling'||this.phase==='exchange'?16:this.reduced?125:48
+   if(now-this.drawn<interval)return
+   // Do not build a queue of stale frames on integrated/software GPUs. Input
+   // remains responsive while the previous shadowed frame completes.
+   const gl=this.renderer.getContext() as WebGL2RenderingContext
+   if(this.fence){const status=gl.clientWaitSync(this.fence,0,0);if(status===gl.TIMEOUT_EXPIRED)return;gl.deleteSync(this.fence);this.fence=null}
+   const dt=Math.min(.25,(now-this.previous)/1000||.016);this.previous=now;this.drawn=now
+   this.yaw=T.MathUtils.damp(this.yaw,this.lookYaw,12,dt);this.pitch=T.MathUtils.damp(this.pitch,this.lookPitch,12,dt)
+   this.updateCamera();this.pose(now)
+   this.candles.forEach((c,i)=>c.intensity=1.28+Math.sin(now*.002+i)*.035+Math.sin(now*.007+i)*.012)
+   this.renderer.render(this.world,this.camera);this.canvas.dataset.frame=String(++this.frame);this.canvas.dataset.pitch=this.pitch.toFixed(3)
+   this.fence=gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE,0);gl.flush()
+  };this.ticker=requestAnimationFrame(tick)
  }
- setDrag(x:number,y:number){this.drag=[Math.max(-.5,Math.min(.5,x/300)),Math.max(-.1,Math.min(.4,-y/500)),0]}
- setLookDrag(x:number,y:number){this.look=[Math.max(-1.15,Math.min(1.15,x/420)),Math.max(-.9,Math.min(.9,-y/420))]}
- setLookPointer(x:number,y:number){this.look=[Math.max(-1.15,Math.min(1.15,x*.78)),Math.max(-.9,Math.min(.9,-y*.65))]}
- setCoins(coins:number){this.coins=Math.max(0,Number.isFinite(coins)?coins:0)}
- async exchange(){this.phase='exchange';this.start=performance.now();this.duration=this.reduced?1:2100;await new Promise(r=>setTimeout(r,this.duration));this.ready()}
- ready(){this.phase='ready';this.drag=[0,0,0]}
- async roll(result:number){this.result=result;this.phase='rolling';this.start=performance.now();this.duration=this.reduced?1:1900;await new Promise(r=>setTimeout(r,this.duration));this.phase='result';this.drawScene?.(performance.now())}
- dispose(){this.disposed=true;cancelAnimationFrame(this.ticker);this.resizeObserver?.disconnect();this.gl?.getExtension('WEBGL_lose_context')?.loseContext()}
+ private fit(){
+  const width=Math.max(1,this.canvas.clientWidth),height=Math.max(1,this.canvas.clientHeight)
+  this.renderer.setSize(width,height,false);this.camera.aspect=width/height;this.camera.updateProjectionMatrix();this.table.layout(width/height<1.1);this.updateCamera()
+ }
+ private updateCamera(){
+  const portrait=T.MathUtils.clamp((1.1-this.camera.aspect)/.65,0,1)
+  this.camera.position.set(0,1.57+portrait*.70,1.64+portrait*1.2)
+  const direction=v(Math.sin(this.yaw)*Math.cos(this.pitch),-.24-Math.sin(this.pitch),-Math.cos(this.yaw)*Math.cos(this.pitch)).normalize()
+  if(portrait)direction.y-=portrait*.16
+  this.camera.lookAt(this.camera.position.clone().add(direction));this.camera.updateMatrixWorld()
+ }
+ private pose(now:number){
+  const t=T.MathUtils.clamp((now-this.began)/this.duration,0,1),ex=this.phase==='exchange'
+  let left=v(-.50,.86,1.06),right=v(.50,.86,1.06),kl=v(-.42,.94,-.58),kr=v(.42,.94,-.58),pl=0,dl=0,lc=.15,rc=.2,kc=.15
+  if(ex){
+   pl=Math.sin(Math.PI*t)*1.0;dl=smooth((t-.38)/.25)*(1-smooth((t-.82)/.18))
+   left=track(t,[[0,left],[.18,v(-.80,.965,.75)],[.31,v(-.80,1.02,.75)],[.57,v(-.14,1.04,.22)],[.72,v(-.14,1.04,.22)],[1,v(-.46,.94,.94)]])
+   kr=track(t,[[0,kr],[.42,kr],[.65,v(-.13,1.06,.14)],[.74,v(-.13,1.06,.14)],[.94,v(-.63,.96,-.64)],[1,kr]])
+   kl=track(t,[[0,kl],[.64,kl],[.83,v(.24,1.06,.24)],[.91,v(.24,1.06,.24)],[1,kl]])
+   right=track(t,[[0,right],[.65,right],[.84,v(.24,1.04,.34)],[.92,v(.24,1.04,.34)],[1,v(.44,1.02,.84)]])
+   lc=t<.22?smooth(t/.22)*.2:t<.70?.85:.12;kc=t>.61&&t<.94?.85:.18;rc=t>.83?.72:.2
+  }else if(this.phase==='ready'){
+   right.set(.44,1.02,.84);right.add(v(this.drag.x*.15,this.drag.y*.07,Math.abs(this.drag.y)*.05));rc=.72
+  }else if(this.phase==='rolling'){
+   right=track(t,[[0,right],[.12,v(.40,1.12,.94)],[.25,v(.26,1.03,.54)],[.40,v(.44,.95,.86)],[1,v(.44,.95,.86)]])
+   rc=t<.18?.65:.12
+  }
+  this.people.pose(pl,dl,left,right,kl,kr,lc,rc,kc)
+  this.world.updateMatrixWorld(true)
+  if(ex){
+   if(t<.22){this.wager.visible=true;this.wager.position.set(-.83,.936,.773)}
+   else if(t<.70){
+    if(this.coinOwner!=='player'){this.people.left.hand.grip.attach(this.wager);this.coinOwner='player'}
+    this.wager.position.lerp(v(0,.008,0),.25)
+   }else if(t<.94){
+    if(this.coinOwner!=='keeper'){this.people.keeperRight.hand.grip.attach(this.wager);this.coinOwner='keeper'}
+    this.wager.position.lerp(v(0,.005,0),.25)
+   }else if(this.coinOwner!=='bank'){this.table.bank.attach(this.wager);this.wager.position.set(.02,.08,.02);this.coinOwner='bank'}
+   if(t<.86){if(this.dieOwner!=='keeper'){this.people.keeperLeft.hand.grip.attach(this.die);this.dieOwner='keeper'}this.die.position.lerp(v(0,.054,-.018),.3)}
+   else if(this.dieOwner!=='player'){this.people.right.hand.grip.attach(this.die);this.dieOwner='player'}
+  }
+  if(this.phase==='ready'||ex&&t>.86){
+   if(this.dieOwner!=='player'){this.people.right.hand.grip.attach(this.die);this.dieOwner='player'}
+   this.die.position.lerp(v(0,.055,-.014),.3);this.die.quaternion.slerp(new T.Quaternion().setFromEuler(new T.Euler(.28,.25,-.2)),.12)
+  }else if(this.phase==='rolling'){
+   if(t<.17){this.die.position.lerp(v(0,.05,-.01),.25)}
+   else{
+    if(this.dieOwner!=='world'){this.world.attach(this.die);this.startPosition.copy(this.die.position);this.startRotation.copy(this.die.quaternion);this.dieOwner='world'}
+    const q=T.MathUtils.clamp((t-.17)/.83,0,1),flight=T.MathUtils.clamp(q/.57,0,1)
+    this.die.position.copy(this.startPosition).lerp(this.landing,smooth(flight))
+    const bounce=q<.57?Math.sin(Math.PI*flight)*.48:Math.abs(Math.sin((q-.57)/.43*Math.PI*3))*Math.pow(1-(q-.57)/.43,2)*.13
+    this.die.position.y=T.MathUtils.lerp(this.startPosition.y,this.landing.y,flight)+bounce
+    const spin=new T.Quaternion().setFromEuler(new T.Euler(q*15,q*9,q*13));this.die.quaternion.copy(this.startRotation).multiply(spin)
+    if(q>.66)this.die.quaternion.slerp(resultRotation(this.result),smooth((q-.66)/.34))
+   }
+  }else if(this.phase==='idle'){
+   this.die.position.set(-.16,.960,-.35);this.die.quaternion.copy(resultRotation(1))
+  }
+  if((ex||this.phase==='rolling')&&t===1){
+   const was=this.phase;this.phase=was==='exchange'?'ready':'result'
+   if(was==='rolling'){this.die.position.copy(this.landing);this.die.quaternion.copy(resultRotation(this.result))}
+   this.refresh();const resolve=this.finish;this.finish=undefined;resolve?.()
+  }
+ }
+ private refresh(){this.table.setState(this.coins,this.stake,this.face,this.phase,this.disabled)}
+ setState(coins:number,stake:number,face:number,disabled:boolean){this.coins=coins;this.stake=stake;this.face=face;this.disabled=disabled;this.refresh()}
+ setCoins(coins:number){this.coins=coins;this.refresh()}
+ getLook(){return {yaw:this.lookYaw,pitch:this.lookPitch}}
+ setLook(yaw:number,pitch:number){this.lookYaw=T.MathUtils.clamp(yaw,-.72,.72);this.lookPitch=T.MathUtils.clamp(pitch,-.22,1.03)}
+ recenter(){this.lookYaw=0;this.lookPitch=0}
+ setDrag(x:number,y:number){this.drag.set(T.MathUtils.clamp(x/220,-1,1),T.MathUtils.clamp(-y/220,-.4,1))}
+ ready(){this.phase='ready';this.drag.set(0,0);this.dieOwner='player';this.people.right.hand.grip.attach(this.die);this.die.position.set(0,.055,-.014);this.refresh()}
+ async exchange(){
+  this.world.attach(this.wager);this.wager.visible=true;this.coinOwner='table';this.dieOwner='keeper';this.people.keeperLeft.hand.grip.attach(this.die);this.die.position.set(0,.054,0)
+  this.phase='exchange';this.began=performance.now();this.duration=this.reduced?150:3600;this.recenter();this.refresh();await new Promise<void>(resolve=>this.finish=resolve)
+ }
+ async roll(result:number){
+  this.result=result;this.phase='rolling';this.began=performance.now();this.duration=this.reduced?400:2100
+  this.landing.set(T.MathUtils.clamp(this.drag.x*.22,-.25,.25),.960,-.12+this.drag.y*.08);this.drag.set(0,0);this.recenter();this.refresh();await new Promise<void>(resolve=>this.finish=resolve)
+ }
+ pick(clientX:number,clientY:number):TableAction|{kind:'throw'}|undefined{
+  const rect=this.canvas.getBoundingClientRect();this.raycaster.setFromCamera(new T.Vector2((clientX-rect.left)/rect.width*2-1,-(clientY-rect.top)/rect.height*2+1),this.camera)
+  const candidates:T.Object3D[]=this.table.controls.filter(c=>!c.disabled).map(c=>c.object)
+  if(this.phase==='ready')candidates.push(this.die)
+  for(const hit of this.raycaster.intersectObjects(candidates,true)){
+   let object:T.Object3D|null=hit.object
+   while(object){if(object===this.die)return {kind:'throw'};if(object.userData.control)return object.userData.control.action;object=object.parent}
+  }
+ }
+ controls(){
+  const width=this.canvas.clientWidth,height=this.canvas.clientHeight
+  return this.table.controls.map(c=>{
+   const corners=[v(-c.size[0]/2,.04,-c.size[1]/2),v(c.size[0]/2,.04,-c.size[1]/2),v(c.size[0]/2,.04,c.size[1]/2),v(-c.size[0]/2,.04,c.size[1]/2)].map(p=>c.object.localToWorld(p).project(this.camera))
+   const xs=corners.map(p=>(p.x*.5+.5)*width),ys=corners.map(p=>(-.5*p.y+.5)*height)
+   return {id:c.id,action:c.action,disabled:c.disabled,x:Math.min(...xs),y:Math.min(...ys),width:Math.max(...xs)-Math.min(...xs),height:Math.max(...ys)-Math.min(...ys),visible:corners.every(p=>p.z<1)&&Math.max(...ys)>0&&Math.min(...ys)<height}
+  })
+ }
+ highlight(id:string|undefined){for(const c of this.table.controls)(c.edge.material as T.MeshStandardMaterial).emissive.set(c.id===id?0x5b3a12:0x000000)}
+ diagnostics(){return {phase:this.phase,coinOwner:this.coinOwner,dieOwner:this.dieOwner,look:this.getLook(),drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles}}
+ dispose(){
+  if(this.disposed)return;this.disposed=true;cancelAnimationFrame(this.ticker);this.resize.disconnect();this.finish?.();this.finish=undefined
+  const geometries=new Set<T.BufferGeometry>(),materials=new Set<T.Material>(),textures=new Set<T.Texture>()
+  this.world.traverse(object=>{if(object instanceof T.Mesh||object instanceof T.Points){geometries.add(object.geometry);for(const m of Array.isArray(object.material)?object.material:[object.material]){materials.add(m);for(const value of Object.values(m))if(value instanceof T.Texture)textures.add(value)}}})
+  if(this.fence)(this.renderer.getContext() as WebGL2RenderingContext).deleteSync(this.fence)
+  for(const g of geometries)g.dispose();for(const m of materials)m.dispose();for(const t of textures)t.dispose();this.environment.dispose();this.renderer.dispose()
+ }
 }

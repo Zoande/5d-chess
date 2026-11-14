@@ -1,0 +1,11 @@
+# Casino release
+
+Dice and roulette share the existing authenticated coin wallet and SQLite transaction boundary. No new data service, tunnel, or migration is required. The `CasinoOwner` account receives a 1% tax on positive profit. If that name does not exist, the first taxable win creates a zero-balance treasury with no usable password; an existing account retains its credentials.
+
+The server uses cryptographic random draws. Dice wins on one of six equally likely faces and returns 5.88 times the stake before tax. Roulette draws zero with 2% probability and distributes 98% equally among numbers 1–36. Outside bets return 2 times the stake, numbers return 36 times, and zero returns 49 times. These odds intentionally differ from a uniformly sampled European wheel; the rules disclose them. Stakes are whole coins from 1 to 100,000. Settlement retains four decimal places.
+
+A wager's debit, payout, treasury transfer and receipt commit in one transaction. The account's monotonically increasing sequence and request ID prevent duplicate charges and rerolls. Each account retains its last 100 receipts. Dice settles when the coins are offered; the later throw presents the saved result. Reloading restores the same throw. A failed response is reconciled against server receipts before retrying the same ID.
+
+The dice table uses procedural Three.js geometry, articulated arm rigs, a parented coin handoff, and a deterministic final die orientation. Looking requires dragging empty space or using arrow keys. Leaving the canvas or losing pointer capture cancels a gesture. Home centers the view; Space throws a held die. Projected native buttons provide keyboard and assistive-technology access to the furniture controls. A native form remains available without WebGL. Reduced-motion preferences shorten animations. Three.js loads only when opening dice; its MIT notice is served at `/chess/third-party-notices.txt`.
+
+Verification: `npm test` and `npm run test:browser`. Casino browser tests cover lost-response reconciliation, reload recovery, physical controls and mobile bounds, camera input, roulette selection and durable receipts. Use isolated temporary data for tests; never place synthetic wagers in a player's production wallet.
