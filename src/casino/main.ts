@@ -55,13 +55,13 @@ function lock(value:boolean){
 }
 async function reveal(round:CasinoRound){
  awaitingThrow=undefined;rolling=false;safeStore(storageKey,undefined);safeStore(requestKey,undefined);renderBalance();renderHistory()
- const result=el('round-result');result.hidden=false;result.dataset.won=String(round.won)
+ const result=el('round-result');result.hidden=game==='dice';result.dataset.won=String(round.won)
  if(game==='dice'){
   if(round.currency==='elo')updateDealerMood()
   if(round.won){lock(true);setPhase('payout');say(round.currency==='elo'?'“Take them. While you still can.”':'“Your winnings. Every last coin.”');await scene?.reward()}
   const banished=round.currency==='elo'&&!!soul&&soul.used>=MAX_ELO_ROUNDS
   if(banished){lock(true);setPhase('banish');say('“Enough. We are finished here.”',2500);await scene?.banish()}
-  scene?.lockCamera(false);result.innerHTML=`<span>${round.won?'THE TABLE PAYS':'THE DIE HAS SPOKEN'}</span><strong>${round.currency==='elo'&&!round.won?`−${round.eloLost??round.stake} <small>Elo</small>`:`${round.net>=0?'+':''}${casinoCoins(round.net)} <small>coins</small>`}</strong><p>Face ${round.result} · ${round.currency==='elo'?`${round.stake} Elo risked · ${round.eloLost??0} Elo lost`:`Offered ${casinoCoins(round.stake)} · Tax ${casinoCoins(round.tax)}`}</p><button id="dismiss-result" type="button" aria-label="Dismiss round result">×</button>`
+  scene?.lockCamera(false);result.hidden=false;result.innerHTML=`<span>${round.won?'THE TABLE PAYS':'THE DIE HAS SPOKEN'}</span><strong>${round.currency==='elo'&&!round.won?`−${round.eloLost??round.stake} <small>Elo</small>`:`${round.net>=0?'+':''}${casinoCoins(round.net)} <small>coins</small>`}</strong><p>Face ${round.result} · ${round.currency==='elo'?`${round.stake} Elo risked · ${round.eloLost??0} Elo lost`:`Offered ${casinoCoins(round.stake)} · Tax ${casinoCoins(round.tax)}`}</p><button id="dismiss-result" type="button" aria-label="Dismiss round result">×</button>`
   clearTimeout(resultTimer);resultTimer=window.setTimeout(()=>result.hidden=true,5500);el('dismiss-result').onclick=()=>result.hidden=true;say(round.won?'“A fair throw. Your winnings.”':'“Another offer, perhaps?”');setPhase('result');el('roll-die').hidden=true
  }else{
   result.innerHTML=`<span class="result-eyebrow">${round.won?'A FORTUNATE MOVE':'THE TABLE TAKES THIS ONE'}</span><h2>${round.result===0?'The rift · 0':`${round.result} · ${pocketColor(round.result)==='white'?'White':'Black'} court`}</h2><strong class="result-net">${round.net>=0?'+':''}${casinoCoins(round.net)} <small>coins</small></strong><div><span>Stake <b>${casinoCoins(round.stake)}</b></span><span>Gross return <b>${casinoCoins(round.gross)}</b></span><span>Profit tax <b>${casinoCoins(round.tax)}</b></span><span>Credited <b>${casinoCoins(round.credited)}</b></span></div>`

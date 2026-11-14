@@ -61,6 +61,6 @@ export function drawCapture(ctx:CanvasRenderingContext2D,id:string,at:Point,prog
  }
  if(m==='beam'){const g=ctx.createLinearGradient(0,-90,0,20);g.addColorStop(0,'#ffe5a300');g.addColorStop(.8,'#ffe5a3aa');g.addColorStop(1,'#ffe5a300');ctx.fillStyle=g;ctx.globalAlpha=Math.sin(p*Math.PI);ctx.fillRect(-7,-90,14,110);ctx.fillStyle=color}
  if(m==='bolt'){ctx.globalAlpha=1-p;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(9,-75);ctx.lineTo(-5,-36);ctx.lineTo(9,-38);ctx.lineTo(-3,-5);ctx.stroke()}
- for(let i=0;i<26;i++){const angle=i*2.399,dist=(8+rand(i+8)*35)*p,x=Math.cos(angle)*dist,y=Math.sin(angle)*dist-(m==='dust'?p*30:0)+(m==='ash'?p*18:0);ctx.globalAlpha=(1-p)*(.3+rand(i));ctx.save();ctx.translate(x,y);ctx.rotate(angle+p*3);if(m==='bloom'){ctx.beginPath();ctx.ellipse(0,0,2,4,0,0,Math.PI*2);ctx.fill()}else if(m==='dust'||m==='ash'){ctx.fillRect(0,0,1.8,1.8)}else{ctx.beginPath();ctx.moveTo(0,-3);ctx.lineTo(2.5,2);ctx.lineTo(-2.5,2);ctx.closePath();ctx.fill()}ctx.restore()}
+ for(let i=0;i<26;i++){const angle=i*2.399,dist=(8+rand(i+8)*35)*p,x=Math.cos(angle)*dist,y=Math.sin(angle)*dist-(m==='dust'?p*30:0)+(m==='ash'?p*18:0);ctx.globalAlpha=Math.min(1,(1-p)*(.3+rand(i)));ctx.save();ctx.translate(x,y);ctx.rotate(angle+p*3);if(m==='bloom'){ctx.beginPath();ctx.ellipse(0,0,2,4,0,0,Math.PI*2);ctx.fill()}else if(m==='dust'||m==='ash'){ctx.fillRect(0,0,1.8,1.8)}else{ctx.beginPath();ctx.moveTo(0,-3);ctx.lineTo(2.5,2);ctx.lineTo(-2.5,2);ctx.closePath();ctx.fill()}ctx.restore()}
  ctx.restore();return true
 }
