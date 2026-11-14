@@ -1,5 +1,6 @@
-import {initShell,setShellPool,refreshAccount} from './shell.ts'
-import {poolFor} from './account-model.ts'
+import {type Loadout} from './collection.ts'
+import {setCosmetics} from './art.ts'
+import {initShell,refreshAccount} from './shell.ts'
 import {requiredBoards} from './rules.ts'
 import {awareness, nextPlayable, threatSquares} from './awareness.ts'
 import {initMatchUI, setMatchHeader, collapseControls} from './ui.ts'
@@ -12,7 +13,7 @@ import {sourceBudget} from './resolve.ts'
 
 type Room = {code: string; title: string; seats: Partial<Record<Player, string>>; seat?: Player;
   state: State; results: Resolution[]; journal: Order[][]; locked: Record<Player, boolean>;
-  waiting: boolean; finished: boolean}
+  waiting: boolean; finished: boolean;cosmetics?:Partial<Record<Player,Loadout>>}
 const element = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
 const code = new URLSearchParams(location.search).get('code')?.toUpperCase()
 if (!code || !/^[A-Z]{4}$/.test(code)) location.replace('/chess/lobby.html')
@@ -85,7 +86,6 @@ function render() {
   element('game-title').textContent = room.title
   element('game-title').title = room.title
   document.title = `${room.title} · 5D Chess`
-  setShellPool(poolFor(room.state.movement,playerCount(room.state)))
   const seat = room.seat
   const s = shown()
   element('online-mode').textContent = s.movement ? `${s.movement.toUpperCase()} · ONLINE` : 'ONLINE MATCH'
@@ -186,6 +186,7 @@ function render() {
 function applyRoom(next: Room) {
   const before = room
   room = next
+  setCosmetics(next.cosmetics??{})
   if (before && next.results.length > before.results.length) {
     const result = next.results.at(-1)!
     void refreshAccount().catch(()=>{})

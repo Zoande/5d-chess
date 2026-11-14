@@ -1,5 +1,5 @@
-import {initShell,setShellPool} from './shell.ts'
-import {poolFor} from './account-model.ts'
+import {setCosmetics} from './art.ts'
+import {initShell} from './shell.ts'
 import {requiredBoards} from './rules.ts'
 import {awareness, nextPlayable, threatSquares} from './awareness.ts'
 import {initMatchUI, setMatchHeader, collapseControls} from './ui.ts'
@@ -19,14 +19,13 @@ const file = element<HTMLInputElement>('import-file')
 const factionNames: Record<Player, string> = {red: 'Red', blue: 'Blue', yellow: 'Yellow', green: 'Green'}
 const seats: Record<Player, string> = {red: 'South', blue: 'West', yellow: 'North', green: 'East'}
 const motion = matchMedia('(prefers-reduced-motion: reduce)')
-void initShell({redirectHome:!new URLSearchParams(location.search).has('local')})
+void initShell({redirectHome:!new URLSearchParams(location.search).has('local')}).then(data=>{if(data.profile)setCosmetics(Object.fromEntries(['red','blue','yellow','green'].map(p=>[p,data.profile!.loadout])))})
 const requestedCount = new URLSearchParams(location.search).get('players')
 let localMode: PlayerCount = new URLSearchParams(location.search).has('local') && ['2', '3', '4'].includes(requestedCount ?? '')
   ? Number(requestedCount) as PlayerCount : 4
 let movement: Movement = new URLSearchParams(location.search).get('movement') === 'classic' ? 'classic' : 'live'
 const saveKey = (count: PlayerCount) => `${SAVE_KEY}/${movement}/${count}`
 let session = newSession(localMode, movement)
-setShellPool(poolFor(movement,localMode))
 let saveError = false
 let restoreNotice = ''
 try {
@@ -387,8 +386,7 @@ function setSession(next: Session, privateRestore: boolean) {
   session = next
   localMode = playerCount(liveState(next))
   movement = liveState(next).movement ?? 'live'
-  setShellPool(poolFor(movement,localMode))
-  history.replaceState(null, '', `/chess/?local=1&players=${localMode}&movement=${movement}`)
+    history.replaceState(null, '', `/chess/?local=1&players=${localMode}&movement=${movement}`)
   revealing = false
   frame = null
   privacy = false

@@ -1,3 +1,5 @@
+import {itemById,type Loadout} from './collection.ts'
+import {SKIN_MARKS} from './cosmetic-art.ts'
 import {type Kind, type Player} from './model.ts'
 
 export const COLORS: Record<Player, string> = {red: '#df9187', blue: '#91bad5', yellow: '#f3d58d', green: '#a5c69a'}
@@ -16,7 +18,10 @@ const detail: Record<Kind, string> = {
   B: 'M13.8 8.2l-2.7 3.1m-2.4 5.4h6.6', Q: 'M7.2 16.6h9.6m-8.7-2.1h7.8', K: 'M7.4 16.2h9.2M12 10v3.7'
 }
 const art = Object.fromEntries(Object.entries(silhouette).map(([k, d]) => [k, new Path2D(d)])) as Record<Kind, Path2D>
+const marksArt=Object.fromEntries(Object.entries(SKIN_MARKS).map(([k,d])=>[k,new Path2D(d)]))
 const lines = Object.fromEntries(Object.entries(detail).map(([k, d]) => [k, new Path2D(d)])) as Record<Kind, Path2D>
+let loadouts:Partial<Record<Player,Loadout>>={}
+export function setCosmetics(next:Partial<Record<Player,Loadout>>){loadouts=next}
 export function drawPiece(ctx: CanvasRenderingContext2D, kind: Kind, player: Player, x: number, y: number, size: number) {
   ctx.save()
   ctx.translate(x - size / 2, y - size / 2)
@@ -28,11 +33,21 @@ export function drawPiece(ctx: CanvasRenderingContext2D, kind: Kind, player: Pla
   ctx.stroke(art[kind])
   ctx.fillStyle = COLORS[player]
   ctx.fill(art[kind])
+  const skin=itemById(loadouts[player]?.pieces[kind]??'')
+  if(skin){
+    ctx.save();ctx.clip(art[kind]);ctx.lineWidth=skin.rarity==='mythic'?.65:.5
+    ctx.strokeStyle=['legendary','mythic'].includes(skin.rarity)?'#fff0bf':'#283028'
+    ctx.globalAlpha=.62;ctx.stroke(marksArt[skin.motif]);ctx.restore()
+    if(['epic','legendary','mythic'].includes(skin.rarity)){ctx.strokeStyle=skin.rarity==='epic'?'#f4ece0':'#f7db94';ctx.lineWidth=.45;ctx.stroke(art[kind])}
+  }
   ctx.lineWidth = .8
   ctx.strokeStyle = '#33271e'
   ctx.stroke(lines[kind])
   ctx.restore()
 }
-export function pieceIcon(kind: Kind, player: Player, size = 24) {
-  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><path fill="${COLORS[player]}" d="${silhouette[kind]}"/><path d="${detail[kind]}" fill="none" stroke="#33271e" stroke-width=".8" stroke-linecap="round"/></svg>`
+let svgId=0
+export function pieceIcon(kind: Kind, player: Player, size = 24, skinId?:string) {
+  const skin=itemById(skinId??loadouts[player]?.pieces[kind]??''),id=`piece-${++svgId}`
+  const marks=skin?`<defs><clipPath id="${id}"><path d="${silhouette[kind]}"/></clipPath></defs><path d="${SKIN_MARKS[skin.motif]}" clip-path="url(#${id})" fill="none" stroke="${['legendary','mythic'].includes(skin.rarity)?'#fff0bf':'#283028'}" stroke-width=".55" opacity=".75"/>`:''
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><path fill="${COLORS[player]}" d="${silhouette[kind]}"/>${marks}<path d="${detail[kind]}" fill="none" stroke="#33271e" stroke-width=".8" stroke-linecap="round"/></svg>`
 }

@@ -1,0 +1,184 @@
+/* Collection surfaces stay flat; color and light belong to the rewards themselves. */
+.collection-page { width:100%; max-width:1480px; margin:0 auto; padding:30px 28px 60px; }
+.collection-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:24px; }
+.collection-heading h1 { font-size:28px; margin:0 0 8px; letter-spacing:-.6px; }
+.collection-heading p { margin:0; color:var(--muted); font-size:13px; }
+.collection-tabs { display:flex; gap:5px; padding:5px; background:#252525; border:1px solid #393939; border-radius:6px; }
+.collection-tabs a { color:#bbb; padding:10px 16px; border-radius:4px; text-decoration:none; font-size:13px; font-weight:600; }
+.collection-tabs a[aria-current=page] { background:#3b4533; color:#cbe5ad; }
+.collection-view[hidden], [hidden] { display:none!important; }
+.section-title { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; }
+.section-title h2 { margin:0; font-size:20px; }
+.section-title p,.section-title small { color:var(--muted); font-size:12px; margin:5px 0 0; }
+.shop-layout { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:22px; }
+.collection-panel { border:1px solid #393939; border-radius:7px; background:#232323; padding:24px; min-width:0; }
+.crate-type-tabs { display:flex; gap:8px; }
+.crate-type-tabs button { flex:1; }
+.crate-type-tabs button[aria-pressed=true] { border-color:var(--accent); color:var(--accent); background:#2d3528; }
+.crate-preview { display:flex; align-items:center; justify-content:center; height:265px; position:relative; background:#1c1e1c; border:1px solid #353a33; margin:18px 0; overflow:hidden; border-radius:5px; }
+.crate-preview .chest-perspective { scale:.92; }
+.crate-preview::after { content:'CHESS COLLECTION'; position:absolute; bottom:15px; left:18px; font-size:10px; letter-spacing:3px; color:#788271; }
+.crate-tiers { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.crate-tiers button { display:grid; justify-items:center; gap:6px; min-height:68px; background:#2c2c2c; border:1px solid #4a4945; border-radius:4px; color:#ddd; }
+.crate-tiers button[aria-pressed=true] { border-color:#d8b873; background:#3a3325; color:#f0d693; }
+.crate-tiers small { display:flex; align-items:center; gap:5px; color:#bcb6a4; }
+.crate-tiers .icon { width:16px;height:16px; }
+.crate-description { font-size:12px; line-height:1.7; color:#aaa; margin:18px 0; }
+.crate-buy { width:100%; min-height:48px; display:flex; align-items:center; justify-content:center; gap:8px; }
+.crate-buy .icon,.coin-price .icon { width:19px;height:19px; }
+.drop-odds { margin-top:18px; }
+.drop-odds summary { cursor:pointer; font-size:12px; color:#bcb6a4; padding:8px 0; }
+.odds-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:12px; }
+.odds-grid > span { display:flex; align-items:center; gap:7px; font-size:11px; text-transform:capitalize; color:#bbb; }
+.odds-grid i { width:7px;height:7px;background:var(--rarity);border-radius:50%; }
+.odds-grid b { margin-left:auto; color:#e6e1d4; font-weight:500; }
+.catalog-details { margin-top:20px; border-top:1px solid #3a3a3a; padding-top:14px; }
+.catalog-details summary { cursor:pointer; color:#bbb;font-size:12px; }
+.catalog-mini { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; padding-top:14px; }
+.catalog-mini > div { border-bottom:2px solid var(--rarity);text-align:center;font-size:10px;color:#aaa; padding:8px 2px;background:#292929; }
+.catalog-mini svg { display:block;width:40px;height:40px;margin:0 auto 6px; }
+.featured-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr));gap:12px; }
+.featured-card,.owned-card,.market-card { min-width:0; position:relative; display:flex; flex-direction:column; gap:7px; padding:16px; background:#292929; border:1px solid #404040;border-top:2px solid var(--rarity);border-radius:4px; }
+.item-picture { min-height:95px; display:grid;place-items:center; }
+.item-picture svg { width:78px;height:78px; }
+.rarity-label { color:var(--rarity,var(--reward-color,#d7c184));font-size:10px;font-weight:600;letter-spacing:1.3px;text-transform:uppercase; }
+.featured-card strong,.owned-card strong,.market-card strong { font-size:14px; }
+.coin-price { color:#e4ca85;display:flex;align-items:center;gap:5px; }
+.featured-card .button { width:100%; margin-top:8px; display:flex;justify-content:center;align-items:center;gap:6px; }
+.featured-card .owned-label { color:#a9b88c;font-size:10px;position:absolute;top:10px;right:10px; }
+.collectible-avatar { width:100%;height:100%; }
+.inventory-layout { display:grid;grid-template-columns:170px minmax(230px,.8fr) minmax(0,1.4fr); gap:18px; }
+.equipment-slots { display:grid; gap:7px;align-content:start; }
+.equipment-slots button { background:#252525;border:1px solid #414141;border-radius:4px;display:flex;align-items:center;gap:12px;padding:13px;color:#ccc;text-align:left;min-width:0; }
+.equipment-slots button svg { width:32px;height:32px; }
+.equipment-slots button[aria-pressed=true] { border-color:var(--accent); background:#30372b;color:#d4e8bb; }
+.equipment-preview { display:flex; flex-direction:column;align-items:center;text-align:center;min-height:450px; }
+.preview-canvas { width:100%; min-height:230px;display:grid;place-items:center;background:#1b1f1b;border:1px solid #3a4235;border-radius:5px; }
+.preview-canvas svg { width:170px;height:170px; }
+.preview-colors { display:flex;gap:10px;margin:20px 0; }
+.preview-colors button { border:2px solid transparent;outline:1px solid #555; width:22px;height:22px;border-radius:50%;background:var(--faction);padding:0; }
+.preview-colors button[aria-pressed=true] { border-color:#fff; }
+.equipment-preview h2 { font-size:21px;margin:8px 0; }
+.equipment-preview p { color:#aaa;font-size:12px;line-height:1.7; }
+.preview-note { border-top:1px solid #3b3b3b;padding-top:18px;font-size:11px!important;margin-top:auto; }
+.inventory-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-content:start; }
+.owned-card { padding:12px; }
+.owned-card .item-picture { min-height:80px; }
+.owned-card .item-picture svg { width:64px;height:64px; }
+.owned-card .button { font-size:11px;min-height:34px;padding:7px; }
+.copy-tag { font-size:10px;color:#aaa;margin:2px 0; }
+.copy-tag.pending { color:#e4ca85; }
+.inventory-summary { margin-bottom:14px;color:#aaa;font-size:12px; }
+.market-tools { display:flex;flex-wrap:wrap;align-items:end;gap:14px;margin-bottom:24px; }
+.market-tools label { display:grid;gap:6px;font-size:12px;color:#aaa;flex:1;min-width:120px; }
+.market-tools input,.market-tools select { width:100%; }
+.market-grid { display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px; }
+.market-card small.seller { color:#999;font-size:11px;overflow:hidden;text-overflow:ellipsis; }
+.market-card .button { margin-top:7px; }
+.market-empty { grid-column:1/-1;color:#aaa;padding:60px 15px;text-align:center;line-height:1.8;border:1px dashed #444;border-radius:6px; }
+.transaction-dialog { width:min(470px,calc(100vw - 28px));padding:28px; }
+.transaction-dialog h2 { font-size:21px;margin:0 0 18px; }
+.transaction-dialog p { color:#bbb;line-height:1.6;font-size:13px; }
+.transaction-dialog .item-picture { height:120px; }
+.transaction-dialog .actions { display:flex;gap:10px;margin-top:24px; }
+.transaction-dialog .actions .button { flex:1; }
+.transaction-dialog label { display:grid;gap:8px;color:#ccc;font-size:13px; }
+.transaction-dialog input { margin:5px 0; }
+.right-home-column { min-width:0;display:grid;grid-template-rows:minmax(340px,1fr) 190px;gap:16px; }
+.right-home-column .leaderboard-card { padding:22px;min-width:0;overflow:hidden; }
+.right-home-column .leaderboard td { padding:7px 0; }
+.right-home-column .leaderboard { max-height:360px;overflow:auto; }
+.right-home-column .rating-summary { margin-top:14px;padding-top:14px; }
+.daily-spin-card { border:1px solid #51472e; border-radius:7px;overflow:hidden;position:relative;background:#20251e;min-height:190px; }
+.spin-thumb { position:absolute;inset:0;overflow:hidden; }
+.spin-thumb .reward-wheel { position:absolute;width:225px;height:225px;right:-20px;top:-45px;transform:rotate(-19deg);filter:brightness(.8); }
+.spin-thumb-caption { position:absolute;left:20px;top:16px;font-size:19px;font-weight:700;line-height:1.25;color:#b7c7a4; }
+.spin-thumb > i { position:absolute;right:9px;top:8px;color:#edce81;font-size:26px; }
+.daily-spin-copy { position:absolute;left:20px;bottom:70px;display:grid;gap:5px; }
+.daily-spin-copy strong { font-size:13px;letter-spacing:2px;color:#f4da94; }
+.daily-spin-copy small { font-size:10px;color:#bfbda9; }
+.spin-now { position:absolute;left:14px;right:14px;bottom:13px;min-height:45px;border:1px solid #b4954b;border-radius:4px;background:#b88d34d9;color:#fff1c7;font-size:16px;font-weight:800;letter-spacing:1px;backdrop-filter:blur(5px); }
+.spin-now.used { background:#252624ed;border-color:#565346;color:#c3c0b5;font-size:12px;letter-spacing:.2px; }
+.spin-error { position:absolute;top:0;left:0;right:0;background:#332721;padding:8px;font-size:11px;z-index:2; }
+.reward-dialog { width:min(940px,calc(100vw - 28px));max-height:calc(100dvh - 28px);overflow:auto;padding:28px;background:#1c201b;border:1px solid #5d604b; }
+.reward-dialog::backdrop { background:#090b09e8;backdrop-filter:blur(8px); }
+.reward-heading { display:flex;align-items:center;justify-content:space-between;gap:18px;position:relative;z-index:3; }
+.reward-heading h2 { margin:6px 0;font-size:22px; }
+.reward-heading .eyebrow { color:#bdb590;font-size:10px;letter-spacing:2px; }
+.reward-show { min-height:410px;position:relative;display:grid;place-items:center;overflow:hidden; }
+.wheel-stage { width:min(360px,80vw);height:auto;aspect-ratio:1;position:relative;filter:drop-shadow(0 10px 15px #0007); }
+.wheel-stage .reward-wheel { width:100%;height:100%; }
+.wheel-pointer { position:absolute;z-index:2;left:calc(50% - 12px);top:-8px;border-left:12px solid transparent;border-right:12px solid transparent;border-top:34px solid #ffe09c;filter:drop-shadow(0 3px 2px #0008); }
+.reward-saving { text-align:center;color:#8f9989;font-size:11px;margin:14px 0 0; }
+.reward-result { padding:22px;text-align:center; }
+.reward-result[hidden] { display:none; }
+.reward-result h3 { margin:10px 0;font-size:29px;color:#f0ede3; }
+.reward-result p { color:#b7bdae;font-size:13px;line-height:1.6;max-width:440px;margin:12px auto; }
+.reward-result .rarity-label { color:var(--reward-color); }
+.reward-won-art { display:grid;place-items:center;width:145px;height:145px;margin:0 auto 18px;filter:drop-shadow(0 0 18px color-mix(in srgb,var(--reward-color),transparent 75%)); }
+.reward-won-art svg { width:125px;height:125px; }
+.reward-actions { display:flex;justify-content:center;gap:12px;margin-top:24px; }
+.reward-actions .button { min-width:150px;display:flex;align-items:center;justify-content:center;gap:7px; }
+.reward-dialog.revealed .reward-show { display:none; }
+.reward-dialog.revealed .reward-result { animation:reward-in .5s ease-out both; }
+@keyframes reward-in { from { opacity:0;transform:translateY(15px) scale(.96); } to { opacity:1;transform:none; } }
+.crate-stage { position:absolute;left:0;right:0;top:145px;display:flex;justify-content:center; }
+.chest-perspective { perspective:750px; width:240px;height:200px;position:relative; }
+.chess-chest { position:absolute;width:180px;height:145px;left:24px;top:24px;transform-style:preserve-3d;transform:rotateY(-25deg) rotateX(-8deg);--metal:#887454;--hull:#3f4c40; }
+.chess-chest.tier-1 { --metal:#bec7cd;--hull:#455261; }
+.chess-chest.tier-2 { --metal:#e3bf68;--hull:#615333; }
+.chest-face { position:absolute;border:7px solid var(--metal);box-shadow:inset 0 0 0 2px #212721,inset 0 0 0 8px #ffffff09;background:var(--hull);backface-visibility:visible; }
+.chest-front { width:180px;height:145px;transform:translateZ(58px);display:flex;align-items:center;flex-direction:column;justify-content:center; }
+.chest-front::before,.chest-front::after { content:'';position:absolute;top:8px;bottom:8px;width:9px;background:var(--metal);box-shadow:0 0 0 2px #1a1f1a; }
+.chest-front::before { left:13px; }.chest-front::after { right:13px; }
+.chest-front b { color:#e4d9ae;font-size:23px;letter-spacing:3px; }
+.chest-front span { font-size:6px;letter-spacing:1px;color:#d4d0bf;margin-top:4px; }
+.chest-front em { font-style:normal;font-size:23px;color:var(--metal);margin-top:5px; }
+.chest-front i { position:absolute;top:-7px;left:calc(50% - 8px);height:29px;width:16px;background:var(--metal);border:2px solid #34382d;z-index:2; }
+.chest-right { width:116px;height:145px;transform:rotateY(90deg) translateZ(90px);left:32px;display:grid;place-items:center; }
+.chest-right b { font-size:44px;color:var(--metal); }
+.chest-right i { position:absolute;top:24px;left:25px;right:25px;height:17px;border:5px solid var(--metal);border-top:0;border-radius:0 0 9px 9px; }
+.chest-lid { position:absolute;left:-4px;top:-2px;width:188px;height:116px;transform:translateZ(-58px) rotateX(90deg);transform-origin:50% 0;background:var(--hull);border:8px solid var(--metal);box-shadow:inset 0 0 0 2px #20261f; }
+.chest-lid span { display:block;position:absolute;left:50px;right:50px;top:27px;height:29px;border:8px solid var(--metal);border-bottom:0;border-radius:14px 14px 0 0; }
+.chest-feet { position:absolute;left:-7px;bottom:-7px;width:194px;height:15px;border-left:22px solid var(--metal);border-right:22px solid var(--metal);transform:translateZ(58px); }
+.chest-ground { position:absolute;bottom:7px;left:20px;right:0;height:20px;border-radius:50%;background:#0008;filter:blur(8px);z-index:-1; }
+.reel-window { position:absolute;left:0;right:0;top:40px;height:196px;overflow:hidden;background:#121611ef;border-block:1px solid #6c7051;opacity:0; }
+.reel-window.visible { opacity:1; }
+.reel-strip { display:flex;position:absolute;left:0;top:13px;will-change:transform; }
+.reel-card { flex:0 0 124px;width:124px;margin-right:8px;height:168px;display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center;text-align:center;background:#282c25;border:1px solid #4a4d3c;border-bottom:3px solid var(--rarity);padding:8px; }
+.reel-card .item-picture { min-height:84px; }.reel-card strong { font-size:11px; }.reel-card .rarity-label { font-size:8px; }
+.reel-marker { position:absolute;z-index:3;top:0;bottom:0;left:50%;width:2px;background:#f5d177;box-shadow:0 0 12px #e3c36c66; }
+.reel-marker::before { content:'';position:absolute;top:0;left:-8px;border:9px solid transparent;border-top-color:#f5d177; }
+.reward-sparks { pointer-events:none;position:absolute;inset:0;overflow:hidden; }
+.reward-sparks i { position:absolute;left:calc(5% + var(--i)*5%);top:calc(5% + mod(var(--i)*13,80)*1%);width:2px;height:2px;background:#c5c189;box-shadow:0 0 9px #cbb978;animation:spark-float 3s ease-in-out infinite alternate;animation-delay:calc(var(--i)*-.3s); }
+@keyframes spark-float { to { translate:7px -24px;opacity:.2; } }
+@media(max-width:1150px) { .inventory-layout { grid-template-columns:140px minmax(200px,.8fr) minmax(0,1fr);gap:12px; }.inventory-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.market-grid { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+@media(min-width:761px) and (max-width:1150px) { .right-home-column { grid-column:2; }.right-home-column .leaderboard-card { grid-column:auto; } }
+@media(max-width:950px) { .shop-layout { grid-template-columns:1fr; }.market-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }.inventory-layout { grid-template-columns:140px minmax(0,1fr); }.inventory-armory { grid-column:1/-1; }.inventory-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }.equipment-preview { min-height:350px; } }
+@media(max-width:600px) { .collection-page { padding:20px 12px 40px; }.collection-heading { align-items:start;flex-direction:column;gap:17px; }.collection-heading h1 { font-size:25px; }.collection-tabs { width:100%; }.collection-tabs a { flex:1;text-align:center;padding:10px 7px; }.collection-panel { padding:17px; }.section-title { flex-wrap:wrap; }.section-title h2 { font-size:18px; }.featured-grid { gap:9px; }.featured-card { padding:12px; }.market-grid { grid-template-columns:repeat(2,minmax(0,1fr));gap:9px; }.market-card { padding:12px; }.inventory-layout { grid-template-columns:1fr; }.equipment-slots { display:flex;overflow:auto;padding-bottom:6px; }.equipment-slots button { flex-direction:column;min-width:68px;padding:10px 6px;font-size:11px;gap:5px; }.equipment-slots button svg { width:26px;height:26px; }.inventory-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.equipment-preview { min-height:350px; }.preview-canvas { min-height:200px; }.preview-canvas svg { width:140px;height:140px; }.preview-note { margin-top:15px; }.reward-dialog { padding:18px 13px; }.reward-heading h2 { font-size:17px; }.reward-heading { gap:8px; }.reward-heading .text-button { font-size:10px;white-space:nowrap; }.reward-show { min-height:340px; }.reward-actions { flex-wrap:wrap; }.reward-actions .button { flex:1;min-width:120px; }.reward-result { padding:20px 5px; }.reward-result h3 { font-size:24px; }.catalog-mini { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+@media(prefers-reduced-motion:reduce) { .reward-sparks i,.reward-dialog.revealed .reward-result { animation:none; } }
+.preview-item { background:none;border:0;padding:0;display:flex;flex-direction:column;gap:7px;align-items:stretch;text-align:left;color:inherit;width:100%;border-radius:3px; }
+.preview-item:hover { background:#ffffff07; }.preview-item:focus-visible { outline:2px solid var(--accent);outline-offset:4px; }
+.transaction-dialog .chest-perspective { transform:scale(.55);height:130px;margin-top:0; }.transaction-dialog:has(.chest-perspective) .item-picture { height:150px; }
+.portal.collection-page { max-width:1480px; }
+
+.reward-dialog { max-width:min(940px,calc(100vw - 28px)); }
+.inventory-layout { align-items:start; }
+.equipment-preview { position:sticky;top:20px;min-height:560px; }
+.equipment-slots { position:sticky;top:20px; }
+.inventory-armory .section-title select { width:auto;max-width:150px;font-size:12px; }
+.inventory-armory .section-title h2 { white-space:nowrap; }
+.wheel-odds { max-width:440px;margin:0 auto 12px;font-size:11px;color:#b6b79c; }
+.wheel-odds summary { cursor:pointer;text-align:center;padding:6px; }
+.wheel-odds p { font-size:11px!important;text-align:center; }
+.wheel-odds > div { display:grid;grid-template-columns:1fr 1fr;gap:8px 20px; }
+.wheel-odds span { display:flex;justify-content:space-between;gap:10px; }
+.wheel-odds b { font-weight:500;color:#ddd4ab; }
+.spin-thumb .reward-wheel text { display:none; }
+@media(max-width:950px) { .equipment-preview { position:static;min-height:430px; }.equipment-slots { position:static; } }
+.crate-stage.opened::after { content:'';position:absolute;left:calc(50% - 80px);top:35px;width:160px;height:20px;border:1px solid var(--reward-color);box-shadow:0 -20px 50px var(--reward-color);opacity:0;animation:chest-burst .7s ease-out;pointer-events:none; }
+@keyframes chest-burst { 15% { opacity:.8;scale:1; } to { opacity:0;scale:1.5 3;translate:0 -55px; } }
+.reward-result .reward-won-art { animation:prize-arrive .65s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes prize-arrive { from { scale:.65;opacity:0; } to { scale:1;opacity:1; } }
+@media(prefers-reduced-motion:reduce) { .crate-stage.opened::after,.reward-result .reward-won-art { animation:none; } }
+.spin-now.used:disabled { opacity:1; }

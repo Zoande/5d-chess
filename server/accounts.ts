@@ -3,12 +3,12 @@ import {randomBytes} from 'node:crypto'
 import {type Resolution,type State,type Player,playerCount,players,survivors} from '../src/model.ts'
 import {type Notice,type Preferences,type Profile,type Rating,type RatingPool,POOLS,poolFor} from '../src/account-model.ts'
 export interface Account extends EconomicAccount {name: string; salt: string; hash: string; rating?: Rating; settings?: Preferences; ratings?: Record<RatingPool,Rating>; notifications?: Notice[]}
-export interface RatingChange {before: number; after: number; delta: number; pool: RatingPool}
+export interface RatingChange {before: number; after: number; delta: number}
 export interface RatedRoom {code: string; title: string; seats: Partial<Record<Player,string>>; state: State; results: Resolution[]; rated?: boolean; ratingStart?: Partial<Record<Player,number>>; statsStart?: Partial<Record<Player,number>>; ratingSettled?: boolean; ratingChanges?: Partial<Record<Player,RatingChange>>}
 export function ensureAccount(account: Account) {
   account.rating ??= {value:1200,games:0}
   wallet(account)
-  account.settings ??= {avatar:'person',movement:'live',players:2,moveNotifications:true}
+  account.settings ??= {avatar:'default',movement:'live',players:2,moveNotifications:true}
   account.ratings ??= Object.fromEntries(POOLS.map(pool=>[pool,{value:1200,games:0}])) as Record<RatingPool,Rating>
   account.notifications ??= []
   return account as Account & {rating:Rating;settings:Preferences;ratings:Record<RatingPool,Rating>;notifications:Notice[]}
@@ -84,7 +84,7 @@ export function settleRatings(room: RatedRoom, accounts: Account[]): boolean {
     account.ratings[pool].value+=stats[i];account.ratings[pool].games++
     const coins=60+(survivors(room.state).includes(p)?40:0)+Math.floor((eliminations[p]??0)*20)
     wallet(account).coins+=coins
-    room.ratingChanges[p]={before,after:rating.value,delta:deltas[i],pool}
+    room.ratingChanges[p]={before,after:rating.value,delta:deltas[i]}
     notify(account,{kind:'rating',code:room.code,title:`Rating ${deltas[i]>=0?'+':''}${deltas[i]}`,detail:`${room.title}: ${Math.round(before)} → ${Math.round(rating.value)} Elo. +${coins} coins.`})
   }
   room.ratingSettled=true

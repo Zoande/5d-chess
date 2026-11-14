@@ -1,7 +1,7 @@
 import {economyView,purchase,spin,buyCrate,buyFeatured,resolveDuplicate,equip,listItem,cancelListing,buyListing,wallet} from './economy.ts'
 import {type Listing} from '../src/collection.ts'
 import {ensureAccount,profile,notify,startRatings,settleRatings,gameNotices,type Account,type RatedRoom} from './accounts.ts'
-import {AVATARS,POOLS,poolFor,type Preferences} from '../src/account-model.ts'
+import {type Preferences} from '../src/account-model.ts'
 import {requiredBoards} from '../src/rules.ts'
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http'
 import {randomBytes, scryptSync, timingSafeEqual, createHash} from 'node:crypto'

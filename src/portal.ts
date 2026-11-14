@@ -1,5 +1,7 @@
-import {api,ApiError,getSession,initShell,refreshRating,renderAccount,setShellPool,fetchNotices,updateNoticeCount} from './shell.ts'
-import {type Notice,type Profile,type RatingPool,type Preferences,poolFor,poolLabel} from './account-model.ts'
+import {initDailySpin} from './rewards.ts'
+import {avatarArt} from './cosmetic-art.ts'
+import {api,ApiError,getSession,initShell,refreshRating,renderAccount,fetchNotices,updateNoticeCount} from './shell.ts'
+import {type Notice,type Profile} from './account-model.ts'
 import {type Movement} from './model.ts'
 import {icon} from './icons.ts'
 type Game = {code:string;title:string;players:number;maxPlayers:number;protected:boolean;round:number;finished:boolean;movement?:Movement|'legacy';rated?:boolean;myTurn?:boolean}
@@ -80,7 +82,6 @@ async function lobby(){
   let count=profile.settings.players,movement:Movement=profile.settings.movement,place:'online'|'local'='online',showAll=false
   let games:Games={available:[],mine:[],limit:50},notices:Notice[]=[],leaderboardRequest=0
   const localURL=()=>`/chess/?local=1&players=${count}&movement=${movement}`
-  const currentPool=()=>poolFor(movement,count)
   const updateLocalLinks=()=>document.querySelectorAll<HTMLAnchorElement>('.mode-choice a').forEach(link=>{const url=new URL(link.href);url.searchParams.set('movement',el<HTMLSelectElement>('local-movement').value);link.href=url.toString()})
   const renderGames=()=>{
     const filtered=games.available.filter(g=>showAll||(g.maxPlayers===count&&g.movement===movement))
@@ -109,13 +110,13 @@ async function lobby(){
   }
   const loadNotices=async()=>{const data=await fetchNotices();notices=data.items;renderNotices()}
   const loadLeaderboard=async()=>{
-    const request=++leaderboardRequest,pool=currentPool();setShellPool(pool);el('rating-pool-label').textContent=poolLabel(pool)
-    const data=await api<{players:{name:string;avatar:string;rating:number;games:number;rank:number}[];me:{rating:number;games:number;rank:number|null}}>(`/leaderboard?pool=${pool}`)
+    const request=++leaderboardRequest;el('rating-pool-label').textContent='All modes · All player counts'
+    const data=await api<{players:{name:string;avatar:string;rating:number;games:number;rank:number}[];me:{rating:number;games:number;rank:number|null}}>('/leaderboard')
     if(request!==leaderboardRequest)return
     const table=document.createElement('table');table.innerHTML='<thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">Elo</th></tr></thead><tbody></tbody>'
     for(const p of data.players){
       const row=document.createElement('tr');row.classList.toggle('self',p.name===profile.name)
-      row.innerHTML=`<td></td><td><span class="rank-player"><span class="small-avatar">${icon(p.avatar)}</span><strong></strong></span></td><td></td>`
+      row.innerHTML=`<td></td><td><span class="rank-player"><span class="small-avatar">${avatarArt(p.avatar)}</span><strong></strong></span></td><td></td>`
       row.cells[0].textContent=String(p.rank);row.querySelector('strong')!.textContent=p.name;row.cells[2].textContent=String(p.rating);table.querySelector('tbody')!.append(row)
     }
     el('leaderboard').replaceChildren(table)
@@ -129,11 +130,11 @@ async function lobby(){
     el('movement-hint').textContent=movement==='classic'?'Take turns in a fixed player order.':'Everyone plans, then the pieces travel.'
     el('find-label').textContent=place==='online'?'Find game':'Play locally'
     document.querySelector<HTMLElement>('.home-actions [data-view="make"]')!.hidden=place==='local'
-    el('play-hint').textContent=place==='online'?'Play online with your account. Choose rated or casual when creating a game.':'Share this device. Your local game saves automatically and is always unrated.'
+    el('play-hint').textContent=place==='online'?'Completed online games award Elo and coins. Choose a mode and find your next game.':'Share this device. Your local game saves automatically and is always unrated.'
     const resume=document.querySelector<HTMLButtonElement>('.home-actions [data-view="continue"]')!
     resume.disabled=place==='local'&&!localStorage.getItem(`four-player-multiverse-chess/v1/${movement}/${count}`)
     resume.title=resume.disabled?'No local game saved for these options.':''
-    showAll=false;renderGames();setShellPool(currentPool())
+    showAll=false;renderGames()
     void loadLeaderboard().catch(cause=>{el('leaderboard').textContent=cause.message??'Could not load leaderboard'})
   }
   const titles:Record<string,[string,string]>={make:['Create game','Choose the game details, then share its four-letter code.'],join:['Find a game','Join an open game or use an invite code.'],continue:['Continue game','Pick up where you left off. Finished games stay available for review.'],local:['Local play','Play together on one device.'],settings:['Settings','Make 5D Chess your own.'],notifications:['Notifications','Updates from your games and ratings.']}
@@ -168,20 +169,13 @@ async function lobby(){
     const label=button.textContent;button.disabled=true;button.textContent=pending
     try{await work()}finally{button.disabled=false;button.textContent=label}
   }
-  let ratedBeforePrivate=true
-  el<HTMLInputElement>('game-password').oninput=()=>{
-    const checkbox=el<HTMLInputElement>('game-rated'),privateGame=!!el<HTMLInputElement>('game-password').value
-    if(privateGame&&!checkbox.disabled){ratedBeforePrivate=checkbox.checked;checkbox.checked=false}
-    if(!privateGame&&checkbox.disabled)checkbox.checked=ratedBeforePrivate
-    checkbox.disabled=privateGame
-  }
   el<HTMLSelectElement>('game-players').onchange=()=>{count=Number(el<HTMLSelectElement>('game-players').value) as typeof count;updateChoices()}
   el<HTMLSelectElement>('game-movement').onchange=()=>{movement=el<HTMLSelectElement>('game-movement').value as Movement;updateChoices()}
   el<HTMLFormElement>('make-form').onsubmit=event=>{event.preventDefault();void busy('make-form','Creating…',async()=>{
     error('make-error','')
     try{
       const password=el<HTMLInputElement>('game-password').value
-      const result=await api<{code:string}>('/games',{title:el<HTMLInputElement>('game-title').value.trim()||`${profile.name}'s game`,playerCount:Number(el<HTMLSelectElement>('game-players').value),movement:el<HTMLSelectElement>('game-movement').value,password,rated:el<HTMLInputElement>('game-rated').checked&&!password})
+      const result=await api<{code:string}>('/games',{title:el<HTMLInputElement>('game-title').value.trim()||`${profile.name}'s game`,playerCount:Number(el<HTMLSelectElement>('game-players').value),movement:el<HTMLSelectElement>('game-movement').value,password})
       online(result.code)
     }catch(cause){error('make-error',cause instanceof Error?cause.message:'Could not create game')}
   })}
@@ -195,16 +189,13 @@ async function lobby(){
       if(cause instanceof ApiError&&cause.status===403){showView('join');el<HTMLInputElement>('join-code').value=code;el('join-password').focus();error('join-error','This game needs its password.')}else error('quick-error',cause instanceof Error?cause.message:'Could not join game')
     }
   })}
-  el<HTMLSelectElement>('setting-avatar').value=profile.settings.avatar
   el<HTMLSelectElement>('setting-players').value=String(profile.settings.players)
   el<HTMLSelectElement>('setting-movement').value=profile.settings.movement
   el<HTMLInputElement>('setting-notifications').checked=profile.settings.moveNotifications
-  const previewAvatar=()=>el('avatar-preview').innerHTML=icon(el<HTMLSelectElement>('setting-avatar').value)
-  el('setting-avatar').onchange=previewAvatar;previewAvatar()
   el<HTMLFormElement>('settings-form').onsubmit=event=>{event.preventDefault();void busy('settings-form','Saving…',async()=>{
     error('settings-error','');el('settings-status').hidden=true
     try{
-      const result=await api<{profile:Profile}>('/settings',{avatar:el<HTMLSelectElement>('setting-avatar').value,movement:el<HTMLSelectElement>('setting-movement').value,players:Number(el<HTMLSelectElement>('setting-players').value),moveNotifications:el<HTMLInputElement>('setting-notifications').checked})
+      const result=await api<{profile:Profile}>('/settings',{movement:el<HTMLSelectElement>('setting-movement').value,players:Number(el<HTMLSelectElement>('setting-players').value),moveNotifications:el<HTMLInputElement>('setting-notifications').checked})
       profile=result.profile;renderAccount(profile);void loadNotices().catch(cause=>error('lobby-error',cause.message));el('settings-status').textContent='Settings saved.';el('settings-status').hidden=false
     }catch(cause){error('settings-error',cause instanceof Error?cause.message:'Could not save settings')}
   })}
@@ -215,6 +206,7 @@ async function lobby(){
     if(failure?.status==='rejected')error('lobby-error',failure.reason instanceof Error?failure.reason.message:'Some updates could not be loaded.')
     else error('lobby-error','')
   }
+  void initDailySpin()
   await refresh()
   window.setInterval(()=>{if(document.visibilityState==='visible')void refresh()},15000)
 }
