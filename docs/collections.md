@@ -52,7 +52,7 @@ Reference reviewed: [DH4410/Overrun, `claude/ui-v2-plus-anim`](https://github.co
 
 The shop changes each Monday at midnight Netherlands time. Its deterministic server selection includes two premium and two accessible items of each category. Catalog values range from 160 common to 12,000 mythic; the weekly shop excludes mythic items, which remain spin/crate rewards or market finds. Direct purchases buy the pictured item, and extra copies are tradable.
 
-The market supports skins and player icons at seller-selected whole-coin prices from 1 to 100,000,000. There is no fee. A listing locks its exact copy; if no usable copy remains, that cosmetic is unequipped. The seller can cancel an unsold listing. A sale atomically deducts buyer coins, credits the seller, transfers the copy and removes the listing. A user cannot buy their own listing. Simultaneous buyers cannot both obtain the same copy. Limits: 100 listings per seller and 5,000 copies per inventory.
+The market supports skins and player icons at seller-selected whole-coin prices from 1 to 100,000,000. There is no fee. Sellers can attach an optional plain-text note of up to 240 characters; it appears on the listing and purchase confirmation and is included in market search alongside item and seller names. Old listings remain compatible. A listing locks its exact copy; if no usable copy remains, that cosmetic is unequipped. The seller can cancel an unsold listing. A sale atomically deducts buyer coins, credits the seller, transfers the copy and removes the listing. A user cannot buy their own listing. Simultaneous buyers cannot both obtain the same copy. Limits: 100 listings per seller and 5,000 copies per inventory.
 
 ## Storage and verification
 

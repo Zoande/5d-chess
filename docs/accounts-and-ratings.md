@@ -18,10 +18,12 @@ Finishing later wins a placement comparison; elimination in the same resolution 
 
 Ratings are frozen when every seat fills. At completion (at most one survivor), each change is added to that account’s current rating, and the game settles once. Concurrent games have independent frozen starting ratings. Room results, changes, coins and the settled marker persist together. Finishing order is the principal multiplayer signal; second place can gain or lose depending on opponent strengths and elimination contribution.
 
-The four mode/count pools remain server-side statistics. They are updated with placement Elo, but are not returned in public profiles or exposed in navigation, rating controls or the leaderboard. The visible leaderboard uses only merged Elo and includes accounts that have completed a rated game. Empty pools and fake placeholder players are not shown.
+The four mode/count pools remain server-side statistics. They are updated with placement Elo, but are not returned in public profiles or exposed in navigation, rating controls or the leaderboard. The visible leaderboard uses only merged Elo and includes all accounts. The lobby shows up to 100 players, with full-leaderboard links inside the scroll area and beside your Elo. The full rankings page supports username search and 100-row pages. Empty pools and fake placeholder players are not shown.
 
 ## Notifications and persistence
 
 The server stores the latest 100 in-app notices per account: joins, submitted plans, resolved rounds, turns, results and rating changes. Rating notices include earned game coins. Pending Live-plan notices never reveal the orders. Clicking a notice marks it read and opens its game; mark-all-read is available on Home and the full feed. Disabling move notices suppresses joins, moves and turns while retaining results and rating changes.
 
 Pages poll while visible. Notifications, preferences, ratings and economy data survive server restarts in the existing database. Account APIs require authentication, and only the owner can update notification read state or use their inventory. There are no email or operating-system notification integrations.
+
+CasinoOwner receives an in-app notification for every taxable casino win, including the winner, game, profit and credited tax. It commits with the transfer, is not duplicated by wager retries, and stays enabled when move notifications are disabled. Clicking it opens the corresponding casino table.

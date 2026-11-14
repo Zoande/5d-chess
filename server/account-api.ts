@@ -22,8 +22,8 @@ export function accountApi(store: ChessStore, source: Account, path: string, met
     for (const notice of account.notifications) if (data.all === true || ids.has(notice.id)) notice.read = true
     return {status: 200, value: {items: account.notifications, unread: account.notifications.filter(n=>!n.read).length}}
   }
-  if (path === '/api/leaderboard' && method === 'GET') {
+  if ((path === '/api/leaderboard'||path === '/api/leaderboard/full') && method === 'GET') {
     const rows = store.leaderboard(), self = rows.find(row=>row.name===account.name)!
-    return {status: 200, value: {players: rows.slice(0,10), me: {name: account.name, rating: self.rating, games: self.games, rank: self.rank}}}
+    return {status: 200, value: {players: path.endsWith('/full')?rows:rows.slice(0,100), me: {name: account.name, rating: self.rating, games: self.games, rank: self.rank}}}
   }
 }

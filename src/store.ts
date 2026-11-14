@@ -1,6 +1,6 @@
 import {api,getSession,initShell,renderAccount} from './shell.ts'
 import {type Profile} from './account-model.ts'
-import {type Collectible,type ItemType,type OwnedItem,type Listing,ITEMS,ITEM_LABELS,CRATES,crateTickets,RARITIES,RARITY_COLORS,itemById,duplicateRefund} from './collection.ts'
+import {type Collectible,type ItemType,type OwnedItem,type Listing,MARKET_DESCRIPTION_LIMIT,ITEMS,ITEM_LABELS,CRATES,crateTickets,RARITIES,RARITY_COLORS,itemById,duplicateRefund} from './collection.ts'
 import {type Kind,type Player,KINDS,PLAYERS} from './model.ts'
 import {framedAvatar,frameArt} from './cosmetic-art.ts'
 import {COLORS,NAMES,pieceIcon,skinSetIcon} from './art.ts'
@@ -149,23 +149,24 @@ function renderInventory(){
 }
 function sell(uid:string){
  const owned=state.wallet.inventory.find(o=>o.uid===uid)!,item=itemById(owned.itemId)!
- const dialog=transaction(`Sell ${item.name}`,`<div class="item-picture">${itemArt(item)}</div><label>Price in coins<input id="listing-price" type="number" inputmode="numeric" min="1" max="100000000" step="1" required value="${item.price}"></label><p>This exact copy will be locked while listed. If it is your last available copy, it will be unequipped. You can cancel an unsold listing at any time.</p>`,'List for sale',async d=>{
+ const dialog=transaction(`Sell ${item.name}`,`<div class="item-picture">${itemArt(item)}</div><label>Price in coins<input id="listing-price" type="number" inputmode="numeric" min="1" max="100000000" step="1" required value="${item.price}"></label><label class="listing-note-label" for="listing-description">Seller’s note <small>Optional · ${MARKET_DESCRIPTION_LIMIT} characters maximum</small><textarea id="listing-description" rows="3" maxlength="${MARKET_DESCRIPTION_LIMIT}" placeholder="Tell buyers what makes this copy worth a look."></textarea><span id="listing-note-count" class="listing-note-count">0 / ${MARKET_DESCRIPTION_LIMIT}</span></label><p>This exact copy will be locked while listed. If it is your last available copy, it will be unequipped. You can cancel an unsold listing at any time.</p>`,'List for sale',async d=>{
   const input=d.querySelector<HTMLInputElement>('input')!;if(!input.reportValidity())throw new Error('Enter a whole positive coin price')
-  await submit('/economy/list',{uid,price:Number(input.value)});await loadMarket();message('collection-status','Your copy is listed on the market.')
- });dialog.querySelector('input')?.focus()
+  await submit('/economy/list',{uid,price:Number(input.value),description:d.querySelector<HTMLTextAreaElement>('#listing-description')!.value});await loadMarket();message('collection-status','Your copy is listed on the market.')
+ });const note=dialog.querySelector<HTMLTextAreaElement>('#listing-description')!;note.oninput=()=>{dialog.querySelector('#listing-note-count')!.textContent=`${note.value.length} / ${MARKET_DESCRIPTION_LIMIT}`};dialog.querySelector('input')?.focus()
 }
 function cancel(id:string){transaction('Cancel this listing?','<p>Your copy will return to your available inventory.</p>','Cancel listing',async()=>{await submit('/economy/cancel',{id});await loadMarket();message('collection-status','Listing cancelled.')})}
 function renderMarket(){
  const search=el<HTMLInputElement>('market-search').value.trim().toLowerCase(),typeFilter=el<HTMLSelectElement>('market-type').value,rarity=el<HTMLSelectElement>('market-rarity').value,mine=el<HTMLSelectElement>('market-owner').value==='mine',sort=el<HTMLSelectElement>('market-sort').value
- const filtered=listings.filter(l=>{const i=itemById(l.itemId)!;return (typeFilter==='all'||i.type===typeFilter)&&(rarity==='all'||i.rarity===rarity)&&(!mine||l.seller===profile.name)&&(!search||i.name.toLowerCase().includes(search))}).sort((a,b)=>sort==='low'?a.price-b.price:sort==='high'?b.price-a.price:b.created-a.created)
+ const filtered=listings.filter(l=>{const i=itemById(l.itemId)!;return (typeFilter==='all'||i.type===typeFilter)&&(rarity==='all'||i.rarity===rarity)&&(!mine||l.seller===profile.name)&&(!search||[i.name,l.seller,l.description??''].some(text=>text.toLowerCase().includes(search)))}).sort((a,b)=>sort==='low'?a.price-b.price:sort==='high'?b.price-a.price:b.created-a.created)
+ el('market-summary').textContent=`${filtered.length} ${filtered.length===1?'listing':'listings'} · ${new Set(filtered.map(l=>l.seller)).size} sellers`
  el('market-grid').innerHTML=filtered.length?filtered.map(l=>{
   const item=itemById(l.itemId)!,own=l.seller===profile.name
-  return `<article class="market-card" style="--rarity:${RARITY_COLORS[item.rarity]}">${itemCard(item)}<small class="seller">${own?'Your listing':'Sold by '+escape(l.seller)}</small><strong class="coin-price">${icon('coin')}${l.price.toLocaleString()}</strong><button class="button" type="button" data-listing="${l.id}" ${!own&&l.price>state.wallet.coins?'disabled':''}>${own?'Cancel listing':'Buy copy'}</button></article>`
+  return `<article class="market-card" style="--rarity:${RARITY_COLORS[item.rarity]}">${itemCard(item)}<small class="seller">${own?'Your listing':'Sold by '+escape(l.seller)}</small>${l.description?`<p class="market-seller-note">${escape(l.description)}</p>`:''}<strong class="coin-price">${icon('coin')}${l.price.toLocaleString()}</strong><button class="button" type="button" data-listing="${l.id}" ${!own&&l.price>state.wallet.coins?'disabled':''}>${own?'Cancel listing':'Buy copy'}</button></article>`
  }).join(''):'<p class="market-empty">No listings here yet.<br>List a copy from your inventory, or try another filter.</p>'
  el('market-grid').querySelectorAll<HTMLButtonElement>('[data-listing]').forEach(b=>b.onclick=()=>{
   const listing=listings.find(l=>l.id===b.dataset.listing)!;if(listing.seller===profile.name){cancel(listing.id);return}
   const item=itemById(listing.itemId)!
-  transaction(`Buy ${item.name}?`,`<div class="item-picture">${itemArt(item)}</div><p>Pay <strong>${listing.price.toLocaleString()} coins</strong> to ${escape(listing.seller)} for this exact copy.</p>`,'Buy copy',async()=>{await submit('/economy/market-buy',{id:listing.id});await loadMarket();message('collection-status',`${item.name} is now in your inventory.`)})
+  transaction(`Buy ${item.name}?`,`<div class="item-picture">${itemArt(item)}</div><p>Pay <strong>${listing.price.toLocaleString()} coins</strong> to ${escape(listing.seller)} for this exact copy.</p>${listing.description?`<blockquote class="market-seller-note"><small>Seller’s note</small>${escape(listing.description)}</blockquote>`:''}`,'Buy copy',async()=>{await submit('/economy/market-buy',{id:listing.id});await loadMarket();message('collection-status',`${item.name} is now in your inventory.`)})
  })
 }
 async function loadMarket(){listings=(await api<{listings:Listing[]}>('/market')).listings;renderMarket()}

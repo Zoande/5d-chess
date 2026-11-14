@@ -1,3 +1,4 @@
+import {noticeUrl} from './account-model.ts'
 import {type Notice,type Profile} from './account-model.ts'
 import {avatarArt,framedAvatar} from './cosmetic-art.ts'
 import {icon} from './icons.ts'
@@ -113,9 +114,9 @@ function renderNotificationPanel(items:Notice[]){
  if(!items.length){list.innerHTML=`<div class="notice-empty">${icon('bell')}<strong>All caught up.</strong><p>Your next move, victory and new challenger will appear here.</p></div>`;return}
  for(const n of items){
   const row=document.createElement('button');row.type='button';row.className=`popover-notice${n.read?'':' unread'}`
-  row.innerHTML=`<span class="popover-notice-icon">${icon(n.kind==='rating'?'chart':n.kind==='result'?'trophy':'knight')}</span><span><strong></strong><small></small><time></time></span>`
+  row.innerHTML=`<span class="popover-notice-icon">${icon(n.kind==='casino'?'coin':n.kind==='rating'?'chart':n.kind==='result'?'trophy':'knight')}</span><span><strong></strong><small></small><time></time></span>`
   row.querySelector('strong')!.textContent=n.title;row.querySelector('small')!.textContent=n.detail;row.querySelector('time')!.textContent=new Date(n.created).toLocaleString()
-  row.onclick=async()=>{row.disabled=true;try{const data=await api<{items:Notice[];unread:number}>('/notifications/read',{ids:[n.id]});updateNoticeCount(data.unread);location.href=`/chess/online.html?code=${encodeURIComponent(n.code)}`}catch{row.disabled=false;row.querySelector('small')!.textContent='Could not open this update. Try again.'}}
+  row.onclick=async()=>{row.disabled=true;try{const data=await api<{items:Notice[];unread:number}>('/notifications/read',{ids:[n.id]});updateNoticeCount(data.unread);location.href=noticeUrl(n)}catch{row.disabled=false;row.querySelector('small')!.textContent='Could not open this update. Try again.'}}
   list.append(row)
  }
 }

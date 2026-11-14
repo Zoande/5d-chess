@@ -24,7 +24,7 @@ export function rankedPlayers(accounts:Account[]){
 }
 export function notify(account: Account, notice: Omit<Notice,'id'|'created'|'read'>) {
   const u=ensureAccount(account)
-  if (!u.settings.moveNotifications && !['rating','result'].includes(notice.kind)) return
+  if (!u.settings.moveNotifications && !['rating','result','casino'].includes(notice.kind)) return
   u.notifications.unshift({...notice,id:randomBytes(12).toString('hex'),created:Date.now(),read:false})
   u.notifications.length=Math.min(u.notifications.length,100)
 }
