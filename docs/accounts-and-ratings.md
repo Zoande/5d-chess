@@ -1,31 +1,27 @@
-# Development home, accounts and ratings
+# Development accounts and ratings
 
-The development frontend and Node API must be deployed together. Main and its production deployment are unchanged. Build with `npm run build`, then restart the Node process with the same `DATA_DIR`; back up `multiplayer.json` before upgrading. Existing users receive defaults lazily without losing passwords or sessions. Existing games remain casual and keep their movement rules.
+The development frontend and Node API must be deployed together. Main is unchanged. Build with `npm run build`, then restart the Node process with the same `DATA_DIR`; back up `multiplayer.json` before upgrading. See [Collections and economy](collections.md) for coins, spins, crates, inventory and the market.
 
 ## Flow
 
-Guests still land on the four-player local board. Authenticated users land on Home; Online/Local, player count and movement determine the Find/Play and Continue actions. Create has its own details screen. Find uses a two-column invite/open-games layout, filtered by the selected options with Show all available. Private invite codes lead to the password form. The AI button stays disabled.
+Guests land on the four-player local board. Authenticated users land on Home. Online/Local, player count and movement determine Find/Play and Continue. Create has its own details screen; Find uses a two-column invite/open-games layout, with filtering and a Show all option. Private invite codes lead to a password form. The AI button remains disabled.
 
-Every page shares the logo and account menu. Settings stores a chess-piece profile icon, default player count, default movement and game-notification preference. Local games remain browser saves. The game canvas and match controls keep their existing behavior.
+Every page shares the logo, coin balance, Shop / Inventory / Market navigation and account menu. Settings stores default player count, default movement and notification preferences. Owned player icons and per-piece skins are equipped in inventory. Local games remain browser saves. The canvas and match controls keep their existing behavior.
 
-## Elo policy
+## Merged Elo
 
-- Four independent pools: Classic duels, Classic multiplayer (3–4), Live duels, Live multiplayer (3–4).
-- Each pool starts at 1200. The first ten completed rated games are labeled provisional; K remains 32 for all accounts.
-- Only explicitly rated, public online games count. Private, casual, legacy, local and future AI games do not affect Elo.
-- Ratings are recorded when all seats fill. At completion, each pair of players is compared using the usual logistic expectation (400-point scale). Finishing later earns a win against an earlier elimination; elimination in the same resolution is a draw. Surviving winners finish above eliminated players.
-- Pair changes use `32 / (players - 1)`, so multiplayer has the same maximum per-game weight as a duel. Balanced integer rounding keeps each game's total change at zero.
-- A game settles once, after at most one faction survives. If all factions are eliminated together they tie. Finishing order is based on faction elimination, including capture of a historical king copy. Checkmate is not inferred.
-- Concurrent games use their own frozen starting ratings and add their changes to the account's current rating. The result, rating changes and once-only marker persist with the game.
+One visible rating starts at 1200 and covers all movement modes and player counts. Every newly created online game is Elo-eligible, including private games. Local games are not eligible. The first ten games are labeled provisional, without changing K. Development accounts receive the new merged rating without converting old pool ratings.
 
-The leaderboard shows actual rated players, separately for the selected pool. New accounts and empty pools show honest empty states. This is a basic Elo system; it does not implement collusion detection or claim to prevent alternate-account abuse.
+Duels use standard pairwise logistic Elo with K = 32 and a 400-point scale. Multiplayer uses normalized pairwise comparisons with a total K of 40: K = 34 (85%) for finishing order and K = 6 (15%) for elimination performance. Elimination performance compares credited elimination totals between each pair. If nobody earns elimination credit, finishing order gets the full K = 40. Changes are balanced to sum to zero after integer rounding. Thus a four-player match does not multiply the available rating swing by three.
 
-## Notifications
+Finishing later wins a placement comparison; elimination in the same resolution ties. Surviving winners finish above eliminated players. First king captures in the elimination resolution credit the attacking faction; multiple attackers share one elimination credit. Capturing multiple historical king copies does not multiply that credit. Mutual king collisions can credit both factions. Checkmate is not inferred.
 
-The server stores the latest 100 in-app notices per account: joins, submitted plans, resolved rounds, turns, results and rating changes. Pending Live-plan notices never reveal the orders. Clicking a notice marks it read and opens its game; mark-all-read is available on Home and the full feed. Disabling move notices suppresses joins, moves and turns while retaining results and rating changes.
+Ratings are frozen when every seat fills. At completion (at most one survivor), each change is added to that account’s current rating, and the game settles once. Concurrent games have independent frozen starting ratings. Room results, changes, coins and the settled marker persist together. Finishing order is the principal multiplayer signal; second place can gain or lose depending on opponent strengths and elimination contribution.
 
-Pages poll while visible every 15 seconds. These are in-app notifications only. Account data, unread state, preferences and ratings survive server restarts in the existing database. Authentication is required for account APIs, and notices can only be read or updated by their owner.
+The four mode/count pools remain server-side statistics. They are updated with placement Elo, but are not returned in public profiles or exposed in navigation, rating controls or the leaderboard. The visible leaderboard uses only merged Elo and includes accounts that have completed a rated game. Empty pools and fake placeholder players are not shown.
 
-## Validation
+## Notifications and persistence
 
-`npm test` covers Elo normalization, placement ties, separate pools, once-only settlement, preferences, feed bounds, authentication, ownership and restart persistence. `npm run test:browser` covers the dashboard/follow-up flows, mobile widths, settings, account menus, real multiplayer turns, the unchanged local board and binary logo delivery through the static Worker.
+The server stores the latest 100 in-app notices per account: joins, submitted plans, resolved rounds, turns, results and rating changes. Rating notices include earned game coins. Pending Live-plan notices never reveal the orders. Clicking a notice marks it read and opens its game; mark-all-read is available on Home and the full feed. Disabling move notices suppresses joins, moves and turns while retaining results and rating changes.
+
+Pages poll while visible. Notifications, preferences, ratings and economy data survive server restarts in the existing database. Account APIs require authentication, and only the owner can update notification read state or use their inventory. There are no email or operating-system notification integrations.
