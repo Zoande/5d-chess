@@ -126,7 +126,7 @@ function lobby(k:Kit){
   for(const item of deskFurniture){
     k.counter(item.x,item.z,item.w,-1,walnut)
     k.box(item.x,2.32,d/2-.15,item.w+.50,1.85,.14,ink)
-    k.sign(item.id==='desk'?'PUBLIC ENQUIRIES':'BOOKING OFFICE',item.x,2.55,d/2-.235,item.w,.46,Math.PI)
+    k.sign(item.id==='desk'?'PUBLIC ENQUIRIES':'BOOKING & BAIL',item.x,2.55,d/2-.235,item.w,.46,Math.PI)
     for(let i=0;i<4;i++){k.box(item.x+(i-1.5)*.64,1.70,d/2-.23,.59,.52,.13,oak);k.trim(item.x+(i-1.5)*.64,1.74,d/2-.31,.18,.047,.05)}
     k.pendant(item.x,-.1,3.01)
   }

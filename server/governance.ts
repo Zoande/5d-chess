@@ -186,14 +186,18 @@ function recapitalize(unit:UnitOfWork,e:Companies,c:Company,now:number){
   cure(unit,c,at,'Bankruptcy ended by recapitalization')
   markSupport(c,at)
 }
+export function dividendPool(c:Company,now:number,cutoff=c.nextDividend){
+  if(locked(c,cutoff)||!eligible(c))return 0
+  return Math.min(ratio(Math.max(0,c.profit-c.loss),c.policy.dividends),cashForDistribution(c,now))
+}
 function distribute(unit:UnitOfWork,e:Companies,c:Company,now:number){
   if(now<c.nextDividend)return
   const at=c.nextDividend,first=at
   c.nextDividend=nextAmsterdamMidnight(now)
+  const pool=dividendPool(c,now,first)
   const clear=c.profit-c.loss
   c.loss=Math.max(0,-clear);c.profit=0
   const owners=eligible(c)
-  const pool=locked(c,first)||!owners?0:Math.min(ratio(Math.max(0,clear),c.policy.dividends),cashForDistribution(c,now))
   let paid=0
   const day=amsterdamDay(at)
   if(pool)for(const [name,shares] of Object.entries(c.holders)){

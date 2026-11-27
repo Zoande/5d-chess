@@ -15,6 +15,7 @@ const KEY='royalWeeklyLottery',interval=30*60_000
 type Entry={name:string;count:number}
 interface Draw {until:number;nextSale:number;npc:number;residents:{name:string;coins:number;tickets:number}[];entries:Entry[];carry:number;last?:LotteryView['last']}
 const sum=(rows:Entry[])=>rows.reduce((n,r)=>n+r.count,0)
+export const drawProfit=(d:Draw)=>Math.floor(toStockUnits((sum(d.entries)+d.npc)*TICKET_PRICE)/100)
 function change(rows:Entry[],name:string,delta:number){
   const row=rows.find(r=>r.name===name)
   if(!row)rows.push({name,count:delta})
@@ -23,7 +24,7 @@ function change(rows:Entry[],name:string,delta:number){
 function closeDraw(unit:UnitOfWork,d:Draw,now:number){
   const sold=sum(d.entries)+d.npc
   if(!sold)return
-  const revenue=toStockUnits(sold*TICKET_PRICE),profit=Math.floor(revenue/100)
+  const revenue=toStockUnits(sold*TICKET_PRICE),profit=drawProfit(d)
   const prize=fromStockUnits(revenue-profit)
   let ticket=randomInt(sold)
   const winner=d.entries.find(entry=>(ticket-=entry.count)<0)?.name

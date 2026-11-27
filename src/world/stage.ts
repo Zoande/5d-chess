@@ -5,7 +5,7 @@ import {HeldModel} from './overrun-models.ts'
 import {WEAPONS,type WeaponId} from './arcade.ts'
 import {supportModel} from './arcade-art.ts'
 import {residentialAt,residentialPoints} from './residential.ts'
-import type {CompanyView} from '../equity-v2.ts'
+import type {FloorReport} from '../floor-report.ts'
 import {kitchenTools} from './kitchen-tools.ts'
 import {restaurantPoints} from './restaurant-model.ts'
 import {BITE_MS,type Grocery} from './food.ts'
@@ -228,7 +228,13 @@ export class CityStage {
     }
   }
   quote(symbol:string,points:{price:number}[],value?:number){this.art?.floor(symbol)?.screens.forEach(update=>update(points,value))}
-  ownership(symbol:string,company:CompanyView){this.art?.floor(symbol)?.ownership?.(company)}
+  private lastReport?:FloorReport
+  report(data:FloorReport){
+    if(this.lastReport?.symbol===data.symbol&&this.lastReport.asOf>data.asOf)return
+    this.lastReport=data
+    this.quote(data.symbol,data.history,data.price)
+    this.art?.floor(data.symbol)?.report?.(data)
+  }
   act(){this.onAction(this.nearest)}
   setStation(point:string|undefined,submit:(gesture:string)=>void){
     this.gesture=submit
@@ -282,6 +288,7 @@ export class CityStage {
   }
   private buildScene(){
     this.art=makeWorldArt(this.caveOpen)
+    if(this.lastReport)this.report(this.lastReport)
     this.art.scene.matrixAutoUpdate=false
     this.tools=kitchenTools(this.art.scene)
     this.lighting=new CityLighting(this.art.scene)

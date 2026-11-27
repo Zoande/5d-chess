@@ -423,3 +423,8 @@ body[data-page="world"]{height:100svh;display:flex;flex-direction:column;margin:
 .advisor-holdings button:disabled{opacity:.48;cursor:default}
 .advisor-holdings button:focus-visible,.advisor-list-head button:focus-visible{outline:2px solid #ffe3a4;outline-offset:2px}
 @media(pointer:coarse),(max-width:460px){.advisor-holdings button,.advisor-list-head button{min-height:44px}}
+
+.world-dialog .booking-list li{align-items:center;gap:1rem;padding:12px 2px;font-size:.9rem}
+.booking-list li div{min-width:0}
+.booking-list li span{display:block;margin:.24rem 0}
+.booking-list li button{flex-shrink:0;min-height:40px}

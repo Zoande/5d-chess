@@ -80,9 +80,8 @@ export function counterUI(dialog:HTMLDialogElement,view:WorldView,send:(data:obj
   }else if(service.startsWith('drawer:')){
     title='Storage drawer';content=amount+'<h3>Carried</h3>'+transfer(carried.filter(s=>s.item==='cash'||isWeapon(s.item)),'store','Put away')+'<h3>In drawer</h3>'+(transfer(a.drawer??[],'take','Take')||'Empty')
   }else{
-    title=service==='desk'?'Meridian Police front desk':'Booking register'
-    content=service==='desk'?'<p>The booking desk is across the lobby. Take the central stairs to levels 1–5. West Wing holds cells 01–25, East Wing 26–50.</p>':
-      '<p>'+((a.register??[]).map(safeText).join(' · ')||'All cells are available.')+'</p>'
+    title='Meridian Police front desk'
+    content='<p>Visit the booking and bail desk across the lobby to see why someone is in custody or pay for their release. The central stairs lead to cells 01–25 in the West Wing and 26–50 in the East Wing.</p>'
   }
   body.innerHTML=`<header class="world-service-head"><h2 id="world-dialog-title">${title}</h2><form method="dialog"><button aria-label="Close">×</button></form></header><section class="arcade-counter">${content}</section><p class="counter-feedback" role="status"></p>`
   if(!dialog.open)dialog.showModal()

@@ -11,7 +11,7 @@ export interface Pack {
   bite?:Bite
   slots:(Stack|null)[]; hp:number; drawers:Record<string,Stack[]>; recovery:Stack[]
   magazines?:Partial<Record<WeaponId,Magazine>>;nextShot?:number
-  sequence:number;lastShot?:number;lastHit?:boolean;stars:number;remaining:number
+  sequence:number;lastShot?:number;lastHit?:boolean;wantedReason?:string;stars:number;remaining:number
 }
 export const foodItem=isGrocery
 const limit=(item:Item)=>item==='cash'?Number.MAX_SAFE_INTEGER:isWeapon(item)?1:9

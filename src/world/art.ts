@@ -5,7 +5,8 @@ import {arcadeBuildings} from './arcade-art.ts'
 import {urbanArt} from './urban-art.ts'
 import {basinBed,tunnelBed,poolLevel} from './terrain.ts'
 import {ownershipSegments} from './company-desk.ts'
-import type {CompanyView} from '../equity-v2.ts'
+import {DISPLAY_X,DISPLAY_Z,financeFigures,reportTime,type FloorReport,type ShareRegister} from '../floor-report.ts'
+import {isExchangeStock,type ExchangeSymbol} from '../stock-model.ts'
 import {salonBar} from './salon-bar.ts'
 import {buildRestaurant} from './restaurant-art.ts'
 import {landscape,Scenery} from './landscape.ts'
@@ -515,21 +516,30 @@ function boardroom(room:T.Group,symbol:string){
   const sign=banner(room,casino?'ROYAL SALON  /  CAS':'FIFTH DIMENSION  /  BNK',[5.24,.46],[0,2.78,7.08],face)
   sign.rotation.y=Math.PI
   for(const x of [-5.6,5.6])potted(room,x,6.43,.89)
+}
 
+function displayPanel(room:T.Group,side:number,base:T.Material,metal:T.Material){
   const canvas=document.createElement('canvas');canvas.width=1152;canvas.height=640
   const ctx=canvas.getContext('2d')!,map=new T.CanvasTexture(canvas);map.colorSpace=T.SRGBColorSpace
-  const display=new T.Group();display.position.set(6.05,0,3.88);display.rotation.y=-Math.PI/2;room.add(display)
+  const display=new T.Group();display.position.set(side*DISPLAY_X,0,DISPLAY_Z);display.rotation.y=-side*Math.PI/2;room.add(display)
   box(display,[4.5,.16,.64],[0,.09,0],base,.04)
-  for(const x of [-1.78,1.78])box(display,[.15,2.55,.32],[x,1.3,0],metal,.038)
-  box(display,[4.42,2.54,.14],[0,2.47,0],base,.062)
-  mesh(new T.PlaneGeometry(4.25,2.36),new T.MeshBasicMaterial({map}),display,[0,2.47,.082],false)
+  for(const x of [-1.78,1.78])box(display,[.15,.8,.28],[x,.43,-.08],metal,.038)
+  box(display,[4.42,2.54,.14],[0,1.98,0],base,.062)
+  mesh(new T.PlaneGeometry(4.25,2.36),new T.MeshBasicMaterial({map}),display,[0,1.98,.082],false)
+  return {ctx,map}
+}
+
+function floorDisplays(room:T.Group,symbol:ExchangeSymbol){
+  const warm=symbol==='CAS'||symbol==='LOT',base=warm?oak:std(0x172930,.37,.5)
+  const metal=warm?brass:std(0x77989f,.47,.29),face=warm?'#f5d08d':'#9addd5'
+  const {ctx,map}=displayPanel(room,1,base,metal),finance=displayPanel(room,-1,base,metal)
   let previous=''
-  const update=(c?:CompanyView)=>{
+  const ownership=(c?:ShareRegister)=>{
     const rows=c?ownershipSegments(c):[]
-    const key=JSON.stringify([c?.issued,c?.votingShares,rows])
+    const key=JSON.stringify([c?.issued,c?.yourShares,rows])
     if(key===previous)return
     previous=key
-    const tint=ctx.createLinearGradient(0,0,1152,640);tint.addColorStop(0,casino?'#301e2b':'#102e37');tint.addColorStop(1,'#07171c')
+    const tint=ctx.createLinearGradient(0,0,1152,640);tint.addColorStop(0,warm?'#301e2b':'#102e37');tint.addColorStop(1,'#07171c')
     ctx.fillStyle=tint;ctx.fillRect(0,0,1152,640)
     ctx.fillStyle=face;ctx.font='650 35px system-ui';ctx.fillText(symbol+'   SHARE REGISTER',54,72)
     ctx.fillRect(54,94,1044,2)
@@ -546,8 +556,30 @@ function boardroom(room:T.Group,symbol:string){
     ctx.fillStyle='#f1f3e6';ctx.textAlign='center';ctx.font='600 37px system-ui';ctx.fillText(c.issued.toLocaleString('en'),270,316)
     ctx.fillStyle='#adc9c6';ctx.font='22px system-ui';ctx.fillText('shares issued',270,349);ctx.textAlign='left'
     ctx.fillStyle='#ffffff15';ctx.fillRect(54,572,1044,43);ctx.fillStyle=face;ctx.font='650 26px system-ui'
-    ctx.fillText('YOUR SHARE   '+format(c.votingShares),74,602)
+    ctx.fillText('YOUR SHARE   '+format(c.yourShares),74,602)
     map.needsUpdate=true
+  }
+  function update(report?:FloorReport){
+    ownership(report?.register)
+    const pen=finance.ctx
+    const wash=pen.createLinearGradient(0,0,1152,640)
+    wash.addColorStop(0,warm?'#392934':'#163940');wash.addColorStop(1,'#09181e')
+    pen.fillStyle=wash;pen.fillRect(0,0,1152,640)
+    pen.fillStyle=face;pen.font='650 35px system-ui';pen.fillText(symbol+'   FINANCIAL REPORT',54,72)
+    pen.textAlign='right';pen.font='23px system-ui';pen.fillText('COINS',1098,72);pen.textAlign='left'
+    pen.fillRect(54,94,1044,2)
+    if(report){
+      financeFigures(report).forEach(([label,value],i)=>{
+        const x=i%2?602:54,y=i<2?154:362
+        pen.fillStyle='#bfd3d2';pen.font='27px system-ui';pen.fillText(label,x,y)
+        pen.fillStyle=i===3?face:'#f7f5e9';pen.font='600 60px system-ui';pen.fillText(value,x,y+86,478)
+      })
+      pen.fillStyle='#ffffff36';pen.fillRect(54,285,1044,2)
+      pen.fillStyle=face;pen.font='25px system-ui'
+      pen.fillText('NEXT PAYOUT   '+reportTime(report.nextPayout)+'  ·  Amsterdam',54,555)
+      pen.fillStyle='#b9ccc9';pen.font='21px system-ui';pen.fillText('Based on current earnings and shareholdings.',54,602)
+    }else{pen.font='26px system-ui';pen.fillText('Connecting to the exchange…',54,154)}
+    finance.map.needsUpdate=true
   }
   update()
   return update
@@ -627,7 +659,7 @@ function tower(shaft:T.Object3D){
     for(const x of [-3.8,3.8])block(room,2.6,.055,.37,x,5.77,1.07,gold)
   }
   for(const section of sections)batchOpaque(section)
-  const decor=new Map<string,{actors:CityGuest[];screens:ReturnType<typeof makeScreen>[];doors:ReturnType<typeof slidingDoors>;ownership?:ReturnType<typeof boardroom>}>()
+  const decor=new Map<string,{actors:CityGuest[];screens:ReturnType<typeof makeScreen>[];doors:ReturnType<typeof slidingDoors>;report?:ReturnType<typeof floorDisplays>}>()
   return (symbol:string)=>{
     let entry=decor.get(symbol)
     if(!entry){
@@ -670,8 +702,9 @@ function tower(shaft:T.Object3D){
         for(const x of [-.5,.5])block(room,.018,.44,.018,x,1.57,-2.3,brass)
         banner(room,'WEEKLY DRAW   /   SHARE DEALING',[4.1,.27],[0,1.27,-2.28],'#f9df9b','#453356',true)
       }
-      const ownership=symbol==='CAS'||symbol==='BNK'?boardroom(room,symbol):undefined
-      entry={actors,screens,doors:slidingDoors(room),ownership};decor.set(symbol,entry)
+      if(symbol==='CAS'||symbol==='BNK')boardroom(room,symbol)
+      const report=isExchangeStock(symbol)?floorDisplays(room,symbol):undefined
+      entry={actors,screens,doors:slidingDoors(room),report};decor.set(symbol,entry)
     }
     return entry
   }

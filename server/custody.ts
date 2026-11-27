@@ -1,19 +1,31 @@
 import {settlePrisonDue,setPrisonTerm} from './prison-company.ts'
 import {confined} from '../src/world/civic-venues.ts'
-import {randomInt} from 'node:crypto'
-import {alias,CELL_COUNT,cellPosition,JAIL_MINUTES,PUZZLE_SIZE,type CustodyView} from '../src/world/arcade.ts'
+import {debit} from './resort-ledger.ts'
+import {COMPANIES,cashUnits,companies,journal,saveCompanies,type Companies} from './corporate.ts'
+import {notify} from './accounts.ts'
+import {randomInt,randomUUID} from 'node:crypto'
+import {alias,CELL_COUNT,cellPosition,JAIL_MINUTES,PUZZLE_SIZE,type BailListing,type CustodyView} from '../src/world/arcade.ts'
 import type {ChessStore,UnitOfWork} from './storage.ts'
 import {pack} from './city-inventory.ts'
 import {fail} from './http.ts'
 
-type Booking=CustodyView&{user:string;avatar:string}
+type Booking=CustodyView&{user:string;avatar:string;id:string;reason:string;minutes:number}
 export type Puzzle={tiles:number[];placed:boolean[]}
 const KEY='meridianBookings'
 // Translate offsets from the original off-map cell centres under one SQLite writer lock.
 export function migratePrecinct(tx:UnitOfWork){
   const entries=tx.metadata<Booking[]>(KEY)??[]
   let changed=false
+  const now=Date.now()
+  const terms=entries.some(b=>!b.id&&b.ends!==null&&b.ends>now)?tx.metadata<Companies>(COMPANIES)?.PRI?.terms:undefined
   for(const b of entries){
+    if(!b.id&&(b.ends===null||b.ends>now)){
+      b.id=randomUUID()
+      b.reason=b.ends===null?'Moderation order':'City arrest · original charge unrecorded'
+      const term=terms?.find(t=>t.user===b.user&&t.end===b.ends)
+      b.minutes=b.ends===null?0:Math.max(1,Math.ceil((b.ends-(term?.start??now))/60000))
+      changed=true
+    }
     if(!(b.x>190))continue
     const oldX=210+(b.cell%2?-4.2:4.2),oldZ=-6-Math.floor((b.cell-1)/2)*3.2
     const center=cellPosition(b.cell)
@@ -39,14 +51,18 @@ export function book(tx:UnitOfWork,user:string,stars:number,now:number,permanent
   if(!b){
     const cell=Array.from({length:CELL_COUNT},(_,i)=>i+1).find(n=>!list.some(b=>b.cell===n))
     if(!cell)return
-    b={user,cell,name:alias(cell),avatar:account.wallet?.loadout.icon??'default',ends:null,noRelease:false,...cellPosition(cell)}
+    b={user,id:'',reason:'',minutes:0,cell,name:alias(cell),avatar:account.wallet?.loadout.icon??'default',ends:null,noRelease:false,...cellPosition(cell)}
     list.push(b)
   }
   if(!permanent&&(!Number.isInteger(stars)||stars<1||stars>5))fail(400,'Invalid wanted level')
+  const p=pack(account)
+  b.id=randomUUID()
+  b.reason=permanent?'Moderation order':(p.wantedReason??'City arrest')+' · '+stars+'-star wanted level'
+  b.minutes=permanent?0:JAIL_MINUTES[stars]
   b.ends=permanent?null:now+JAIL_MINUTES[stars]*60000;b.noRelease=noRelease
   setPrisonTerm(tx,user,b.ends,now)
   tx.putMetadata(KEY,list)
-  const p=pack(account);p.stars=0;p.remaining=0
+  p.stars=0;p.remaining=0;delete p.wantedReason
   if(account.cave)account.cave.active=false
   if(permanent&&!account.cellPuzzle){
     const tiles=Array.from({length:PUZZLE_SIZE},(_,i)=>i)
@@ -62,6 +78,28 @@ export function release(tx:UnitOfWork,user:string,now=Date.now()){
   tx.putMetadata(KEY,list.filter(b=>b.user!==user))
   const a=tx.users.get(user)
   if(a)delete a.cellPuzzle
+}
+export function bailListing(b:Booking):BailListing{
+  const price=b.noRelease?null:b.ends===null?1000:Math.min(500,Math.max(1,Math.ceil(500*b.minutes/JAIL_MINUTES[5])))
+  return {id:b.id,name:b.name,reason:b.reason,ends:b.ends,price}
+}
+
+// Use the unique sentence ID. A stale register cannot pay for the next occupant of a cell.
+export function payBail(tx:UnitOfWork,payer:string,id:unknown,now:number){
+  const active=(tx.metadata<Booking[]>(KEY)??[]).filter(b=>b.ends===null||b.ends>now)
+  if(active.some(b=>b.user===payer))fail(423,'In custody at Meridian Police')
+  const booking=active.find(b=>typeof id==='string'&&b.id===id)??fail(409,'This sentence is no longer available')
+  const {price}=bailListing(booking)
+  if(price===null)fail(403,'Only moderation can release this inmate')
+  const account=tx.users.get(payer)??fail(401,'Log in first')
+  debit(account,price,now)
+  release(tx,booking.user,now)
+  const e=companies(tx,now),units=cashUnits(price)
+  e.PRI.carry+=units
+  journal(e.PRI,'Bail income',units,now)
+  saveCompanies(tx,e)
+  const freed=tx.users.get(booking.user)!
+  notify(freed,{kind:'casino',title:'Released on bail',detail:'Your bail was paid at the Meridian booking desk.',code:'PRI'})
 }
 export function cellMove(tx:UnitOfWork,b:Booking,x:unknown,z:unknown,yaw:unknown){
   if(typeof x!=='number'||typeof z!=='number'||typeof yaw!=='number'||![x,z,yaw].every(Number.isFinite))return

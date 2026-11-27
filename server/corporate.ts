@@ -32,7 +32,7 @@ export const dictionary=<T>(contents:Record<string,T>={}):Record<string,T>=>Obje
 export const symbols=[CAS,BNK] as const
 export type Order={id:string;holder:string;side:StockSide;price:number;shares:number;at:number;seq:number;initial:number;market?:{quote:number;total:number}}
 export type Trade={id:string;buy:string;sell:string;price:number;shares:number;at:number}
-type LedgerEntry={at:number;kind:string;units:number;shares?:number}
+type LedgerEntry={at:number;kind:string;units:number;shares?:number;operating?:true;profitToday?:number}
 export type Ballot={id:string;symbol:EquitySymbol;policy:string;value:number;ends:number;snapshot:Record<string,number>;votes:Record<string,'yes'|'no'>}
 export type Support={at:number;options:Record<string,number>}
 type Insolvency={at:number;need:number;stage:number;selected:number[];support:Record<string,number[]>;snapshot:Record<string,number>;outcome?:string;offer?:Ballot}
@@ -66,11 +66,13 @@ export function ratio(amount:number,numerator:number,denominator=100){
   return Number(BigInt(amount)*BigInt(numerator)/BigInt(denominator))
 }
 export function journal(c:ListedCompany,kind:string,units:number,at:number,shares?:number){
-  c.ledger.push({kind,units,at,shares})
+  const entry:LedgerEntry={kind,units,at,shares}
+  c.ledger.push(entry)
+  return entry
 }
 export function operating(c:Company,kind:string,units:number,at:number){
   c.profit+=units
-  journal(c,kind,units,at)
+  journal(c,kind,units,at).operating=true
 }
 export const saveCompanies=(u:UnitOfWork,e:Companies)=>u.putMetadata(COMPANIES,e)
 export const sharesOf=(c:ListedCompany,name:string)=>c.holders[name]??0

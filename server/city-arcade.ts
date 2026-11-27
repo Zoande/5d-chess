@@ -82,7 +82,7 @@ export class CityArcade {
     this.store.transaction(tx=>{
       const p=pack(tx.users.get(name)!)
       p.remaining=Math.max(0,p.remaining-(now-last))
-      if(!p.remaining){p.stars=0;this.searches.delete(name)}
+      if(!p.remaining){p.stars=0;delete p.wantedReason;this.searches.delete(name)}
     })
   }
   private staff(now:number):Contact[]{
@@ -236,7 +236,9 @@ export class CityArcade {
           const t=targets.find(c=>c.id===data.target&&actorDistance(observer,c)<=weapon.range&&canTarget(c))
           if(data.target&&!t)fail(409,'Target is out of sight or range')
           magazine.rounds--;p.nextShot=now+weapon.delay
-          p.lastShot=now;p.lastHit=!!t;advance(p,1)
+          p.lastShot=now;p.lastHit=!!t
+          p.wantedReason??='Firing a weapon in the city'
+          advance(p,1)
           if(t?.kind==='player'){
             const victim=tx.users.get(t.label)!,vp=pack(victim)
             vp.hp=Math.max(0,vp.hp-weapon.damage)
@@ -248,14 +250,14 @@ export class CityArcade {
               }
               vp.slots=vp.slots.map(()=>null);vp.hp=MAX_HP;vp.sequence++;mirrorFood(victim)
               if(victim.cave)victim.cave.active=false
-              respawn=t.label;advance(p,1);tx.putMetadata(dropKey,drops)
+              respawn=t.label;p.wantedReason='Defeating a player';advance(p,1);tx.putMetadata(dropKey,drops)
             }
           }else if(t){
             const n=health[t.id]??={hp:MAX_HP,returns:0}
             if(n.returns>now)fail(409,'Target is recovering')
             if(!n.hp)n.hp=MAX_HP
             n.hp=Math.max(0,n.hp-weapon.damage)
-            if(!n.hp){n.returns=now+30000;advance(p,1)}
+            if(!n.hp){n.returns=now+30000;p.wantedReason='Defeating a city character';advance(p,1)}
             tx.putMetadata(npcKey,health)
           }
         }else if(op==='pickup'){
