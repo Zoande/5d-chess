@@ -1,3 +1,4 @@
+import type {ShareRegister} from '../floor-report.ts'
 import {policies,rescueStages,type CompanyView} from '../equity-v2.ts'
 import {casinoCoins} from '../casino-model.ts'
 import type {EquitySymbol,StockView} from '../stock-model.ts'
@@ -7,7 +8,7 @@ const fmt=(n:number)=>casinoCoins(n)
 const when=(n:number)=>new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(n)
 const pct=(n:number,total:number)=>new Intl.NumberFormat(undefined,{style:'percent',maximumFractionDigits:2}).format(total?n/total:0)
 const colors=['#e5bb75','#90b9d4','#a8d29d','#ba9bce','#e99e94','#74b6ac','#d0cb9b','#c8a572']
-export function ownershipSegments(c:CompanyView):[string,number,string][]{
+export function ownershipSegments(c:ShareRegister):[string,number,string][]{
   const major=c.ownership.filter(h=>h.shares>=c.issued*.01).slice(0,8)
   const small=c.issued-c.inventory-major.reduce((n,h)=>n+h.shares,0)
   const list:[string,number,string][]=major.map((h,i)=>[h.name,h.shares,colors[i]])

@@ -1,4 +1,4 @@
-import {dayKey} from '../src/collection.ts'
+import {dayKey,midnight} from '../src/collection.ts'
 import {fromStockUnits,toStockUnits} from '../src/stock-model.ts'
 import {notify,type Account} from './accounts.ts'
 import {portfolio} from './cas-shares.ts'
@@ -25,12 +25,20 @@ function enroll(unit:UnitOfWork,e:Companies,user:string,end:number|null,now:numb
   postCreditCollections(unit,[account],now,e)
   e.PRI.terms.push({user,start:now,end,earned:0})
 }
+const earnedThrough=(term:Term,at:number)=>Number(BigInt(Math.max(0,at-term.start))*BigInt(dailyUnits)/BigInt(DAY))
+export function unsettledPrisonProfit(unit:UnitOfWork,term:Term,at:number){
+  const earned=earnedThrough(term,Math.min(at,term.end??at))-term.earned
+  if(earned<=0)return 0
+  const bank=unit.users.get(term.user)?.bank
+  const owed=bank?.prisonHold?loansFor(bank).reduce((sum,l)=>sum+l.principal+l.interest,bank.prisonHold.premium):0
+  return Math.max(0,earned-owed)
+}
 function earn(unit:UnitOfWork,e:Companies,term:Term,at:number){
-  const total=Number(BigInt(at-term.start)*BigInt(dailyUnits)/BigInt(DAY))
+  const total=earnedThrough(term,at)
   let units=total-term.earned
   if(units<=0)return
   term.earned=total
-  journal(e.PRI,'Custody earnings',units,at)
+  const receipt=journal(e.PRI,'Custody earnings',units,at)
   const account=unit.users.get(term.user),hold=account?.bank?.prisonHold
   if(account&&hold){
     // Settle the original contracts first. collect posts principal, interest and
@@ -53,6 +61,7 @@ function earn(unit:UnitOfWork,e:Companies,term:Term,at:number){
   }
   // Share-sale cash remains available to the order book. Only operating
   // earnings enter this separate dividend reserve.
+  receipt.profitToday=Math.min(units,total-earnedThrough(term,midnight(dayKey(at))))
   e.PRI.carry+=units
 }
 function resumeLoans(account:Account|undefined,at:number){

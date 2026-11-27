@@ -4,7 +4,7 @@ import {resortService} from './resort.ts'
 import {HOTEL_LIFT,bathSeats,gameStations,bedAt,guestFloor,roomAt,roomPoints,type ResortView} from '../src/world/resort.ts'
 import {randomUUID} from 'node:crypto'
 import {CityArcade} from './city-arcade.ts'
-import {roster,cellMove,custodyView} from './custody.ts'
+import {roster,bailListing,payBail,cellMove,custodyView} from './custody.ts'
 import {SLOT_COUNT,isWeapon,MAX_HP} from '../src/world/arcade.ts'
 import {cityStaff,serviceStaff} from '../src/world/service-staff.ts'
 import {CityLife} from './city-life.ts'
@@ -179,7 +179,8 @@ export class CityWorlds {
   update(name:string,action:string,data:Record<string,unknown>,now=Date.now()):WorldView{
     this.clean(now)
     this.arcade.active(name,now)
-    const bookings=roster(this.store,now),booking=bookings.find(b=>b.user===name)
+    let bookings=roster(this.store,now)
+    const booking=bookings.find(b=>b.user===name)
     if(booking&&action!=='presence')fail(423,'In custody at Meridian Police')
     const account=this.store.rouletteWallet(name)??fail(401,'Log in first')
     const open=(account.coins??0)>=1&&account.caveDay!==dayKey(now)
@@ -365,6 +366,11 @@ export class CityWorlds {
       if(data.command==='step')me.workKind=kind
       if(data.command==='step'||data.command==='kitchen'||data.command==='take'||data.command==='deliver')me.workingUntil=now+800
       if(data.command==='stand'||data.command==='leave-station'||data.command==='kitchen'&&data.gesture!=='flip')me.interaction=undefined
+    }else if(action==='bail'){
+      const desk=this.points(world,me,now).find(p=>p.id==='booking')
+      if(me.zone!=='station'||me.interaction!=='booking'||!desk||!near(me,desk.x,desk.z,desk.range))fail(403,'Visit the booking and bail desk first')
+      this.store.transaction(tx=>payBail(tx,name,data.booking,now))
+      bookings=roster(this.store,now)
     }else if(action==='bar'){
       const pos=site('casino',BAR.x,BAR.z)
       if(me.zone!=='casino'||!near(me,pos.x,pos.z,1.85)&&me.barSeat===undefined)fail(409,'Order at the bar')
@@ -442,7 +448,11 @@ export class CityWorlds {
     if(simulation.respawn){const victim=world.members.get(simulation.respawn)!;delete victim.equipped;this.arrive(world,victim,'city',now)}
     if(simulation.view.custody)return this.update(name,'presence',{},now)
     const players=me.zone==='private'?[]:[...world.members.values()].filter(p=>p.name!==name&&!bookings.some(b=>b.user===p.name)&&p.zone!=='private'&&near(me,p.x,p.z,48)&&(shared?Math.abs(riderHeight(p,now)-level)<23:p.zone===me.zone)).map(p=>publicMember(p,shared))
-    if(me.interaction==='booking')simulation.view.register=bookings.map(b=>b.name)
+    if(at('booking')){
+      const rows=bookings.map(bailListing)
+      simulation.view.register=rows.map(b=>b.name)
+      simulation.view.bailRegister=rows
+    }
     for(const b of bookings){
       const zone=galleryZone(b.cell)
       if(me.zone!==zone)continue
@@ -452,7 +462,7 @@ export class CityWorlds {
     const casino=site('casino',0,3)
     const tableMotion=shared&&!hall&&me.zone!=='private'&&level<5&&near(me,casino.x,casino.z,29)?this.roulette.tableMotion(world.id):undefined
     if(restaurant)restaurant.actors=restaurant.actors.filter(a=>!(simulation.health['kfc:'+a.id]?.returns>now))
-    const coins=action==='resort'||action==='arcade'||action==='housing'||action==='restaurant'||action==='bar'||action==='use'&&me.zone==='kfc'?this.store.rouletteWallet(name)?.coins:account.coins
+    const coins=action==='bail'||action==='resort'||action==='arcade'||action==='housing'||action==='restaurant'||action==='bar'||action==='use'&&me.zone==='kfc'?this.store.rouletteWallet(name)?.coins:account.coins
     if(me.interaction==='food')food??=residentialFood(this.store,name,housing.keys)
     if(me.interaction?.startsWith('fridge:')){
       const target=this.homePoints(world,me,now).find(p=>p.id===me.interaction&&near(me,p.x,p.z,p.range))

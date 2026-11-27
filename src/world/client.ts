@@ -1,6 +1,7 @@
 import {mapVersion} from './load-map.ts'
 import {DIRECTORY} from './urban-layout.ts'
 import {ResortUI} from './resort-ui.ts'
+import {openBooking} from './booking-ui.ts'
 import {openArmory} from './armory-ui.ts'
 import {streetCounter} from './street-counter.ts'
 import {storefront} from './storefronts.ts'
@@ -9,7 +10,8 @@ import {jigsaw} from '../jigsaw.ts'
 import {RestaurantUI} from './restaurant-ui.ts'
 import {api,ApiError,getSession,initShell,updateWalletBalance} from '../shell.ts'
 import {casinoCoins,grossMultiplier,pocketColor,MAX_CASINO_STAKE,type CasinoView,type RouletteChoice} from '../casino-model.ts'
-import {cityQuote,isEquity,type StockView,type PricePoint} from '../stock-model.ts'
+import type {FloorReport} from '../floor-report.ts'
+import {isExchangeStock,type StockView,type PricePoint} from '../stock-model.ts'
 import {DICE_TABLE_INDEX,DESTINATIONS,WORLD_TABLES,type Destination,type WorldAction,type WorldView} from './model.ts'
 import {ResidentialServices} from './residential-services.ts'
 import {coins,safeText} from './services.ts'
@@ -61,6 +63,7 @@ let restaurant:RestaurantUI|undefined
 let stage:CityStage|undefined,services:ResidentialServices|undefined,view:WorldView|undefined
 let offset=0,refreshing:Promise<void>|undefined,performing=false,closed=false,errorTimer=0
 let closeWhenIdle:{action:string;station:string}|undefined
+let updateBooking:ReturnType<typeof openBooking>|undefined
 let updateArmory:((next:WorldView)=>void)|undefined
 let viewKey='',shownService='',lastFloor='';let closeAfterFloor=false
 let stake=25,choice:RouletteChoice='white',activeTable=-1,tableKey=''
@@ -158,14 +161,17 @@ async function floorScreens(zone:string){
   if(!zone.startsWith('floor:'))return
   const symbol=zone.slice(6)
   try{
-    const data=await api<StockView>('/stocks'),issue=cityQuote(data,symbol)
-    if(view?.you.zone!==zone)return
-    stage?.quote(symbol,issue?.history??data.quotes[symbol]?.history??[],issue?.price??data.quotes[symbol]?.price)
-    if(isEquity(symbol))stage?.ownership(symbol,data.companies[symbol])
-    else if(!issue){
-      const {points}=await api<{points:PricePoint[]}>('/stocks/history?symbol='+encodeURIComponent(symbol))
-      if(view?.you.zone===zone)stage?.quote(symbol,points.slice(-60),data.quotes[symbol]?.price)
+    if(isExchangeStock(symbol)){
+      const report=await api<FloorReport>('/stocks/floor?symbol='+symbol)
+      if(view?.you.zone===zone)stage?.report(report)
+      return
     }
+    const data=await api<StockView>('/stocks')
+    if(view?.you.zone!==zone)return
+    const quote=data.quotes[symbol]
+    stage?.quote(symbol,quote?.history??[],quote?.price)
+    const {points}=await api<{points:PricePoint[]}>('/stocks/history?symbol='+encodeURIComponent(symbol))
+    if(view?.you.zone===zone)stage?.quote(symbol,points.slice(-60),quote?.price)
   }catch{}
 }
 function accepted(next:WorldView & {mapVersion?:string},start:number,reposition=false,sent?:Position){
@@ -213,6 +219,16 @@ function accepted(next:WorldView & {mapVersion?:string},start:number,reposition=
     shownService=service
     return
   }
+  if(!paused&&service==='booking'){
+    if(shownService!==service){
+      stage?.lock(true)
+      updateBooking=openBooking(dialog,next,async booking=>{
+        if(performing||closed)throw Error('Please try again.')
+        await action('bail',{booking})
+      })
+    }else if(dialog.open)updateBooking?.(next)
+    shownService=service;return
+  }
   if(!paused&&service==='counter'){
     if(shownService!==service){
       stage?.lock(true)
@@ -233,7 +249,7 @@ function accepted(next:WorldView & {mapVersion?:string},start:number,reposition=
       services?.directory(marker)
       stage?.lock(true);return
     }
-    if(['cash','desk','booking'].includes(service)||service.startsWith('drawer:')){
+    if(['cash','desk'].includes(service)||service.startsWith('drawer:')){
       stage?.lock(true)
       const render=()=>{if(view&&view.interaction===service)counterUI(dialog,view,async data=>{await action('arcade',data);render()})}
       render();return
@@ -350,7 +366,7 @@ puzzleDialog.onclose=()=>{
 }
 host.querySelector<HTMLButtonElement>('[data-world-use]')!.onclick=()=>stage?.act()
 dialog.addEventListener('close',()=>{
-  updateArmory=undefined
+  updateBooking=undefined;updateArmory=undefined
   syncControls();if(!paused)stage?.resumeMouse()
   const station=view?.interaction
   if(!station||dialog.open)return

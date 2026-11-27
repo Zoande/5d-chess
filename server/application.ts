@@ -23,6 +23,7 @@ import {CityWorlds} from './world.ts'
 import {RouletteHall} from './roulette-hall.ts'
 import {StockHistory} from './stock-history.ts'
 import {bankApi} from './bank.ts'
+import {floorReport} from './floor-report.ts'
 import {stockApi} from './stock-api.ts'
 import {casinoApi} from './casino-api.ts'
 import {ensureAccount,profile,pruneNotices} from './accounts.ts'
@@ -160,6 +161,7 @@ export function createApplication(store: ChessStore, updateFlag = store.path ===
           }
           if(method==='POST'&&['support','rescue','vote'].some(action=>path==='/api/stocks/'+action)&&!city.canVote(me,data.symbol))fail(403,'Visit the company board table')
           if(method==='POST'&&(path==='/api/bank/borrow'||path==='/api/bank/repay')&&!city.canBank(me,path.split('/').at(-1)!))fail(403,'Visit the appropriate bank counter')
+          if(path==='/api/stocks/floor'&&method==='GET')return {status:200,value:floorReport(unit,me,url.searchParams.get('symbol'))}
           return usageApi(usage,store,me,path,method,data)
             ?? puzzleApi(account,path,method,data)
             ?? playerProfileApi(store,unit,account,url,method,data)

@@ -1,3 +1,5 @@
+import {DISPLAY_X,DISPLAY_Z} from '../floor-report.ts'
+import {isExchangeStock} from '../stock-model.ts'
 import {FLOOR_LIST} from './exchange-floors.ts'
 export {FLOOR_LIST} from './exchange-floors.ts'
 import {shared} from './map-data.ts'
@@ -94,7 +96,7 @@ export function walkingHeight(zone:WorldZone,x:number,z:number){
   }
   return zone==='city'?terrainHeight(x,z):floorHeight(zone)
 }
-export type WorldUse=`front:${string}`|`directory:${string}`|`resort:${string}`|'cash'|'counter'|'booking'|'desk'|`drawer:${string}`|'loans'|'payments'|'reserve'|'elevator'|'reception'|'banker'|'trader'|'credit'|'bar'|'board'|'advisor'|`property:${string}`|`kfc:${string}`|`lift:${string}`|`fridge:${string}`|'food'
+export type WorldUse=`front:${string}`|`directory:${string}`|`resort:${string}`|'cash'|'counter'|'booking'|'desk'|`drawer:${string}`|'loans'|'payments'|'reserve'|'elevator'|'reception'|'banker'|'trader'|'ownership-report'|'finance-report'|'credit'|'bar'|'board'|'advisor'|`property:${string}`|`kfc:${string}`|`lift:${string}`|`fridge:${string}`|'food'
 export type WorldAction={id:string;label:string;x:number;z:number;range?:number}
 export type WorldChat={id:number;name:string;text:string;at:number}
 export interface WorldView{
@@ -114,7 +116,16 @@ function localInteractions(zone:WorldZone,keys:readonly string[]):WorldAction[]{
     ...LOUNGES.map((seat,i)=>({id:'couch:'+i,label:'Sit on couch',x:seat.x,z:seat.z,range:1.75})),
   ]
   if(zone==='bank')return [{id:'cash',label:'Withdraw or deposit cash',x:0,z:.75},{id:'credit',label:'Speak to the credit advisor',...CREDIT_ADVISOR},{id:'loans',label:'Speak to the lender',x:-2.9,z:.73},{id:'payments',label:'Speak to the cashier',x:2.9,z:.73},{id:'reserve',label:'Speak to the reserve clerk',x:7.4,z:.6}]
-  if(zone==='exchange'||zone.startsWith('floor:'))return [{id:'elevator',label:'Use elevator',...LIFT,range:1.25},...(zone==='exchange'?[{id:'reception',label:'Talk to reception',x:.63,z:-.77},{id:'advisor',label:'Review your portfolio',...FINANCIAL_ADVISOR}]:[{id:'trader',label:'Speak to the trader',x:-2.7,z:-.4},{id:'trader',label:'Speak to the trader',x:2.7,z:-.4}])]
+  if(zone==='exchange'||zone.startsWith('floor:')){
+    const lift={id:'elevator',label:'Use elevator',...LIFT,range:1.25}
+    if(zone==='exchange')return [lift,{id:'reception',label:'Talk to reception',x:.63,z:-.77},{id:'advisor',label:'Review your portfolio',...FINANCIAL_ADVISOR}]
+    const points=[lift,...[-2.7,2.7].map(x=>({id:'trader',label:'Speak to the trader',x,z:-.4,range:1.65}))]
+    if(isExchangeStock(zone.slice(6)))points.push(
+      {id:'ownership-report',label:'Read share register',x:DISPLAY_X-1.5,z:DISPLAY_Z,range:2},
+      {id:'finance-report',label:'Read financial report',x:1.5-DISPLAY_X,z:DISPLAY_Z,range:2}
+    )
+    return points
+  }
   return []
 }
 export const interactions=(zone:WorldZone,keys:readonly string[]=[])=>localInteractions(zone,keys).map(action=>({...action,...site(zone,action.x,action.z)}))
@@ -152,6 +163,7 @@ function roomObstacles(zone:WorldZone,x:number,z:number){
     const side=Math.abs(x)
     if(side>1.28&&side<1.8&&z<-4.19&&z>-7.5)return true
     if(zone==='exchange')return box(x,z,.63,-1.97,2.18,.62)||box(x,z,FINANCIAL_ADVISOR.x,FINANCIAL_ADVISOR.z-1.08,1.32,.54)
+    if(isExchangeStock(zone.slice(6))&&box(Math.abs(x),z,DISPLAY_X,DISPLAY_Z,.48,2.4))return true
     if(boardFloor(zone)&&box(x,z,0,BOARD_TABLE.z,3.34,1.02))return true
     return [-2.7,2.7].some(desk=>box(x,z,desk,-1.77,1.29,.51))
   }

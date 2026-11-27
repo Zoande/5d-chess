@@ -1,3 +1,4 @@
+import {financeFigures,reportTime,type FloorReport} from '../floor-report.ts'
 import {portfolioPerformance} from './portfolio-performance.ts'
 import {DRINKS,type BarService} from './bar-menu.ts'
 import {companyContent} from './company-desk.ts'
@@ -62,10 +63,14 @@ export class CityServices {
       return
     }
     const heading=view==='reception'?'Welcome to the Exchange':view==='advisor'?'Your portfolio':view==='board'?'Shareholder board':view==='loans'?'Loans':view==='payments'?'Payments':view==='reserve'?'Bank reserve':view==='credit'?'Credit advisor':stockName(symbol??'')
-    this.render(view==='trader'||view==='reception'||view==='advisor'||view==='board'?'EXCHANGE': 'FIFTH DIMENSION BANK',heading,'<p class="world-muted">Connecting…</p>')
+    const reading=view==='ownership-report'||view==='finance-report'
+    this.render(reading||view==='trader'||view==='reception'||view==='advisor'||view==='board'?'EXCHANGE': 'FIFTH DIMENSION BANK',heading,'<p class="world-muted">Connecting…</p>')
     if(!this.dialog.open)this.dialog.showModal()
     try{
-      if(view==='reception')this.reception()
+      if(reading&&symbol&&isExchangeStock(symbol)){
+        const report=await api<FloorReport>('/stocks/floor?symbol='+symbol)
+        if(token===this.token)this.floorReport(report,view==='finance-report')
+      }else if(view==='reception')this.reception()
       else if(view==='advisor'||view==='trader'&&symbol||view==='board'&&symbol&&isEquity(symbol)){
         const data=await api<StockView>('/stocks')
         if(token!==this.token)return
@@ -77,6 +82,23 @@ export class CityServices {
         if(token===this.token)this.bank(view,data,token)
       }
     }catch(error){if(token===this.token)this.message(error instanceof Error?error.message:'Unavailable')}
+  }
+  private floorReport(report:FloorReport,finance:boolean){
+    const {symbol,register}=report
+    const tag=stockName(symbol)
+    const metrics=(rows:[string,string][])=>'<div class="world-metrics">'+rows.map(([label,value])=>`<div><small>${label}</small><b>${value}</b></div>`).join('')+'</div>'
+    if(finance){
+      const figures=financeFigures(report).map(([label,value]):[string,string]=>[label,value==='Unavailable'?value:value+' coins'])
+      this.render(tag,'Financial report',metrics(figures)+`<p>Next payout <strong>${reportTime(report.nextPayout)}</strong> (Amsterdam). Estimates use current earnings and holdings, before any personal loan deductions.</p>
+        ${report.lastPaid===null?'':`<p>Last dividend paid to all holders · ${coins(report.lastPaid)}</p>`}
+        <p>Reserves include cash committed to company buyback orders.${symbol==='LOT'?' Ticket proceeds are held separately until the draw.':''}</p>
+        <small>Figures as of ${reportTime(report.asOf)} (Amsterdam).</small>`)
+      return
+    }
+    const share=(n:number)=>new Intl.NumberFormat('en',{style:'percent',maximumFractionDigits:4}).format(n/register.issued)
+    const rows=[...register.ownership,{name:'Unsold shares',shares:register.inventory}]
+    this.render(tag,'Share register',metrics([['Shares issued',register.issued.toLocaleString('en')],['Your shares',register.yourShares.toLocaleString('en')+' · '+share(register.yourShares)]])+
+      '<ul class="world-ledger">'+rows.map(h=>`<li><span>${safeText(h.name)}</span><b>${h.shares.toLocaleString('en')} · ${share(h.shares)}</b></li>`).join('')+'</ul>')
   }
   bar(order:BarService|undefined,buy:(drink:string,id:string)=>Promise<void>,stand:()=>Promise<void>,seated:boolean){
     this.render('ROYAL SALON','The bar',`<div class="world-drinks">${DRINKS.map(drink=>`<article><i style="--drink:#${drink.color.toString(16)}"></i><div><h3>${drink.name}</h3><p>${drink.note}</p></div><button type="button" data-drink="${drink.id}">${coins(drink.price)}</button></article>`).join('')}</div>${seated?'<button type="button" data-bar-stand>Leave stool</button>':''}`)
