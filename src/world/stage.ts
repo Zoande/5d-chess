@@ -16,6 +16,7 @@ import * as T from 'three'
 import {liftPlatform,makeWorldArt,spinWheel} from './art.ts'
 import {Figure} from '../casino/hall-stage.ts'
 import {PlayerMotion,type PlayerSample} from './player-motion.ts'
+import {CityDiagnostics} from './diagnostics.ts'
 import {CityLighting} from './city-lighting.ts'
 import {CityAssets} from './city-assets.ts'
 import {resultRotation,v} from '../casino/scene/geometry.ts'
@@ -48,6 +49,8 @@ export class CityStage {
   private labelPoint=new T.Vector3()
   private support=new Map<string,T.Group>()
   private npc=new Map<string,Figure>()
+  private cast=new Map<string,{member:WorldView['you'];officer:boolean;style?:number;motion:PlayerMotion;sample:PlayerSample}>()
+  readonly diagnostics?:CityDiagnostics
   private restaurantNpc=new Map<string,{figure:Figure;props:ReturnType<typeof staffProps>}>()
   private lifts=new Map<string,T.Group>()
   private liftFacing?:{from:number;delta:number;started:number}
@@ -145,6 +148,7 @@ export class CityStage {
     }catch{
       throw new Error('The city requires WebGL 2. Enable hardware acceleration in your browser and try again.')
     }
+    if(new URLSearchParams(location.search).get('debug')==='1')this.diagnostics=new CityDiagnostics(parent)
     this.resize=new ResizeObserver(()=>this.fit());this.resize.observe(this.canvas)
     this.bind();this.fit();this.frame=requestAnimationFrame(this.tick)
   }
@@ -162,8 +166,10 @@ export class CityStage {
     const changedVenue=prior?.zone!==next.zone&&(civicRoom(next.zone)||!!prior&&civicRoom(prior.zone))
     // The two flights are less than a metre apart. A wall or stair landing can
     // stop a server step sooner than prediction when the player turns a corner.
-    const correctionLimit=civicRoom(next.zone)?.27:1.35
+    const stoppedAtSample=!!sent&&!this.moving&&Math.hypot(this.position.x-sent.x,this.position.z-sent.z)<.025
+    const correctionLimit=stoppedAtSample?.025:civicRoom(next.zone)?.27:1.35
     if(changedWorld||reposition||seatChanged||changedVenue&&this.predictedZone!==next.zone||housingChanged||prior?.lift&&!next.lift||next.lift&&!prior?.lift||Math.hypot(next.x-reported.x,next.z-reported.z)>correctionLimit){
+      if(!changedWorld&&!reposition&&!seatChanged&&Math.hypot(next.x-reported.x,next.z-reported.z)>correctionLimit)this.diagnostics?.corrected()
       this.position={x:next.x,z:next.z,yaw:next.yaw}
       this.predictedZone=next.zone
     }
@@ -192,13 +198,31 @@ export class CityStage {
       // Queue the first bite pose even when the previous street frame is still drawing.
       if(view.arcade?.bite&&this.gl&&this.fence){this.gl.deleteSync(this.fence);this.fence=null}
     }
-    if(changedWorld){this.lastMessage=0;this.speech.clear();this.playerMotion.clear()}
+    if(changedWorld){this.lastMessage=0;this.speech.clear();this.playerMotion.clear();this.cast.clear()}
     for(const member of view.players){
       let motion=this.playerMotion.get(member.name)
       if(!motion){motion=new PlayerMotion();this.playerMotion.set(member.name,motion)}
       motion.push(member,view.now)
     }
     for(const name of this.playerMotion.keys())if(!view.players.some(member=>member.name===name))this.playerMotion.delete(name)
+    const present=new Set<string>()
+    const resident=(id:string,member:WorldView['you'],officer:boolean,style?:number)=>{
+      present.add(id)
+      let entry=this.cast.get(id)
+      if(!entry){
+        entry={member,officer,style,motion:new PlayerMotion(),sample:{x:member.x,z:member.z,yaw:member.yaw,zone:member.zone,height:0}}
+        this.cast.set(id,entry)
+      }
+      entry.member=member.homePose?.kind==='sit'?{...member,lounge:{couch:0,index:0}}:member
+      entry.motion.push(entry.member,view.now)
+    }
+    for(const npc of view.residents??[])resident(npc.id,npc,false,npc.style)
+    for(const c of view.arcade?.contacts??[])if(c.kind==='officer'){
+      const previous=this.cast.get(c.id)?.member
+      const yaw=previous&&Math.hypot(c.x-previous.x,c.z-previous.z)>.02?Math.atan2(previous.x-c.x,previous.z-c.z):previous?.yaw??0
+      resident(c.id,{name:c.label,avatar:'default',online:true,x:c.x,z:c.z,yaw,zone:c.zone as WorldZone},true)
+    }
+    for(const id of this.cast.keys())if(!present.has(id))this.cast.delete(id)
     const receivedAt=performance.now()
     for(const line of view.chat??[]){
       if(line.id<=this.lastMessage)continue
@@ -525,22 +549,16 @@ export class CityStage {
       g.visible=true;g.position.set(c.x,walkingHeight(this.view.you.zone,c.x,c.z)+(c.kind==='helicopter'?6:0),c.z)
       if(c.kind==='helicopter')g.rotation.y=now*.0006
     }
-    const officers=contacts.filter(c=>c.kind==='officer').map(c=>({...c,zone:c.zone as WorldZone,name:c.label,avatar:'default',online:true,yaw:0,homePose:undefined,lift:undefined}))
-    const residents=[...this.view.residents??[],...officers],activeResidents=new Set(residents.map(n=>n.id))
-    for(const member of residents){
-      let figure=this.npc.get(member.id)
-      const height=riderHeight(member,now)
-      if(!figure){
-        figure=new Figure(this.art.scene,member,this.shadow!,'kind' in member?'officer':false,'style' in member?member.style:undefined)
-        figure.root.position.y=height;this.npc.set(member.id,figure)
-      }
-      const visible=height<21&&this.camera.position.distanceTo(figure.root.position)<49
-      figure.root.visible=visible
-      figure.target=member.homePose?.kind==='sit'?{...member,lounge:{couch:0,index:0}}:member
-      figure.root.position.y=member.lift?height:T.MathUtils.damp(figure.root.position.y,height,18,dt)
-      figure.pose(dt,now,visible?undefined:member,false,false,member.homePose)
+    for(const [id,{member,officer,style,motion,sample}] of this.cast){
+      let figure=this.npc.get(id)
+      motion.sample(now,sample)
+      const visible=(this.camera.position.x-sample.x)**2+(this.camera.position.y-sample.height)**2+(this.camera.position.z-sample.z)**2<49**2
+      if(!visible){if(figure)figure.root.visible=false;continue}
+      if(!figure){figure=new Figure(this.art.scene,member,this.shadow!,officer?'officer':false,style);this.npc.set(id,figure)}
+      figure.root.visible=true;figure.target=member;figure.root.position.y=sample.height
+      figure.pose(dt,now,sample,false,false,member.homePose)
     }
-    for(const [id,figure] of this.npc)if(!activeResidents.has(id)){figure.dispose();this.npc.delete(id)}
+    for(const [id,figure] of this.npc)if(!this.cast.has(id)){figure.dispose();this.npc.delete(id)}
   }
   private restaurantCast(dt:number,now:number){
     if(!this.art)return
@@ -654,6 +672,8 @@ export class CityStage {
       const {x,z}=this.position,local=localSite(this.zone,x,z)
       this.art.resort.tick(this.zone,now,x,z,poolDepth(local.x,local.z)>.04,this.reduced)
     }
+    const salon=site('casino',0,0)
+    this.art.furnishings.visible=(this.position.x-salon.x)**2+(this.position.z-salon.z)**2<36**2
     this.art.lightZone(this.zone,dt)
     this.art.urban(this.view?.traffic,dt,this.reduced)
     this.art.homes.update(this.view?.residential,this.view?.housing?.occupied,now,dt,this.position.x,this.position.z)
@@ -674,6 +694,7 @@ export class CityStage {
       floor?.actors.forEach(actor=>actor.pose(now))
       floor?.doors(open(zone),dt)
     }
+    if(!this.art.furnishings.visible)return
     if(this.zone==='casino')this.art.bar.tick(this.view?.bar,now)
     const tables=this.view?.hall?.tables??this.view?.tableMotion
     for(const [i,actor] of this.art.actors.entries()){
@@ -701,7 +722,7 @@ export class CityStage {
     if(this.input.signal.aborted)return
     this.lock(true)
     this.input.abort();this.resize.disconnect();cancelAnimationFrame(this.frame)
-    this.clearScene();this.renderer.dispose()
+    this.clearScene();this.renderer.dispose();this.diagnostics?.close();this.cast.clear()
   }
   private tick=(time:number)=>{
     try{this.updateFrame(time)}catch(error){
@@ -731,6 +752,7 @@ export class CityStage {
       const now=Date.now()+this.clock
       this.cameraView(now);this.avatars(dt,now);this.motion(now,dt)
       this.renderScene()
+      if(this.diagnostics)this.diagnostics.rendered(time,this.renderer.info.render.calls,this.figures.size+[...this.npc.values()].filter(f=>f.root.visible).length+this.restaurantNpc.size)
       if(this.gl){this.fence=this.gl.fenceSync(this.gl.SYNC_GPU_COMMANDS_COMPLETE,0);this.gl.flush()}
     }
     const zone=this.zone??''

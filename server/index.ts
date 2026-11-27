@@ -1,7 +1,6 @@
 import {maintainEconomy} from './governance.ts'
 import {startStockQuotes} from './stock-quotes.ts'
 import {maintainGames} from './game-lifecycle.ts'
-import {createServer} from 'node:http'
 import type {Socket} from 'node:net'
 import {dailyValuation} from './elo-gambling.ts'
 import {nextReset} from '../src/collection.ts'
@@ -26,7 +25,7 @@ store.transaction(unit=>maintainEconomy(unit))
 const maintainShares=()=>{try{store.transaction(unit=>maintainEconomy(unit))}catch(error){console.error('Economy maintenance deferred',error)}}
 const sharesTimer=setInterval(maintainShares,5_000);sharesTimer.unref()
 const application = createApplication(store)
-const server = createServer(application.handle)
+const server = application.createServer()
 const sockets = new Set<Socket>()
 server.on('connection', socket => {sockets.add(socket); socket.once('close',()=>sockets.delete(socket))})
 const port = Number(process.env.PORT || 4174), host = process.env.HOST || '127.0.0.1'

@@ -1,3 +1,4 @@
+import {CityConnection} from './network/city-connection.ts'
 import {mapVersion} from './load-map.ts'
 import {DIRECTORY} from './urban-layout.ts'
 import {ResortUI} from './resort-ui.ts'
@@ -59,7 +60,8 @@ const packUI=new ArcadeControls(cast('city-pack'),action,syncLoadout)
 function syncLoadout(){stage?.setLoadout(packUI.weapon,(op,target)=>packUI.trigger(op,target),()=>packUI.eat())}
 let restaurant:RestaurantUI|undefined
 let stage:CityStage|undefined,services:ResidentialServices|undefined,view:WorldView|undefined
-let offset=0,refreshing:Promise<void>|undefined,performing=false,closed=false,errorTimer=0
+let offset=0,performing=false,closed=false,errorTimer=0
+let live:CityConnection|undefined
 let closeWhenIdle:{action:string;station:string}|undefined
 let updateArmory:((next:WorldView)=>void)|undefined
 let viewKey='',shownService='',lastFloor='';let closeAfterFloor=false
@@ -178,6 +180,7 @@ function accepted(next:WorldView & {mapVersion?:string},start:number,reposition=
     closed=true;location.reload();return
   }
   if(puzzleDialog.open&&(next.arcade?.custody?.ends!==null||next.arcade.custody.cell!==view?.arcade?.custody?.cell))puzzleDialog.close()
+  const balanceChanged=next.coins!==view?.coins
   view=next;packUI.update(next);syncLoadout()
   if(next.you.zone==='private'){
     closed=true;location.replace('/chess/dice.html?cave=1');return
@@ -192,7 +195,7 @@ function accepted(next:WorldView & {mapVersion?:string},start:number,reposition=
   stage?.set(next,offset,reposition,sent);syncControls();renderChat(next)
   connection.hidden=!stage?.preparingGraphics
   if(stage?.preparingGraphics)connection.textContent=graphicsMessage
-  updateWalletBalance(next.coins)
+  if(balanceChanged)updateWalletBalance(next.coins)
   restaurant?.update(next)
   if(changed){
     const nav=next.you.zone.startsWith('hotel')||next.you.zone==='casino'?'casino-floor':next.you.zone==='bank'?'bank':next.you.zone==='kfc'?'kfc':next.you.zone==='exchange'||next.you.zone.startsWith('floor:')?'stocks':next.you.zone==='station'||next.you.zone.startsWith('precinct:')?'prison':next.you.zone==='gunshop'?'gunshop':next.you.zone==='city'?'city':''
@@ -282,26 +285,12 @@ function accepted(next:WorldView & {mapVersion?:string},start:number,reposition=
     stage?.lock(true)
   }else if(!service)shownService=''
 }
-async function presence(){
-  const t=Date.now(),sent=stage&&{...stage.position}
-  const response=await fetch('/api/world/presence',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mapVersion,scene:true,world:view?.id,zone:view?.you.zone,slot:packUI.slot,sprint:stage?.sprinting,kitchenMotion:stage?.kitchenMotion,...(view?sent:{})}),signal:AbortSignal.timeout(5500)})
-  if(!response.ok){
-    if(response.status===412)unavailable('Meridian has a new map. Retry to load it.')
-    if(response.status===401){closed=true;location.replace('/chess/login.html')}
-    throw new Error('City connection lost')
-  }
-  accepted(await response.json() as WorldView,t,false,sent)
-}
 async function action(name:string,data:object){
   if(performing||closed)return
   performing=true
   updateSelection()
   try{
-    await refreshing
-    if(name==='use')await presence()
-    if(closed)return
-    const t=Date.now()
-    accepted(await api<WorldView>('/world/'+name,{...data,mapVersion,scene:true}),t,name==='floor'&&(data as {symbol?:string}).symbol==='residences'||name==='use'&&(data as {target?:string}).target==='exchange-lobby'||name==='resort-floor'||name==='teleport'||name==='exit-cave')
+    await live!.command(name,data)
     if(name==='stand'||name==='stand-scenery'||name==='teleport')stage?.resumeMouse()
   }catch(error){
     if(error instanceof ApiError&&error.status===412)unavailable('Meridian has a new map. Retry to load it.')
@@ -372,7 +361,7 @@ document.addEventListener('keydown',event=>{
     event.preventDefault();chatInput.focus()
   }
 })
-window.addEventListener('pagehide',e=>{if(!e.persisted)closed=true})
+window.addEventListener('pagehide',e=>{if(!e.persisted){closed=true;live?.stop()}})
 async function start(){
   await initShell();const auth=await getSession()
   if(!auth.user){location.replace('/chess/login.html');return}
@@ -384,41 +373,22 @@ async function start(){
   resortUI=new ResortUI(dialog,action)
   restaurant=new RestaurantUI(dialog,cast('world-kfc-hud'),(command,data)=>action('restaurant',{command,...data}))
   const {CityStage}=await import('./stage.ts')
-  let pollTimer:number|undefined,urgent=false,lastPresence=0
-  function wakePresence(){
-    if(closed||document.hidden)return
-    urgent=true
-    if(pollTimer!==undefined&&!refreshing&&!performing){
-      clearTimeout(pollTimer)
-      pollTimer=window.setTimeout(beat,Math.max(35,lastPresence+95-performance.now()))
-    }
-  }
-  stage=new CityStage(cast('world-canvas'),host,use,showPause,wakePresence,()=>{
+  stage=new CityStage(cast('world-canvas'),host,use,showPause,()=>live?.move(),()=>{
     if(connection.textContent===graphicsMessage)connection.hidden=true
   },()=>unavailable('The city could not render its 3D scene. Retry to rejoin the city.'))
   const release=await fetch('/api/world/map-version',{cache:'no-store'})
   if(!release.ok||(await release.json()).version!==mapVersion)throw Error('Meridian is updating. Retry when the city and its map are on the same version.')
   const url=new URL(location.href),go=url.searchParams.get('go')??''
-  if(!auth.custody&&url.searchParams.get('exit')==='cave')await action('exit-cave',{})
-  else if(!auth.custody&&like(go))await action('teleport',{to:go})
-  else await presence()
+  let arrival=!auth.custody&&url.searchParams.get('exit')==='cave'?'exit-cave':!auth.custody&&like(go)?'teleport':''
+  live=new CityConnection(mapVersion,()=>({world:view?.id,zone:view?.you.zone,slot:packUI.slot,sprint:stage?.sprinting,kitchenMotion:stage?.kitchenMotion,...stage?.position}),
+    (next,start,reset,sent)=>{
+      if(arrival){const name=arrival;arrival='';void action(name,{to:go}).catch(showError);return}
+      if(live&&stage?.diagnostics)stage.diagnostics.network(live.timings.rtt,live.timings.tick,live.timings.projection)
+      accepted(next,start,reset,sent)
+    },(text,fatal)=>{if(fatal)unavailable(text);else{connection.textContent=text;connection.hidden=false}})
   history.replaceState(null,'',url.pathname)
-  async function beat(){
-    pollTimer=undefined
-    if(closed)return
-    if(!performing){
-      urgent=false
-      lastPresence=performance.now()
-      refreshing=presence().catch(()=>{connection.textContent='Reconnecting…';connection.hidden=false})
-      await refreshing;refreshing=undefined
-    }
-    const you=view?.you
-    const nearby=you&&view?.players.some(other=>Math.hypot(other.x-you.x,other.z-you.z)<30)
-    const delay=document.hidden?3000:urgent?70:stage?.moving?180:nearby?315:view?.players.length?430:you?.chair?480:780
-    pollTimer=window.setTimeout(beat,delay)
-  }
-  document.addEventListener('visibilitychange',wakePresence)
-  void beat();window.setInterval(tableStatus,160)
+  live.start()
+  window.setInterval(tableStatus,160)
   window.setInterval(()=>{if(!closed&&!document.hidden&&view&&/^floor:(CAS|BNK|LOT|PRI)$/.test(view.you.zone))void floorScreens(view.you.zone)},12_000)
 }
 document.addEventListener('click',event=>{
@@ -435,7 +405,7 @@ document.addEventListener('click',event=>{
   void action('teleport',{to}).catch(()=>undefined)
 })
 function unavailable(message:string){
-  closed=true;stage?.stop()
+  closed=true;live?.stop();stage?.stop()
   if(puzzleDialog.open)puzzleDialog.close()
   if(dialog.open)dialog.close()
   const notice=cast('world-unavailable')

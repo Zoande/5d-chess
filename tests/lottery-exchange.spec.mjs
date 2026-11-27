@@ -1,6 +1,5 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {createServer} from 'node:http'
 import {mkdir} from 'node:fs/promises'
 import {join} from 'node:path'
 import {chromium} from 'playwright'
@@ -14,7 +13,7 @@ for(const ticker of ['LOT','PRI'])test(ticker+' floor brokers take orders and th
   const clock=Date.now
   let elapsed=0
   Date.now=()=>clock()+elapsed
-  const db=new ChessStore('.',{memory:true}),app=createApplication(db),server=createServer(app.handle)
+  const db=new ChessStore('.',{memory:true}),app=createApplication(db),server=app.createServer()
   await new Promise(r=>server.listen(0,'127.0.0.1',r))
   const base='http://127.0.0.1:'+server.address().port
   let browser

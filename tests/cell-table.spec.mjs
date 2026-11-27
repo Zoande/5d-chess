@@ -1,6 +1,5 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {createServer} from 'node:http'
 import {chromium} from 'playwright'
 import {ChessStore} from '../server/storage.ts'
 import {createApplication} from '../server/application.ts'
@@ -9,7 +8,7 @@ import {cellPosition,tablePosition} from '../src/world/civic-venues.ts'
 import {observeCity,browserWalker} from './civic-controls.mjs'
 
 async function fixture(t,webgl){
-  const store=new ChessStore('.',{memory:true}),app=createApplication(store),server=createServer(app.handle)
+  const store=new ChessStore('.',{memory:true}),app=createApplication(store),server=app.createServer()
   await new Promise(r=>server.listen(0,'127.0.0.1',r))
   const base='http://127.0.0.1:'+server.address().port
   const browser=await chromium.launch({args:['--no-sandbox',...(webgl?['--use-angle=swiftshader','--enable-unsafe-swiftshader']:['--disable-webgl'])]})

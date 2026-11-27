@@ -25,12 +25,14 @@
   "devDependencies": {
     "@types/node": "^26.6.6",
     "@types/three": "0.187.0",
+    "@types/ws": "^8.18.2",
     "esbuild": "0.27.3",
     "playwright": "^1.58.2",
     "typescript": "5.9.3",
     "wrangler": "4.160.0"
   },
   "dependencies": {
-    "three": "0.187.0"
+    "three": "0.187.0",
+    "ws": "8.21.0"
   }
 }

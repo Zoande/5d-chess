@@ -1,6 +1,5 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {createServer} from 'node:http'
 import {chromium} from 'playwright'
 import {createApplication} from '../server/application.ts'
 import {ChessStore} from '../server/storage.ts'
@@ -9,7 +8,7 @@ import {storefront} from '../src/world/storefronts.ts'
 import {observeCity,browserWalker} from './civic-controls.mjs'
 
 test('buy an apple at the market, eat it from the hotbar and recover health after the bite', {timeout:105000},async t=>{
-  const db=new ChessStore('.',{memory:true}),app=createApplication(db),server=createServer(app.handle)
+  const db=new ChessStore('.',{memory:true}),app=createApplication(db),server=app.createServer()
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
   t.after(async()=>{app.drain();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));db.close()})
   const browser=await chromium.launch({args:['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader']})

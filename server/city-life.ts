@@ -1,9 +1,12 @@
-import {distance,LANDMARKS,parkedCars,point,type Point} from '../src/world/city-plan.ts'
-import {cityGridBounds,findPath,pedestrianCost,outdoorGrid} from '../src/world/city-navigation.ts'
+import {ResidentIndex} from './world/interest.ts'
+import {cityRoute} from './world/navigation.ts'
+export {cityRoute} from './world/navigation.ts'
+import {distance,LANDMARKS,type Point} from '../src/world/city-plan.ts'
+import {findPath} from '../src/world/city-navigation.ts'
 import {assignResidents,CITY_DAY_MS,routine,scheduledPlace,type Resident,type ResidentView} from '../src/world/city-residents.ts'
 import {UNITS,type Deeds} from '../src/world/housing.ts'
-import {groundZone,outdoorWalkable,riderHeight,worldMove,type WorldZone} from '../src/world/model.ts'
-import {aboard,buildingById,contains,homeZone,openLift,residentialAt,residentialPoints,residentialSite,residentialStep,streetBuilding,type Building,type HomePoint,type ResidentialView} from '../src/world/residential.ts'
+import {riderHeight,worldMove,type WorldZone} from '../src/world/model.ts'
+import {aboard,buildingById,contains,homeZone,openLift,residentialAt,residentialPoints,residentialSite,residentialStep,type Building,type HomePoint,type ResidentialView} from '../src/world/residential.ts'
 import {CityTraffic,vehicleContains,type Vehicle} from '../src/world/traffic.ts'
 import {counterLayout,counterSeats} from '../src/world/storefronts.ts'
 import {PUBLIC_SEATS} from '../src/world/urban-layout.ts'
@@ -13,44 +16,6 @@ type Goal=Point&{key:string;yaw?:number;point?:HomePoint;outside?:boolean;kind?:
 type Citizen=Occupant&{
   resident:Resident;keys:string[];activity:string;destination:string;goal?:Goal;route:Point[];retry:number;blocked:number;rest?:boolean
   routeAt:number;closed?:HomePoint;stair?:{building:string;floor:number;up:boolean;way:number};lastLift?:number;liftWait?:number
-}
-const navCells=new Map<number,boolean>(),navEdges=new Map<number,boolean>(),cachedPaths=new Map<string,Point[]>()
-function outside(p:Point){
-  if(!cityGridBounds(p))return false
-  const k=(Math.round(p.x*1000)+100_000)*200_000+Math.round(p.z*1000)+100_000
-  const old=navCells.get(k)
-  if(old!==undefined)return old
-  // Leave room to round corners between waypoints without grazing a residential wall.
-  const okay=groundZone(p.x,p.z)==='city'&&!streetBuilding(p.x,p.z,.52)&&outdoorWalkable(p.x,p.z)&&!parkedCars.some(v=>vehicleContains(p,v,.35))
-  navCells.set(k,okay)
-  return okay
-}
-function outdoorCell(p:Point){
-  return (Math.round(p.x/outdoorGrid)+128)*256+Math.round(p.z/outdoorGrid)+128
-}
-function outdoorEdge(a:Point,b:Point){
-  const from=outdoorCell(a),to=outdoorCell(b)
-  const key=Math.min(from,to)*65536+Math.max(from,to)
-  const saved=navEdges.get(key)
-  if(saved!==undefined)return saved
-  const clear=[.23,.5,.77].every(t=>outside(point(a.x+(b.x-a.x)*t,a.z+(b.z-a.z)*t)))
-  navEdges.set(key,clear)
-  return clear
-}
-export function cityRoute(a:Point,b:Point,vehicles:readonly Vehicle[]=[]){
-  const nearby=vehicles.filter(v=>distance(v,a)<12)
-  if(nearby.length){
-    const clear=(p:Point)=>outside(p)&&!nearby.some(v=>vehicleContains(p,v,.59))
-    const detour=findPath(a,b,outdoorGrid,clear,pedestrianCost,10000,outdoorEdge)
-    if(detour.length)return detour
-  }
-  const key=[a.x,a.z,b.x,b.z].map(n=>n.toFixed(1)).join(',')
-  const saved=cachedPaths.get(key)
-  if(saved)return [...saved]
-  const path=findPath(a,b,outdoorGrid,outside,pedestrianCost,21000,outdoorEdge)
-  if(cachedPaths.size>360)cachedPaths.delete(cachedPaths.keys().next().value!)
-  if(path.length)cachedPaths.set(key,path)
-  return [...path]
 }
 const workRooms=new Map<string,{x:number;z:number;facing:number;bench:typeof counterSeats[number]|undefined}>(LANDMARKS.filter(b=>b.id!=='police').map(b=>[b.id,{
   x:b.x,z:b.z+b.facing*(counterLayout(b).counterZ+1.07),facing:b.facing,
@@ -75,6 +40,7 @@ function liftApproach(b:Building){
 function hallPoint(b:Building){return residentialSite(b,0,0.48)}
 
 export class CityLife {
+  private index?:ResidentIndex
   readonly traffic:CityTraffic
   readonly population:Citizen[]
   private now:number
@@ -94,16 +60,19 @@ export class CityLife {
     })
   }
   people(players:Iterable<Occupant>){return [...players,...this.population]}
-  snapshot(p:Point,now:number){
-    return {traffic:this.traffic.view(now),residents:this.population.filter(n=>distance(n,p)<53).map(n=>({
+  nearby(p:Point){
+    this.index??=new ResidentIndex(this.population.map(n=>({
       id:n.resident.id,name:n.name,home:n.resident.address,occupation:n.resident.occupation,activity:n.activity,
       destination:n.destination==='home'?n.resident.address:scheduledPlace(n.destination)?.name??n.destination,style:n.resident.style,
       avatar:n.avatar,online:true,zone:n.zone,x:n.x,z:n.z,yaw:n.yaw,lift:n.lift,homePose:n.homePose,
-    } satisfies ResidentView))}
+    } satisfies ResidentView)))
+    return this.index.nearby(p,53)
   }
+  snapshot(p:Point,now:number){return {traffic:this.traffic.view(now),residents:this.nearby(p)}}
+  skip(ms:number){this.now+=ms;this.traffic.skip(ms)}
   tick(now:number,state:ResidentialView,players:Iterable<Occupant>){
     const people=this.people(players)
-    this.routeBudget=4
+    this.routeBudget=1
     const elapsed=Math.min(1200,Math.max(0,now-this.now))
     if(now-this.now>1500)this.now=now-elapsed
     const until=this.now+elapsed
@@ -111,6 +80,7 @@ export class CityLife {
     this.traffic.tick(now,street)
     const vehicles=this.traffic.vehicles
     while(this.now+STEP<=until){
+      this.index=undefined
       this.now+=STEP
       settleResidentialLifts(state,people,this.now)
       // Rotate priority so the same resident does not always claim a busy route first.
@@ -259,7 +229,7 @@ export class CityLife {
     const next=actor.route[0]
     if(!next)return
     const height=riderHeight(actor,now)
-    const close=people.filter(p=>p!==actor&&!p.homePose&&Math.abs(riderHeight(p,now)-height)<.9&&distance(p,actor)<1.5)
+    const close=people.filter(p=>p!==actor&&!p.homePose&&distance(p,actor)<1.5&&Math.abs(riderHeight(p,now)-height)<.9)
     const stride=actor.resident.speed*STEP/1000
     const walk=(x:number,z:number)=>worldMove(actor.zone,actor,x,z,stride,true,actor.keys,state,now,vehicles)
     const onStair=this.stairsInUse.get(residentialAt(actor.zone)?.building.id??'')===actor

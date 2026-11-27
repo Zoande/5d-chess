@@ -1,14 +1,14 @@
+import {observeWire} from './live-wire.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {chromium} from 'playwright'
-import {createServer} from 'node:http'
 import {createApplication} from '../server/application.ts'
 import {ChessStore} from '../server/storage.ts'
 import {at,cells,entrances,insideDoor,stair} from '../src/world/civic-venues.ts'
 import {browserWalker,observeCity} from './civic-controls.mjs'
 
 for(const keyboard of [true,false])test('walk from Clock Square through both Civic Avenue venues with '+(keyboard?'3D keyboard':'3D touch controls'),{timeout:520000},async()=>{
-  const store=new ChessStore('.',{memory:true}),app=createApplication(store),server=createServer(app.handle)
+  const store=new ChessStore('.',{memory:true}),app=createApplication(store),server=app.createServer()
   await new Promise(r=>server.listen(0,'127.0.0.1',r))
   let browser
   try{
@@ -18,7 +18,7 @@ for(const keyboard of [true,false])test('walk from Clock Square through both Civ
     const page=await context.newPage(),errors=[],travel=[]
     await observeCity(page)
     page.on('pageerror',e=>errors.push(e.message))
-    page.on('request',req=>{if(req.url().endsWith('/world/teleport'))travel.push(req.postDataJSON()?.to)})
+    observeWire(page).on('send',m=>{if(m.action==='teleport')travel.push(m.data.to)})
     await context.request.post(base+'/api/signup',{data:{username:'Civic visitor',password:'fixture',confirm:'fixture'}})
     await page.goto(base+'/chess/lobby.html')
     await page.getByRole('link',{name:'City',exact:true}).first().click()

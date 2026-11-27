@@ -41,6 +41,16 @@ function cellNear(p:Point,step:number,valid:(p:Point)=>boolean){
 export function findPath(from:Point,to:Point,step:number,valid:(p:Point)=>boolean,weight:(p:Point)=>number=()=>1,limit=3500,edge?:(a:Point,b:Point)=>boolean){
   const a=cellNear(from,step,valid),b=cellNear(to,step,valid)
   if(!a||!b)return []
+  // A diagonal can visit the same candidate as eight neighboring cells. Doors,
+  // furniture and parked vehicles are stable for the duration of one search.
+  const cells=new Map<string,boolean>()
+  const traversable=(x:number,z:number)=>{
+    const key=x+','+z
+    const cached=cells.get(key)
+    if(cached!==undefined)return cached
+    const clear=valid(point(x*step,z*step))
+    cells.set(key,clear);return clear
+  }
   const queue=new SearchQueue(),scores=new Map<string,number>()
   queue.push({...a,g:0,f:distance(a,b)})
   scores.set(a.x+','+a.z,0)
@@ -58,7 +68,7 @@ export function findPath(from:Point,to:Point,step:number,valid:(p:Point)=>boolea
     }
     for(const [dx,dz] of directions){
       const x=v.x+dx,z=v.z+dz,p=point(x*step,z*step)
-      if(!valid(p)||dx&&dz&&(!valid(point(x*step,v.z*step))||!valid(point(v.x*step,z*step))))continue
+      if(!traversable(x,z)||dx&&dz&&(!traversable(x,v.z)||!traversable(v.x,z)))continue
       if(edge&&!edge(point(v.x*step,v.z*step),p))continue
       const g=v.g+Math.hypot(dx,dz)*weight(p),key=x+','+z
       if(g>=(scores.get(key)??Infinity))continue

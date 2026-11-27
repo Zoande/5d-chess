@@ -718,10 +718,11 @@ export function makeWorldArt(open:boolean){
   const {hotel,casino,bank,exchange}=rooms
   gallery(hotel,'hotel');venueDetail(hotel,'hotel');batchOpaque(hotel)
   const resort=royalResort(hotel,banner)
-  buildHall(casino,true);const bar=salonBar(casino);venueDetail(casino,'casino')
-  const wheels=buildHallTables(casino),wagerTokens=wheels.map(wheel=>rouletteWagers(wheel.group)),actors:CityGuest[]=[]
-  for(const {x,z} of casinoStaff.slice(0,3))actors.push(new CityGuest(casino,x,z,0xb78968,0x29323d,true))
-  const table=new T.Group();casino.add(table);table.position.set(PUBLIC_DICE.x,0,PUBLIC_DICE.z)
+  const furnishings=new T.Group();casino.add(furnishings)
+  buildHall(casino,true);const bar=salonBar(furnishings);venueDetail(casino,'casino')
+  const wheels=buildHallTables(furnishings),wagerTokens=wheels.map(wheel=>rouletteWagers(wheel.group)),actors:CityGuest[]=[]
+  for(const {x,z} of casinoStaff.slice(0,3))actors.push(new CityGuest(furnishings,x,z,0xb78968,0x29323d,true))
+  const table=new T.Group();furnishings.add(table);table.position.set(PUBLIC_DICE.x,0,PUBLIC_DICE.z)
   box(table,[4.05,.24,2.03],[0,.88,0],oak,.13);box(table,[4.14,.042,2.13],[0,1.008,0],brass,.045)
   box(table,[3.95,.039,1.94],[0,1.045,0],std(0x653f57),.033)
   for(const offset of SEAT_OFFSETS)chairSeat(table,offset)
@@ -731,8 +732,9 @@ export function makeWorldArt(open:boolean){
   }
   banner(casino,'THE AMBER BAR',[3.3,.41],[-6.25,3.67,8.47]).rotation.y=Math.PI
   banner(table,'IVORY DICE',[2.45,.40],[0,1.68,-.87])
+  batchOpaque(table)
   const publicDie=dice(materials());table.add(publicDie);publicDie.position.set(0,1.165,.08);publicDie.quaternion.copy(resultRotation(1))
-  actors.push(new CityGuest(casino,casinoStaff[3].x,casinoStaff[3].z,0x9a6e53,0x57363e,true,1))
+  actors.push(new CityGuest(furnishings,casinoStaff[3].x,casinoStaff[3].z,0x9a6e53,0x57363e,true,1))
   for(const x of [-1,1]){
     const wall=new T.Group();casino.add(wall);wall.position.set(x*11.25,0,1.1);wall.rotation.y=x*Math.PI/2
     frontWindow(wall,15.59,0,ink,false)
@@ -743,6 +745,7 @@ export function makeWorldArt(open:boolean){
     block(casino,width,3.74,.25,side*(2.8+width)/2,1.87,8.9,ink)
   }
   block(casino,22.5,1.65,.25,0,4.56,8.9,ink)
+  batchOpaque(casino,new Set([furnishings]))
   venueDetail(bank,'bank');buildBankArchitecture(bank,true);buildBankVault(bank);frontWindow(bank,20.4,8.05,blue)
   block(bank,20.4,2.68,.25,0,5.33,8.05,blue)
   const advisor=CREDIT_ADVISOR,deskZ=advisor.z-1.25
@@ -770,7 +773,7 @@ export function makeWorldArt(open:boolean){
     const target=zone==='cave'?.38:zone==='oasis'?.84:zone==='casino'?1.24:zone==='city'?1.95:1.62
     skylight.intensity=T.MathUtils.damp(skylight.intensity,target,3,dt)
   }
-  return {scene,civic,resort,lightZone,homes,urban,actors,staff,shopClerk,hotelClerks,wheels,wagerTokens,publicDie,floor,ambient,seal,grotto,restaurant,bar,lobbyDoors}
+  return {scene,civic,resort,furnishings,lightZone,homes,urban,actors,staff,shopClerk,hotelClerks,wheels,wagerTokens,publicDie,floor,ambient,seal,grotto,restaurant,bar,lobbyDoors}
 }
 function rouletteWagers(table:T.Group){
   const tones=[0xe9c186,0x72bcbc,0xcf8799,0xc2a8e5]

@@ -423,3 +423,25 @@ body[data-page="world"]{height:100svh;display:flex;flex-direction:column;margin:
 .advisor-holdings button:disabled{opacity:.48;cursor:default}
 .advisor-holdings button:focus-visible,.advisor-list-head button:focus-visible{outline:2px solid #ffe3a4;outline-offset:2px}
 @media(pointer:coarse),(max-width:460px){.advisor-holdings button,.advisor-list-head button{min-height:44px}}
+
+.world-diagnostics{position:absolute;inset:auto auto .65rem .65rem;z-index:12;padding:.45rem .65rem;color:#effcff;background:#0e202ae6;border-radius:.4rem;font:12px/1.4 monospace;white-space:pre-line;pointer-events:none}
+
+@media (pointer:coarse) {
+  #city-world:has(#city-pack:not([hidden])) {
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    grid-template-rows:minmax(0,1fr) auto;
+  }
+  #city-pack:not([hidden]) {
+    grid-area:2 / 1;
+    position:relative;
+    inset:auto;
+    transform:none;
+    justify-self:center;
+    margin-bottom:max(5px,env(safe-area-inset-bottom));
+  }
+  #city-world:has(#city-pack:not([hidden])) .world-stick {
+    grid-area:1 / 1 / 2 / 2;
+    bottom:8px;
+  }
+}

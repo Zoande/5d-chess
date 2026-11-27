@@ -1,3 +1,5 @@
+import {STEP_MS} from './world/clock.ts'
+import {patrolSpawn,walkPatrol} from './world/patrol-motion.ts'
 import {deskFurniture,at,insideDoor,venue} from '../src/world/civic-venues.ts'
 import {randomUUID} from 'node:crypto'
 import type {ChessStore,UnitOfWork} from './storage.ts'
@@ -21,7 +23,7 @@ type Located={x:number;z:number;zone:string}
 type Drop=Located&{id:string;items:Stack[]}
 type NpcHealth={hp:number;returns:number}
 type Scene={front?:typeof STOREFRONTS[number];residential?:ResidentialView;vehicles?:readonly Vehicle[];caveOpen?:boolean;world:string;shard:number;me:WorldPlayer;players:WorldPlayer[];residents:(Located&{id:string;name:string})[];keys:string[];drawer?:string;bank:boolean;shop:boolean}
-type Search={id:string;world:string;units:Contact[];cursor:number;lastKnown:Located;last:number;arrived:number;raidAt:number;dogAt:number;dogWarningUntil?:number;searched:string[];warning:string}
+type Search={id:string;world:string;units:Contact[];cursor:number;lastKnown:Located;last:number;arrived:number;raidAt:number;raidTarget?:Located;dogAt:number;dogWarningUntil?:number;searched:string[];warning:string}
 const longestRange=Math.max(...Object.values(WEAPONS).map(w=>w.range))
 const searchSites=[
   ...UNITS.map(unit=>{
@@ -45,6 +47,10 @@ function advance(p:Pack,by:number){
 export class CityArcade {
   private store:ChessStore
   private seen=new Map<string,number>()
+  private elapsed=new Map<string,number>()
+  private hitPoints=new Map<string,number>()
+  private healthAt=-Infinity
+  private tracked=new Map<string,{scene:Scene;stars:number}>()
   private searches=new Map<string,Search>()
   constructor(store:ChessStore){
     this.store=store
@@ -73,17 +79,39 @@ export class CityArcade {
       tx.putMetadata('dropDistricts',(tx.metadata<number[]>('dropDistricts')??[]).filter(n=>n!==shard))
     })
   }
-  offline(name:string){this.seen.delete(name)}
-  active(name:string,now:number){
+  leaveCity(name:string){this.tracked.delete(name);this.searches.delete(name)}
+  offline(name:string){this.checkpoint(name);this.seen.delete(name);this.leaveCity(name)}
+  flush(){for(const name of this.elapsed.keys())this.checkpoint(name)}
+  private checkpoint(name:string){
+    const elapsed=this.elapsed.get(name)
+    if(!elapsed)return
+    this.store.transaction(tx=>{
+      const account=tx.users.get(name)
+      if(!account)return
+      const p=pack(account)
+      p.remaining=Math.max(0,p.remaining-elapsed)
+      if(!p.remaining){p.stars=0;this.leaveCity(name)}
+    })
+    this.elapsed.delete(name)
+  }
+  step(world:string,now:number){
+    for(const [name,entry] of this.tracked){
+      if(entry.scene.world!==world)continue
+      if(this.pursue(entry.scene,entry.stars,now))this.tracked.delete(name)
+    }
+  }
+  active(name:string,now:number,immediate=true){
     const last=this.seen.get(name)
     this.seen.set(name,now)
-    if(last===undefined||now<=last||now-last>30000)return
-    if(!this.store.cityStats(name)?.stars)return
-    this.store.transaction(tx=>{
-      const p=pack(tx.users.get(name)!)
-      p.remaining=Math.max(0,p.remaining-(now-last))
-      if(!p.remaining){p.stars=0;this.searches.delete(name)}
-    })
+    if(last!==undefined&&now>last&&now-last<=30000&&this.store.cityStats(name)?.stars)
+      this.elapsed.set(name,(this.elapsed.get(name)??0)+now-last)
+    if(immediate||(this.elapsed.get(name)??0)>=1000)this.checkpoint(name)
+  }
+  private hp(name:string,now:number){
+    if(now-this.healthAt>=50||now<this.healthAt){this.healthAt=now;this.hitPoints.clear()}
+    let value=this.hitPoints.get(name)
+    if(value===undefined){value=this.store.cityStats(name)?.hp??MAX_HP;this.hitPoints.set(name,value)}
+    return value
   }
   private staff(now:number):Contact[]{
     return [...deskFurniture.map(d=>({id:d.id,label:d.id==='desk'?'Desk officer':'Booking officer',kind:'officer' as const,zone:'station',...at('station',d.x,d.z+.72)})),
@@ -96,8 +124,7 @@ export class CityArcade {
     const unit=candidates.find(u=>!search.searched.includes(u.id))??candidates[search.cursor%candidates.length]
     if(!unit)return
     search.cursor++;search.searched=[...search.searched.slice(-3),unit.id];search.warning='Searching '+unit.name
-    const officer=search.units.at(-1)!
-    Object.assign(officer,unit.target)
+    search.raidTarget=unit.target
     if(!owned.includes(unit))return
     const a=tx.users.get(s.me.name)!,p=pack(a)
     const drawer=p.drawers[unit.id]
@@ -106,78 +133,78 @@ export class CityArcade {
       if(p.slots.some(i=>isWeapon(i?.item))){p.slots=p.slots.map(i=>isWeapon(i?.item)?null:i);p.sequence++}
     }
   }
-  private pursue(s:Scene,p:Pack,now:number){
+  private pursue(s:Scene,stars:number,now:number){
     const me=s.me
-    if(!p.stars){this.searches.delete(me.name);return}
+    if(!stars){this.searches.delete(me.name);return}
     let search=this.searches.get(me.name)
     if(!search){
       search={id:randomUUID(),world:s.world,units:[],cursor:0,lastKnown:{x:me.x,z:me.z,zone:me.zone},last:now,arrived:now,raidAt:now,dogAt:now-RULES.dogCooldown,searched:[],warning:'Meridian patrol is searching'}
       this.searches.set(me.name,search)
     }
     search.world=s.world
-    const dt=Math.max(0,Math.min(1.25,(now-search.last)/1000));search.last=now
+    const dt=Math.max(0,Math.min(STEP_MS/1000,(now-search.last)/1000));search.last=now
     const residence=residentialAt(me.zone)
     const local=guestFloor(me.zone)?localSite(me.zone,me.x,me.z):undefined
     const guestRoom=local&&roomAt(me.zone,local.x,local.z)
     const room=guestRoom??residence?.f.units.find(u=>contains(u.rect,(me.x-residence.building.x)*residence.building.facing,(me.z-residence.building.z)*residence.building.facing))
-    const canEnter=(!residence&&!guestRoom)||p.stars>=3&&(!room||s.keys.includes(room.id)||p.stars>=4)
-    while(search.units.length<RULES.officers[p.stars]){
+    const canEnter=(!residence&&!guestRoom)||stars>=3&&(!room||s.keys.includes(room.id)||stars>=4)
+    while(search.units.length<RULES.officers[stars]){
       const i=search.units.length
-      search.units.push({id:'patrol-'+search.id+'-'+i,label:'Patrol '+(i+1),kind:'officer',x:me.x+10+i*1.5,z:me.z+4-i,zone:canEnter?me.zone:'city'})
+      search.units.push({id:'patrol-'+search.id+'-'+i,label:'Patrol '+(i+1),kind:'officer',...patrolSpawn({...me,zone:canEnter?me.zone:'city'},i)})
     }
-    if(p.stars>=3&&now-search.raidAt>=RULES.raidDelay){
-      this.store.transaction(tx=>this.sweep(tx,s,p.stars,search!,now))
+    if(stars>=3&&now-search.raidAt>=RULES.raidDelay){
+      this.store.transaction(tx=>this.sweep(tx,s,stars,search!,now))
       search.raidAt=now
     }
     let caught=false,tracking=false
     const health=this.store.metadataValue('npc:'+s.shard) as Record<string,NpcHealth>|undefined
     for(const [i,o] of search.units.entries()){
       if(!canEnter||(health?.[o.id]?.returns??0)>now)continue
-      if(p.stars>=3&&i===search.units.length-1&&search.searched.length&&now-search.raidAt<5000)continue
-      if(o.zone!==me.zone){
-        if(now-search.arrived<5000)continue
-        Object.assign(o,{x:me.x+12,z:me.z+2,zone:me.zone})
+      if(i===search.units.length-1&&search.raidTarget&&now-search.raidAt<5000){
+        walkPatrol(o,search.raidTarget,RULES.speed[stars]*dt,s,now);continue
       }
       if(now-search.arrived<RULES.notice)continue
       const distance=Math.hypot(o.x-me.x,o.z-me.z)
-      const spotted=distance<=RULES.sight[p.stars]||p.stars===5&&me.zone==='city'
+      const visible=distance<=RULES.sight[stars]&&clearSight(o,me,s,now)
+      const spotted=visible||stars===5&&me.zone==='city'
       if(spotted){search.lastKnown={x:me.x,z:me.z,zone:me.zone};tracking=true}
       const phase=(now-search.arrived)/4500+i
-      const goal=spotted?me:{x:search.lastKnown.x+4*Math.cos(phase),z:search.lastKnown.z+4*Math.sin(phase)}
-      const d=Math.hypot(goal.x-o.x,goal.z-o.z),step=Math.min(d,RULES.speed[p.stars]*dt)
-      if(d){o.x+=(goal.x-o.x)*step/d;o.z+=(goal.z-o.z)*step/d}
-      if(distance<1.15)caught=true
+      const goal=spotted?me:o.zone!==search.lastKnown.zone?search.lastKnown:{x:search.lastKnown.x+4*Math.cos(phase),z:search.lastKnown.z+4*Math.sin(phase)}
+      walkPatrol(o,{...goal,zone:spotted?me.zone:search.lastKnown.zone},RULES.speed[stars]*dt,s,now)
+      if(distance<1.15&&visible)caught=true
     }
     if(!search.searched.length||now-search.raidAt>5000)search.warning=tracking?'Meridian patrol in pursuit':'Meridian patrol is searching'
-    if(p.stars===5){
+    if(stars===5){
       const lead=search.units[0],d=Math.hypot(lead.x-me.x,lead.z-me.z)
-      if(d<=RULES.dogRange&&lead.zone===me.zone&&now-search.dogAt>=RULES.dogCooldown){
+      if(d<=RULES.dogRange&&clearSight(lead,me,s,now)&&now-search.dogAt>=RULES.dogCooldown){
         search.dogAt=now;search.dogWarningUntil=now+RULES.dogNotice
       }
       if(search.dogWarningUntil!==undefined){
         if(now<search.dogWarningUntil){
           search.warning='Dog team approaching — move away!';caught=false
         }else{
-          if(now-search.dogWarningUntil<1500&&d<2.8&&lead.zone===me.zone)caught=true
+          if(now-search.dogWarningUntil<1500&&d<2.8&&clearSight(lead,me,s,now))caught=true
           search.warning='Helicopter tracking the area';delete search.dogWarningUntil
         }
       }
     }
     if(caught){
-      const b=this.store.transaction(tx=>book(tx,me.name,p.stars,now))
+      const b=this.store.transaction(tx=>book(tx,me.name,stars,now))
       if(b){this.searches.delete(me.name);return b}
       search.warning='Booking full — patrol holding back'
     }
   }
-  run(s:Scene,now:number,data?:Record<string,unknown>){
+  run(s:Scene,now:number,data?:Record<string,unknown>,reticleOnly=false){
     const {me,world}=s
     const dropKey='cityDrops:'+s.shard,npcKey='npc:'+s.shard
     const patrols=()=>[...this.searches.values()].filter(search=>search.world===world&&now-search.last<30000).flatMap(search=>search.units)
-    const staff=[...this.staff(now),...patrols()]
-    const bookings=roster(this.store,now)
-    const people:Contact[]=s.players.filter(o=>o.zone!=='private'&&o.name!==me.name&&!bookings.some(b=>b.user===o.name)).map(o=>({x:o.x,z:o.z,zone:o.zone,height:riderHeight(o,now),id:'player:'+o.name,label:o.name,kind:'player'}))
-    const civilians:Contact[]=[...people,...s.residents.map(o=>({...o,id:o.id,label:o.name,kind:'resident' as const}))]
-    const targets=[...staff,...civilians]
+    const desk=this.staff(now)
+    const civilianTargets=()=>{
+      const bookings=roster(this.store,now)
+      const people:Contact[]=s.players.filter(o=>o.zone!=='private'&&o.name!==me.name&&!bookings.some(b=>b.user===o.name))
+        .map(o=>({x:o.x,z:o.z,zone:o.zone,height:riderHeight(o,now),id:'player:'+o.name,label:o.name,kind:'player'}))
+      return [...people,...s.residents.map(o=>({...o,label:o.name,kind:'resident' as const}))]
+    }
     const observer={...me,height:riderHeight(me,now)},visibility=new Map<string,boolean>()
     const canTarget=(c:Contact)=>{
       if(!visibility.has(c.id))visibility.set(c.id,clearSight(observer,c,s,now))
@@ -233,7 +260,7 @@ export class CityArcade {
           }
           if(now<(p.nextShot??(p.lastShot??-Infinity)+WEAPONS.blaster.delay))fail(409,'Weapon recharging')
           if(!magazine.rounds)fail(409,'Reload your weapon')
-          const t=targets.find(c=>c.id===data.target&&actorDistance(observer,c)<=weapon.range&&canTarget(c))
+          const t=typeof data.target==='string'?[...desk,...patrols(),...civilianTargets()].find(c=>c.id===data.target&&actorDistance(observer,c)<=weapon.range&&canTarget(c)):undefined
           if(data.target&&!t)fail(409,'Target is out of sight or range')
           magazine.rounds--;p.nextShot=now+weapon.delay
           p.lastShot=now;p.lastHit=!!t;advance(p,1)
@@ -268,21 +295,33 @@ export class CityArcade {
       }
       return {p,drops,health}
     })
-    const booked=this.pursue(s,p,now)
+    // Install or update the suspect when a command changes the wanted tier. Ordinary
+    // snapshots only observe patrols. The occupied shard clock moves every pursuit.
+    const previous=this.tracked.get(me.name)
+    const booked=previous?.stars!==p.stars&&p.stars?this.pursue(s,p.stars,now):undefined
+    if(p.stars&&!booked)this.tracked.set(me.name,{scene:s,stars:p.stars})
+    else {this.tracked.delete(me.name);this.searches.delete(me.name)}
+    if(respawn||data?.operation==='fire')this.hitPoints.clear()
+    this.hitPoints.set(me.name,p.hp)
     const search=this.searches.get(me.name)
     // A raid has its own write transaction after the encounter.
     if(search?.raidAt===now&&search.cursor)Object.assign(p,this.store.cityPack(me.name))
     const armed=p.slots.some(slot=>isWeapon(slot?.item))
     const contacts:Contact[]=[]
-    for(const t of [...this.staff(now),...patrols(),...civilians]){
+    // Civilian models are already in the visible roster. Their extra reticle
+    // records only serve observers who can target them with a carried weapon.
+    const civilians=armed||!reticleOnly?civilianTargets():[]
+    for(const t of [...desk,...patrols(),...civilians]){
       if(me.zone==='private'||t.zone==='private'||health[t.id]?.returns>now||!near(me,t.x,t.z,36))continue
       const distance=actorDistance(observer,t)
       if(distance>36)continue
-      const hp=t.kind==='player'?this.store.cityStats(t.label)?.hp:health[t.id]?.hp
-      contacts.push({...t,distance,inSight:armed&&distance<=longestRange&&canTarget(t),hp:hp??MAX_HP})
+      const inSight=armed&&distance<=longestRange&&canTarget(t)
+      if(reticleOnly&&t.kind!=='officer'&&!inSight)continue
+      const hp=t.kind==='player'?this.hp(t.label,now):health[t.id]?.hp
+      contacts.push({...t,distance,inSight,hp:hp??MAX_HP})
     }
     if(p.stars===5&&search){const lead=search.units[0];contacts.push({...lead,id:'heli',label:'Police helicopter',kind:'helicopter',hp:100},{...lead,x:lead.x+.8,id:'dog',label:'Dog team',kind:'dog',hp:100})}
-    const view:ArcadeView={bite:p.bite,magazines:p.magazines,lastShot:p.lastShot,lastHit:p.lastHit,sequence:p.sequence,slots:p.slots,hp:p.hp,stars:p.stars,remaining:p.remaining,contacts,
+    const view:ArcadeView={bite:p.bite,magazines:p.magazines,lastShot:p.lastShot,lastHit:p.lastHit,sequence:p.sequence,slots:p.slots,hp:p.hp,stars:p.stars,remaining:Math.max(0,p.remaining-(this.elapsed.get(me.name)??0)),contacts,
       drops:drops.filter(d=>d.zone===me.zone&&near(me,d.x,d.z,28)).map(({id,x,z})=>({id,x,z})),
       recoveringStaff:Object.keys(health).filter(id=>id.startsWith('staff:')&&health[id].returns>now),
       drawer:s.drawer?p.drawers[s.drawer]??[]:undefined,recovery:s.bank?p.recovery:undefined,warning:search?.warning,searches:search?.searched.slice(-4),custody:booked&&custodyView(booked)}

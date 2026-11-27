@@ -1,3 +1,4 @@
+import {commandResult,observeWire} from './live-wire.mjs'
 import {readdir} from 'node:fs/promises'
 import assert from 'node:assert/strict'
 import {cityRoute} from '../server/city-life.ts'
@@ -5,6 +6,7 @@ import {cityRoute} from '../server/city-life.ts'
 // Observe the real stage being driven by the ordinary world client. All movement
 // goes through browser controls, prediction, presence, and server collision.
 export async function observeCity(page){
+  observeWire(page)
   const stage=(await readdir('dist/chess/chunks')).find(f=>/^stage-.*\.js$/.test(f))
   await page.route('**/chess/world.js',async route=>{
     const response=await route.fetch()
@@ -20,6 +22,10 @@ export function browserWalker(page,touch=false){
       session??=await page.context().newCDPSession(page)
       const b=await page.locator('[data-joystick]').boundingBox()
       assert.ok(b&&b.width>15,'touch joystick visible')
+      assert.ok(await page.locator('[data-joystick]').evaluate(stick=>{
+        const area=stick.getBoundingClientRect()
+        return stick.contains(document.elementFromPoint(area.x+area.width/2,area.y+area.height/2))
+      }),'touch joystick is reachable above the inventory')
       await page.evaluate(()=>document.querySelector('[data-joystick]').addEventListener('pointerdown',e=>window.walkPointer=e.pointerId,{once:true,capture:true}))
       await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:b.x+b.width/2,y:b.y+b.height/2}]})
     }
@@ -62,13 +68,15 @@ export function browserWalker(page,touch=false){
   }
   async function walk(...points){const r=await move(points);assert.ok(r.done,JSON.stringify(r))}
   async function outside(goal){
+    let last
     for(let attempt=0;attempt<9;attempt++){
       const current=await page.evaluate(()=>({at:window.walkObservation.position,traffic:window.walkObservation.view.traffic?.vehicles??[]}))
       const path=cityRoute(current.at,goal,attempt?current.traffic:[])
       assert.ok(path.length)
-      if((await move([...path,goal])).done)return
+      last=await move([...path,goal])
+      if(last.done)return
     }
-    assert.fail('No playable street route to '+JSON.stringify(goal))
+    assert.fail('No playable street route '+JSON.stringify({goal,last}))
   }
   async function use(id){
     if(!touch)await page.locator('#world-canvas').focus()
@@ -77,7 +85,7 @@ export function browserWalker(page,touch=false){
       return !s.pause&&s.nearest?.id===id&&Math.hypot(s.position.x-q.x,s.position.z-q.z)<.20
     }
     await page.waitForFunction(ready,id,{timeout:9500})
-    const response=page.waitForResponse(r=>r.url().endsWith('/api/world/use'),{timeout:6000})
+    const response=commandResult(page,'use')
     if(touch)await page.locator('[data-world-use]').tap()
     else await page.keyboard.press('e')
     const result=await response.catch(async error=>{
@@ -87,8 +95,9 @@ export function browserWalker(page,touch=false){
       })
       throw Error(id+' '+JSON.stringify(state),{cause:error})
     })
-    assert.ok(result.ok(),id+' '+await result.text())
-    assert.equal(result.request().postDataJSON().target,id)
+    assert.equal(result.status,200,result.message)
+    assert.equal(result.request.data.target,id)
+    return result
   }
   return {walk,outside,use}
 }

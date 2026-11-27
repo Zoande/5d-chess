@@ -1,6 +1,6 @@
+import {observeWire,commandResult} from './live-wire.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {createServer} from 'node:http'
 import {mkdir} from 'node:fs/promises'
 import {join} from 'node:path'
 import {chromium} from 'playwright'
@@ -20,7 +20,7 @@ test('residential walkthrough through both buildings, house styles, furniture an
   const realNow=Date.now,startedAt=Math.floor(realNow()/CITY_DAY_MS)*CITY_DAY_MS
   let offset=0
   Date.now=()=>startedAt+offset
-  const store=new ChessStore('.', {memory:true}), app=createApplication(store),server=createServer(app.handle)
+  const store=new ChessStore('.', {memory:true}), app=createApplication(store),server=app.createServer()
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
   let browser,current
   try{
@@ -68,7 +68,7 @@ test('residential walkthrough through both buildings, house styles, furniture an
     }
     async function capture(label,check){
       if(!out&&!check)return
-      const page=await context.newPage()
+      const page=await context.newPage();observeWire(page)
       page.on('pageerror',e=>errors.push(e.message))
       try{
         await page.goto(base+'/chess/world.html')
@@ -168,7 +168,7 @@ test('residential walkthrough through both buildings, house styles, furniture an
       await local(b,b.lift.x,b.lift.z)
       await action('use',{target:'lift:'+b.id})
       await capture(b.id+'-elevator',async page=>{
-        const depart=page.waitForResponse(r=>r.url().endsWith('/api/world/home-floor')&&r.ok())
+        const depart=commandResult(page,'home-floor')
         await page.getByRole('button',{name:'1',exact:true}).click()
         await depart
         offset+=3100

@@ -1,6 +1,5 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {createServer} from 'node:http'
 import {chromium} from 'playwright'
 import {createApplication} from '../server/application.ts'
 import {ChessStore} from '../server/storage.ts'
@@ -13,7 +12,7 @@ test('a cook flips a burger with the keyboard, moves the shared hand pose and us
   let offset=0
   Date.now=()=>realNow()+offset
   t.after(()=>{Date.now=realNow})
-  const store=new ChessStore('.',{memory:true}),app=createApplication(store),server=createServer(app.handle)
+  const store=new ChessStore('.',{memory:true}),app=createApplication(store),server=app.createServer()
   await new Promise(r=>server.listen(0,'127.0.0.1',r))
   t.after(async()=>{app.drain();server.closeAllConnections();await new Promise(r=>server.close(r));store.close()})
   const browser=await chromium.launch({args:['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader']})

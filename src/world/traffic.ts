@@ -96,6 +96,7 @@ export class CityTraffic {
   view(now:number):TrafficView{
     return {vehicles:this.vehicles.map(v=>({...v})),signals:Object.fromEntries(JUNCTIONS.filter(j=>j.signal).map(j=>[j.id,signalPhase(now,j.id)]))}
   }
+  skip(ms:number){this.now+=ms}
   tick(now:number,people:readonly Point[]){
     const end=Math.min(now,this.now+1500)
     while(this.now+75<=end){this.now+=75;this.step(this.now,people)}

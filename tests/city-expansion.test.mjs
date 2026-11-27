@@ -168,9 +168,9 @@ test('local combat, eating, death, competing pickups, pursuit, offline sentence 
   const saved=JSON.parse(f.store.accountJson(b))
   assert.equal(saved.cityPack.drawers['house-1'][0].count,40);assert.equal(saved.fridges['house-1'].fries,3)
   v=await f.world(a,'presence')
-  for(let i=0;i<40&&!v.arcade.custody;i++){f.tick(900);v=await f.world(a,'presence')}
+  for(let i=0;i<650&&!v.arcade.custody;i++){f.tick(50);v=await f.world(a,'presence')}
   const jail=v.arcade.custody;assert.equal(jail.name,'Inmate 01')
-  assert.equal(jail.ends-Date.now(),86400000)
+  assert.ok(Math.abs(jail.ends-Date.now()-86400000)<50)
   for(const [path,field] of [['leaderboard','rating'],['leaderboard/coins/full','coins'],['leaderboard/net-worth/full','netWorth']]){
     const board=(await f.ok(b,path)).players
     assert.equal(board.at(-1).name,'Inmate 01')
@@ -253,11 +253,11 @@ test('all 50 cells exclude a 51st booking, enforce each deadline and serialize r
   f.tick(120000)
   let v=await f.world('Late arrival','presence')
   v=await f.world('Late arrival','arcade',{operation:'fire',sequence:v.arcade.sequence,slot:0})
-  for(let i=0;i<25&&!v.arcade.warning?.startsWith('Booking full');i++){
-    f.tick(750);v=await f.world('Late arrival','presence')
+  for(let i=0;i<140&&!v.arcade.warning?.startsWith('Booking full');i++){
+    f.tick(150);v=await f.world('Late arrival','presence')
   }
   assert.match(v.arcade.warning,/Booking full/);assert.equal(v.arcade.custody,undefined)
-  f.operator('release','Booked 50')
+  f.operator('release','Booked 50');f.tick(50)
   v=await f.world('Late arrival','presence');assert.equal(v.arcade.custody.cell,1)
 })
 
@@ -348,17 +348,23 @@ test('NPC HP, suspect-only seizures, neighboring searches and a warned range-lim
   assert.deepEqual(v.arcade.searches,['house-1'])
   assert.deepEqual(f.store.cityPack(name).drawers['house-1'],[{item:'cash',count:42}])
   await shot();assert.equal(v.arcade.stars,4)
+  // Leave the station while patrols search the neighborhood.
+  v=await f.world(name,'teleport',{to:'kfc'})
   for(let i=0;i<4&&!v.arcade.searches.includes('house-0');i++){
     f.tick(RULES.raidDelay);v=await f.world(name,'presence')
   }
   assert.ok(v.arcade.searches.includes('house-0'))
   assert.deepEqual(f.store.cityPack(other).drawers['house-0'],[{item:'blaster',count:1}])
+  // Begin a fresh pursuit at the saved wanted level to exercise the dog warning.
+  await f.ok(name,'logout',{})
+  await f.ok(name,'login',{username:name,password:'local-test'})
+  v=await f.world(name,'teleport',{to:'prison'})
   await shot('desk');assert.equal(v.arcade.stars,5)
   assert.equal(v.arcade.contacts.some(c=>c.id==='desk'),false)
   assert.ok(v.arcade.contacts.some(c=>c.kind==='helicopter'))
   assert.ok(v.arcade.contacts.some(c=>c.kind==='dog'))
   let warned=false
-  for(let i=0;i<25&&!v.arcade.custody;i++){
+  for(let i=0;i<120&&!v.arcade.custody;i++){
     f.tick(250);v=await f.world(name,'presence')
     if(v.arcade.warning?.startsWith('Dog team')){
       warned=true

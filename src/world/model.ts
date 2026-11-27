@@ -157,7 +157,7 @@ function roomObstacles(zone:WorldZone,x:number,z:number){
   }
   return false
 }
-function walkable(zone:WorldZone,x:number,z:number,caveOpen:boolean){
+export function walkable(zone:WorldZone,x:number,z:number,caveOpen:boolean){
   if(civicRoom(zone))return venueWalk(zone,x,z)
   if(zone==='private')return false
   if(zone.startsWith('floor:')){

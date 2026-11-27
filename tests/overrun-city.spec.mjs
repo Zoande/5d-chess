@@ -1,6 +1,6 @@
+import {commandResult} from './live-wire.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {createServer} from 'node:http'
 import {readdir} from 'node:fs/promises'
 import {chromium} from 'playwright'
 import {ChessStore} from '../server/storage.ts'
@@ -14,7 +14,7 @@ test('the five-model armory, hotbar, camera and reload work in the WebGL city',{
   let elapsed=0
   Date.now=()=>realNow()+elapsed
   t.after(()=>{Date.now=realNow})
-  const store=new ChessStore('.',{memory:true}),app=createApplication(store),server=createServer(app.handle)
+  const store=new ChessStore('.',{memory:true}),app=createApplication(store),server=app.createServer()
   await new Promise(r=>server.listen(0,'127.0.0.1',r))
   t.after(async()=>{app.drain();server.closeAllConnections();await new Promise(r=>server.close(r));store.close()})
   const browser=await chromium.launch({args:['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader']})
@@ -93,11 +93,11 @@ test('the five-model armory, hotbar, camera and reload work in the WebGL city',{
     await page.evaluate(()=>window.walkObservation.gl.finish())
     await page.screenshot({path:process.env.CITY_REVIEW_DIR+'/doorway.png'})
   }
-  const shot=page.waitForResponse(r=>r.url().endsWith('/api/world/arcade')&&r.request().postDataJSON().operation==='fire')
+  const shot=commandResult(page,'arcade')
   await page.mouse.down();await page.mouse.up()
   const hit=await shot
-  assert.equal(hit.request().postDataJSON().target,'player:Doorway guest')
-  const outcome=await hit.json()
+  assert.equal(hit.status,200);assert.equal(hit.request.data.target,'player:Doorway guest')
+  const outcome=hit.view
   assert.equal(outcome.arcade.contacts.find(c=>c.id==='player:Doorway guest').hp,42)
   await page.getByText('4 / 5',{exact:true}).waitFor()
   await page.keyboard.press('r')

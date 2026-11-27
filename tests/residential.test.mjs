@@ -20,7 +20,12 @@ function city(t){
   const names=['Alice','Bob']
   store.transaction(u=>names.forEach(name=>u.users.add(name,{name,hash:'',salt:'',wallet:{coins:9999,starterGranted:true,inventory:[],loadout:{icon:'default',pieces:{}}}})))
   let now=Date.UTC(2026,10,24,12)
-  const act=(name,action,data={},dt=30)=>world.update(name,action,{scene:true,...data},now+=dt)
+  const act=(name,action,data={},dt=30)=>{
+    const next=now+dt
+    for(let at=now+50;at<=next;at+=50)world.step(at)
+    now=next
+    return world.update(name,action,{scene:true,...data},now)
+  }
   function move(name,x,z){
     let v=act(name,'presence')
     for(let i=0;i<22&&Math.hypot(v.you.x-x,v.you.z-z)>.05;i++){

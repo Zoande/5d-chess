@@ -40,7 +40,7 @@ await build({entryPoints:['src/stocks.ts'],bundle:true,minify:true,format:'esm',
 await build({entryPoints:['src/profile.ts'],bundle:true,minify:true,format:'esm',target:['es2022'],outfile:'dist/chess/profile.js',legalComments:'none'})
 await build({entryPoints:['src/leaderboard.ts'],bundle:true,minify:true,format:'esm',target:['es2022'],outfile:'dist/chess/leaderboard.js',legalComments:'none'})
 await build({entryPoints: ['server/index.ts'], bundle: true, platform: 'node', format: 'esm',
-  target: ['node24'], outfile: 'dist/server.mjs', legalComments: 'none'})
+  banner:{js:"import {createRequire as createNodeRequire} from 'node:module';const require=createNodeRequire(import.meta.url);"},target: ['node24'], outfile: 'dist/server.mjs', legalComments: 'none'})
 await build({entryPoints:['server/ai-worker.ts'],bundle:true,platform:'node',format:'esm',target:['node24'],outfile:'dist/ai-worker.mjs',legalComments:'none'})
 await build({entryPoints: ['server/storage-admin.ts'], bundle: true, platform: 'node', format: 'esm',
   target: ['node24'], outfile: 'dist/storage-admin.mjs', legalComments: 'none'})

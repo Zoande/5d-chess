@@ -10,7 +10,7 @@ import {CityGuest} from './guest.ts'
 
 export type Letter=(g:T.Object3D,title:string,size:[number,number],position:number[],color?:string,backdrop?:string)=>T.Object3D
 const chalk=0xe1d7c4,oak=0x825d43,walnut=0x4f3830,brass=0xc5a66b,iron=0x334345,porcelain=0xe8e6da
-const windowMaterial=new T.MeshStandardMaterial({color:0xb0d9e1,transparent:true,opacity:.14,depthWrite:false,side:T.DoubleSide,roughness:.2})
+const windowMaterial=new T.MeshStandardMaterial({forceSinglePass:true,color:0xb0d9e1,transparent:true,opacity:.14,depthWrite:false,side:T.DoubleSide,roughness:.2})
 const architecture=new T.MeshStandardMaterial({roughness:.77,flatShading:true})
 const luminaire=new T.MeshBasicMaterial({color:0xffe5b4})
 const cube=new T.BoxGeometry(1,1,1),windowQuad=new T.PlaneGeometry(1,1)
@@ -239,6 +239,7 @@ export function residentialArt(parent:T.Object3D,letter:Letter){
         if(a.kind==='bath')for(let x=a.rect.l+.25;x<a.rect.r;x+=.26)box(x,.027,(a.rect.b+a.rect.f)/2,.009,.003,a.rect.f-a.rect.b,0xbfd0c3)
       }
       for(const w of f.walls){
+        const glazing:T.Matrix4[]=[]
         const center=w.axis==='x'?w.x:w.z,ends=[...w.openings].sort((a,b)=>a.at-b.at)
         let start=center-w.length/2
         const segment=(l:number,r:number,low:number,upper:number,color:number,thickness=w.outer?.23:.16)=>{
@@ -260,10 +261,10 @@ export function residentialArt(parent:T.Object3D,letter:Letter){
             segment(l-.055,r+.055,sill-.03,sill+.065,tone.trim,.37)
             segment(cut.at-.022,cut.at+.022,sill,top,tone.trim,.095)
             segment(l,r,1.43,1.47,tone.trim,.096)
-            const pane=new T.Mesh(windowQuad,windowMaterial)
-            pane.rotation.y=w.axis==='x'?0:Math.PI/2
-            pane.position.set(w.axis==='x'?cut.at:w.x,(sill+top)/2,w.axis==='x'?w.z:cut.at)
-            pane.scale.set(cut.width,top-sill,1);g.add(pane)
+            stamp.rotation.set(0,w.axis==='x'?0:Math.PI/2,0)
+            stamp.position.set(w.axis==='x'?cut.at:w.x,(sill+top)/2,w.axis==='x'?w.z:cut.at)
+            stamp.scale.set(cut.width,top-sill,1);stamp.updateMatrix()
+            glazing.push(stamp.matrix.clone())
             if(w.axis==='x'&&w.z<0&&level>0||b.block===undefined&&w.axis==='x'&&w.z<0){
               box(cut.at,2.44,w.z+.137,cut.width+.19,.033,.048,brass)
               for(const side of [-1,1])for(let i=0;i<4;i++)box(cut.at+side*(cut.width*.48-i*.046),1.64,w.z+.165+Math.sin(i*2)*.027,.057,1.5,.047,tone.fabric)
@@ -272,6 +273,12 @@ export function residentialArt(parent:T.Object3D,letter:Letter){
           }
           segment(start,l,.026,.133,w.outer?tone.trim:oak,w.outer?.26:.20)
           start=r
+        }
+        // Every pane here is flat, coplanar and disjoint. Depth-sort each wall as a unit.
+        if(glazing.length){
+          const facade=new T.InstancedMesh(windowQuad,windowMaterial,glazing.length)
+          glazing.forEach((matrix,i)=>facade.setMatrixAt(i,matrix))
+          facade.computeBoundingSphere();g.add(facade)
         }
         segment(start,center+w.length/2,0,STOREY,finish)
         segment(start,center+w.length/2,.026,.133,w.outer?tone.trim:oak,w.outer?.26:.20)

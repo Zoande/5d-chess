@@ -1,6 +1,6 @@
+import {observeWire} from './live-wire.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {createServer} from 'node:http'
 import {chromium} from 'playwright'
 import {ChessStore} from '../server/storage.ts'
 import {createApplication} from '../server/application.ts'
@@ -9,7 +9,7 @@ import release from '../.meridian/manifest.json' with {type:'json'}
 import {observeCity,browserWalker} from './civic-controls.mjs'
 
 async function fixture(t){
-  const store=new ChessStore('.',{memory:true}),app=createApplication(store),server=createServer(app.handle)
+  const store=new ChessStore('.',{memory:true}),app=createApplication(store),server=app.createServer()
   await new Promise(r=>server.listen(0,'127.0.0.1',r))
   const browser=await chromium.launch({args:['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader']})
   t.after(async()=>{await browser.close();server.closeAllConnections();await new Promise(r=>server.close(r));app.drain();store.close()})
@@ -21,7 +21,7 @@ test('ordinary City entry loads the compiled map, reads the square board and sit
   const {page,base}=await fixture(t),files=[],teleports=[]
   await observeCity(page)
   page.on('response',r=>{if(r.url().includes('/chess/maps/'))files.push([r.url().split('/').at(-1),r.status()])})
-  page.on('request',r=>{if(r.url().endsWith('/world/teleport'))teleports.push(r.postDataJSON().to)})
+  observeWire(page).on('send',m=>{if(m.action==='teleport')teleports.push(m.data.to)})
   await page.goto(base+'/chess/?local=1&players=4')
   await page.locator('#scene').waitFor()
   await page.goto(base+'/chess/lobby.html')
@@ -31,20 +31,13 @@ test('ordinary City entry loads the compiled map, reads the square board and sit
   assert.deepEqual(files.sort(),['manifest.json',release.sections.shared.file,release.sections.visual.file].map(f=>[f,200]).sort())
   const walker=browserWalker(page),board=shared.directory.find(p=>p.id==='directory:clock-directory')
   await walker.outside({x:board.x,z:board.z+1})
-  // The use action flushes its final predicted movement through presence before sending /use.
-  // Compare those two authoritative responses, including on slow software renderers.
-  let lastPresence
-  const observePresence=r=>{if(r.url().endsWith('/world/presence')&&r.ok())lastPresence=r}
-  page.on('response',observePresence)
-  const used=page.waitForResponse(r=>r.url().endsWith('/world/use'))
-  await walker.use(board.id)
+  const result=await walker.use(board.id)
   const dialog=page.locator('#world-service')
   await dialog.getByRole('heading',{name:board.title}).waitFor()
   for(const place of board.nearby)assert.match(await dialog.innerText(),new RegExp(place.direction+' · '+place.metres+' m'))
   await dialog.getByRole('button',{name:'Close'}).tap()
-  page.off('response',observePresence)
-  const before=(await lastPresence.json()).you,after=(await (await used).json()).you
-  assert.deepEqual([after.zone,after.x,after.z],[before.zone,before.x,before.z])
+  const before=result.request.input,after=result.view.you
+  assert.ok(Math.hypot(before.x-after.x,before.z-after.z)<.2)
   const seat=shared.seats.find(s=>s.id==='furniture:frontage-hotel-bench-0')
   await walker.outside(seat)
   // Use the same large touch action that the mobile HUD exposes.

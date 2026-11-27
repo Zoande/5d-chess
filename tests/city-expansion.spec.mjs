@@ -2,14 +2,13 @@ import {observeCity,browserWalker} from './civic-controls.mjs'
 import {at,insideDoor,entrances} from '../src/world/civic-venues.ts'
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {createServer} from 'node:http'
 import {chromium} from 'playwright'
 import {ChessStore} from '../server/storage.ts'
 import {createApplication} from '../server/application.ts'
 import {book} from '../server/custody.ts'
 
 test('play the expansion from signup through the 3D city hotbar', {timeout:240000},async()=>{
-  const store=new ChessStore('.',{memory:true}),app=createApplication(store),server=createServer(app.handle)
+  const store=new ChessStore('.',{memory:true}),app=createApplication(store),server=app.createServer()
   await new Promise(r=>server.listen(0,'127.0.0.1',r))
   let browser
   try{

@@ -97,3 +97,5 @@ The venue walkthrough lives in `tests/civic-venues.spec.mjs`. It uses the City l
 A second disposable SQLite fixture created with main at `6b42ee8` retained its existing login session, Inmate 01 alias, cell-relative position and facing, permanent moderation-only sentence, fitted jigsaw piece and 482.125 banked coins after migration and a second restart.
 
 The [Civic Avenue screenshot review](review/civic-avenue/README.md) compares the running bank, police station, jail and arcade shop, as they appeared before the city became 3D-only.
+
+The [city runtime guide](engine/city-runtime.md) maps the source tree, describes multiplayer timing and reconnect behavior, and explains the in-game diagnostics.

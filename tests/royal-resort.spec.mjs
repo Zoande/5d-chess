@@ -1,6 +1,6 @@
+import {observeWire} from './live-wire.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {createServer} from 'node:http'
 import {chromium} from 'playwright'
 import {ChessStore} from '../server/storage.ts'
 import {pack,carry} from '../server/city-inventory.ts'
@@ -8,7 +8,7 @@ import {createApplication} from '../server/application.ts'
 import {site} from '../src/world/model.ts'
 
 test('a guest books at reception, rides the lift and plays the arcade through the city UI',{timeout:180_000},async()=>{
-  const db=new ChessStore('.',{memory:true}),app=createApplication(db),server=createServer(app.handle)
+  const db=new ChessStore('.',{memory:true}),app=createApplication(db),server=app.createServer()
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
   const base='http://127.0.0.1:'+server.address().port
   let browser
@@ -34,7 +34,7 @@ test('a guest books at reception, rides the lift and plays the arcade through th
     }
     const errors=[]
     async function visit(label){
-      const page=await context.newPage()
+      const page=await context.newPage();observeWire(page)
       page.on('pageerror',e=>errors.push(e.message))
       await page.goto(base+'/chess/world.html')
       await page.getByRole('button',{name:label}).click({timeout:45000})
@@ -86,7 +86,7 @@ test('two browser guests draw and check through the same poker hand',{timeout:90
   const clock=Date.now
   let elapsed=0
   Date.now=()=>clock()+elapsed
-  const db=new ChessStore('.',{memory:true}),app=createApplication(db),server=createServer(app.handle)
+  const db=new ChessStore('.',{memory:true}),app=createApplication(db),server=app.createServer()
   await new Promise(r=>server.listen(0,'127.0.0.1',r))
   let browser
   try{
@@ -109,7 +109,7 @@ test('two browser guests draw and check through the same poker hand',{timeout:90
       await act('teleport',{to:'casino'});await move(2.9,5.85)
       await act('use',{target:'resort:lift'});await act('resort-floor',{floor:'hotel:2'})
       await move(0,5.85);await move(0,-18);await move(-3.2,-18);await move(-4.65,-15.1)
-      const page=await context.newPage()
+      const page=await context.newPage();observeWire(page)
       await page.goto(base+'/chess/world.html')
       await page.getByRole('button',{name:/Five-card draw/}).click()
       return page
@@ -125,7 +125,7 @@ test('two browser guests draw and check through the same poker hand',{timeout:90
     await a.getByRole('button',{name:'Finish draw'}).click()
     await a.getByText('Waiting for the other player.').waitFor()
     // The peer must receive the newer table revision before submitting its draw.
-    await b.waitForResponse(r=>r.url().endsWith('/world/presence')&&r.ok())
+    await new Promise(r=>observeWire(b).once('frame',r))
     await b.getByRole('button',{name:'Finish draw'}).click()
     await a.getByRole('button',{name:'Check',exact:true}).click()
     await b.getByRole('button',{name:'Check',exact:true}).click()
