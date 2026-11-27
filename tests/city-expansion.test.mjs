@@ -1,3 +1,4 @@
+import {companies} from '../server/corporate.ts'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {createServer} from 'node:http'
@@ -421,4 +422,50 @@ test('the server resolves two-player hits through an open doorway and rejects a 
   assert.equal(v.arcade.contacts.find(c=>c.id===id)?.inSight,false)
   assert.equal((await f.request(a,'world/arcade',{operation:'fire',target:id,slot:0,sequence:v.arcade.sequence})).status,409)
   assert.equal((await f.world(b,'presence')).arcade.hp,65)
+})
+
+test('the booking officer releases the quoted sentence once and sends all bail to PRI',async t=>{
+  const f=await fixture(t),payer='Bail Visitor',guest='Puzzle Guest',other='Timed Guest',held='Locked Guest'
+  for(const name of [payer,guest,other,held])await f.signup(name)
+  const when=Date.now()
+  f.store.transaction(u=>{
+    u.users.get(payer).wallet.coins=2000
+    pack(u.users.get(other)).wantedReason='Firing a weapon in the city'
+    book(u,guest,5,when,true);book(u,other,4,when);book(u,held,5,when,true,true)
+  })
+  const route=f.route(payer)
+  await route.enter('station')
+  const pay=id=>f.request(payer,'world/bail',{scene:true,booking:id,price:0})
+  assert.equal((await pay('forged')).status,403)
+  await route.step(-4.45,.68);await route.use('desk');assert.equal((await pay('forged')).status,403)
+  await route.step(4.65,.68)
+  const rows=(await route.use('booking')).arcade.bailRegister
+  assert.deepEqual(rows.map(r=>r.price),[1000,125,null])
+  assert.match(rows[1].reason,/Firing a weapon.*4-star/)
+  for(const n of [guest,other,held])assert.ok(!JSON.stringify(rows).includes(n))
+  assert.equal((await pay(rows[2].id)).status,403)
+  assert.equal((await f.request(guest,'world/bail',{scene:true,booking:rows[0].id})).status,423)
+  f.store.transaction(u=>{u.users.get(payer).wallet.coins=999})
+  assert.equal((await pay(rows[0].id)).status,409)
+  assert.ok((await f.ok(guest,'custody')).custody)
+  f.store.transaction(u=>{u.users.get(payer).wallet.coins=2000})
+  assert.deepEqual((await Promise.all([pay(rows[0].id),pay(rows[0].id)])).map(r=>r.status).sort(),[200,409])
+  assert.equal((await f.ok(guest,'custody')).custody,null)
+  assert.equal((await pay(rows[1].id)).value.coins,875)
+  assert.equal((await f.ok(other,'custody')).custody,null)
+  assert.ok((await f.ok(held,'custody')).custody.noRelease)
+  const ledger=f.store.transaction(u=>companies(u).PRI.ledger)
+  assert.deepEqual(ledger.filter(r=>r.kind==='Bail income').map(r=>r.units),[1000*10000,125*10000])
+  const report=await f.ok(payer,'stocks/floor?symbol=PRI')
+  assert.ok(report.profit>=1125&&report.cash>=1125)
+  await f.restart()
+  assert.equal((await f.ok(guest,'custody')).custody,null)
+  f.store.transaction(u=>book(u,guest,1,Date.now()))
+  await f.world(payer,'teleport',{to:'prison'})
+  const again=f.route(payer);await again.read();await again.step(4.65,.68)
+  const fresh=(await again.use('booking')).arcade.bailRegister.find(r=>r.name===rows[0].name)
+  assert.equal(fresh.price,1);assert.notEqual(fresh.id,rows[0].id)
+  assert.equal((await pay(rows[0].id)).status,409)
+  f.tick(120001);assert.equal((await pay(fresh.id)).status,409)
+  assert.equal(JSON.parse(f.store.accountJson(payer)).wallet.coins,875)
 })

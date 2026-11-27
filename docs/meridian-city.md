@@ -97,3 +97,15 @@ The venue walkthrough lives in `tests/civic-venues.spec.mjs`. It uses the City l
 A second disposable SQLite fixture created with main at `6b42ee8` retained its existing login session, Inmate 01 alias, cell-relative position and facing, permanent moderation-only sentence, fitted jigsaw piece and 482.125 banked coins after migration and a second restart.
 
 The [Civic Avenue screenshot review](review/civic-avenue/README.md) compares the running bank, police station, jail and arcade shop, as they appeared before the city became 3D-only.
+
+## Reading the exchange floor displays
+
+On the CAS, BNK, LOT and PRI floors, the share register and financial report face each other across the room. Walk up and use either display for a larger view. The register lists each holder, unsold inventory and your percentage of all issued shares.
+
+CAS, BNK and PRI show today's net operating profit since Amsterdam midnight. LOT shows the current weekly draw's 1% share of ticket sales. The report shows reserves and estimates the total and your personal gross dividend using current earnings and holdings. Unsold shares receive no payout. CAS and BNK apply their dividend policies and cash limits, and PRI first deducts the inmate's debt obligations. The next scheduled distribution and the last total paid are shown in the report.
+
+## Posting bail
+
+Use the booking officer at Meridian Police to see inmate aliases, booking reasons and bail. The front desk gives directions. Paying from your banked coins releases the person immediately, including while they are offline. Timed bail uses the original sentence, rounded up to a whole coin. The five prices are 1, 4, 21, 125 and 500 coins. A releasable jigsaw sentence costs 1,000 coins. A moderation-only sentence has no bail option.
+
+PRI records the entire bail payment as profit for the day and adds it to its next shareholder distribution. Earned custody income and any outstanding inmate loans follow the usual early-release rules. Older bookings show a generic reason when no original charge was recorded. Their prices use the saved custody term or, when no start is available, the time remaining at upgrade.
